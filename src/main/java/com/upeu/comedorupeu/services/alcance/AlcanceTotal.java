@@ -1,0 +1,51 @@
+package com.upeu.comedorupeu.services.alcance;
+
+import com.upeu.comedorupeu.models.Ausencia;
+import com.upeu.comedorupeu.models.Residente;
+import com.upeu.comedorupeu.models.SolicitudExtemporanea;
+import com.upeu.comedorupeu.repository.AusenciaRepository;
+import com.upeu.comedorupeu.repository.ResidenteRepository;
+import com.upeu.comedorupeu.repository.SolicitudExtemporaneaRepository;
+
+import java.time.LocalDate;
+import java.util.List;
+
+public class AlcanceTotal implements AlcanceDatos {
+
+    private final ResidenteRepository residenteRepo;
+    private final SolicitudExtemporaneaRepository solicitudRepo;
+    private final AusenciaRepository ausenciaRepo;
+
+    public AlcanceTotal(ResidenteRepository residenteRepo,
+                        SolicitudExtemporaneaRepository solicitudRepo,
+                        AusenciaRepository ausenciaRepo) {
+        this.residenteRepo = residenteRepo;
+        this.solicitudRepo = solicitudRepo;
+        this.ausenciaRepo = ausenciaRepo;
+    }
+
+    @Override
+    public String residenciaGenero() {
+        return null;
+    }
+
+    @Override
+    public List<Residente> residentesActivos() {
+        return residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO");
+    }
+
+    @Override
+    public List<SolicitudExtemporanea> reservas(LocalDate desde, LocalDate hasta) {
+        return solicitudRepo.findByFechaBetweenOrderByFechaAscTipoComidaAsc(desde, hasta);
+    }
+
+    @Override
+    public List<Ausencia> justificaciones(LocalDate desde, LocalDate hasta) {
+        return ausenciaRepo.findByFechaInicioLessThanEqualAndFechaFinGreaterThanEqualOrderByFechaInicioAsc(hasta, desde);
+    }
+
+    @Override
+    public boolean alcanza(Residente residente) {
+        return residente != null;
+    }
+}

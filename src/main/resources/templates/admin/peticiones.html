@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Admin: Incidencias')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('peticiones')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Administrador — Incidencias</span>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="card-panel">
+            <span class="titulo-seccion">Incidencias y Avisos</span>
+
+            <div class="d-flex gap-2 mb-2 flex-wrap">
+                <a class="tab-seccion" th:classappend="${filtro == 'TODAS'} ? 'activa'"
+                   th:href="@{/admin/peticiones(filtro='TODAS', desde=${desde}, hasta=${hasta}, orden=${orden})}"
+                   title="Ver todas las peticiones">
+                    <i class="fa-solid fa-inbox"></i>Todas
+                </a>
+                <a class="tab-seccion" th:classappend="${filtro == 'ALTERACION'} ? 'activa'"
+                   th:href="@{/admin/peticiones(filtro='ALTERACION', desde=${desde}, hasta=${hasta}, orden=${orden})}"
+                   title="Solo raciones alteradas">
+                    <i class="fa-solid fa-triangle-exclamation"></i>Raciones alteradas
+                </a>
+                <a class="tab-seccion" th:classappend="${filtro == 'GENERAL'} ? 'activa'"
+                   th:href="@{/admin/peticiones(filtro='GENERAL', desde=${desde}, hasta=${hasta}, orden=${orden})}"
+                   title="Solo reportes de cajeros">
+                    <i class="fa-solid fa-cash-register"></i>Reportes de cajeros
+                </a>
+                <a class="tab-seccion" th:classappend="${filtro == 'PRECEPTOR'} ? 'activa'"
+                   th:href="@{/admin/peticiones(filtro='PRECEPTOR', desde=${desde}, hasta=${hasta}, orden=${orden})}"
+                   title="Solo avisos de preceptores">
+                    <i class="fa-solid fa-user-tie"></i>Avisos de preceptores
+                </a>
+
+                <a class="tab-seccion" th:classappend="${filtro == 'RESERVA_ALTERADA'} ? 'activa'"
+                   th:href="@{/admin/peticiones(filtro='RESERVA_ALTERADA', desde=${desde}, hasta=${hasta}, orden=${orden})}"
+                   title="Solo reservas alteradas (entregas anuladas por suplantación)">
+                    <i class="fa-solid fa-utensils"></i>Reservas alteradas
+                </a>
+
+                <a class="tab-seccion ms-auto"
+                   th:href="@{/admin/peticiones(filtro=${filtro}, desde=${desde}, hasta=${hasta}, orden=${orden == 'RECIENTES' ? 'ANTIGUOS' : 'RECIENTES'})}"
+                   th:title="${orden == 'RECIENTES'} ? 'Mostrando las más recientes primero (clic para invertir)' : 'Mostrando las más antiguas primero (clic para invertir)'">
+                    <i th:class="${orden == 'RECIENTES'} ? 'fa-solid fa-arrow-down' : 'fa-solid fa-arrow-up'"></i>
+                    <span th:text="${orden == 'RECIENTES'} ? 'Recientes primero' : 'Antiguas primero'">Recientes primero</span>
+                </a>
+            </div>
+
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/peticiones', 'desde', 'hasta', '&filtro=' + ${filtro} + '&orden=' + ${orden})}"></div>
+
+            <div class="d-flex justify-content-end gap-2 mb-3 no-print">
+                <button type="button" class="btn btn-success btn-sm btn-exportar-rango" style="font-size:0.76rem;"
+                        data-titulo="Exportar incidencias a Excel" data-ruta="/admin/peticiones/exportar"
+                        th:attr="data-extra='&filtro=' + ${filtro} + '&orden=' + ${orden}"
+                        title="Elige un rango de fechas y descarga el Excel">
+                    <i class="fa-solid fa-file-excel me-1"></i>Excel
+                </button>
+                <button type="button" class="btn btn-primary btn-sm btn-exportar-rango" style="font-size:0.76rem;"
+                        data-titulo="Exportar incidencias a PDF" data-ruta="/admin/peticiones" data-imprimir="1"
+                        th:attr="data-extra='&filtro=' + ${filtro} + '&orden=' + ${orden}"
+                        title="Elige un rango de fechas e imprime o guarda en PDF">
+                    <i class="fa-solid fa-file-pdf me-1"></i>PDF
+                </button>
+            </div>
+
+            <div th:each="i : ${incidencias}" class="mb-2 rounded"
+                 th:with="esAlteracion=${i.tipo == 'ALTERACION'}, esPreceptor=${i.tipo == 'PRECEPTOR'}, esReservaAlt=${i.tipo == 'RESERVA_ALTERADA'}"
+                 th:style="'border:1px solid #e3e9ee; border-left:5px solid '
+                           + (${esAlteracion} ? '#e74c3c' : (${esPreceptor} ? '#8e44ad' : (${esReservaAlt} ? '#e67e22' : '#2980b9'))) + ';'
+                           + (${i.atendida != null && i.atendida} ? ' opacity:0.55;' : '')">
+                <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap p-2">
+
+                    <div class="d-flex align-items-center gap-2" style="min-width:230px;">
+                        <div th:style="'width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:'
+                                       + (${esAlteracion} ? '#fdedec' : (${esPreceptor} ? '#f4ecf7' : (${esReservaAlt} ? '#fdf6ec' : '#eaf3fb'))) + ';'">
+                            <i th:class="${esAlteracion} ? 'fa-solid fa-triangle-exclamation' : (${esPreceptor} ? 'fa-solid fa-user-tie' : (${esReservaAlt} ? 'fa-solid fa-utensils' : 'fa-solid fa-cash-register'))"
+                               th:style="'font-size:0.85rem; color:' + (${esAlteracion} ? '#c0392b' : (${esPreceptor} ? '#8e44ad' : (${esReservaAlt} ? '#b9770e' : '#21618c'))) + ';'"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size:0.84rem; color:#2c3e50;"
+                                    th:text="${i.usuario != null} ? ${i.usuario.nombreCompleto} : 'Sistema'">Carlos Mamani</strong>
+                            <div style="font-size:0.68rem; color:#8a97a3;">
+                                <span th:text="${esAlteracion} ? 'Cajero · Ración alterada' : (${esPreceptor} ? 'Preceptor · Aviso directo' : (${esReservaAlt} ? 'Cajero · Reserva alterada' : 'Cajero · Reporte'))">Cajero · Reporte</span>
+                                <span th:if="${i.punto != null}" th:text="' · ' + ${i.punto.nombre}"> · Entrada A</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-end" style="font-size:0.7rem; color:#8a97a3; min-width:110px;">
+                        <div><i class="fa-regular fa-calendar me-1"></i><span th:text="${#temporals.format(i.fechaHora, 'dd/MM/yyyy')}">02/07/2026</span></div>
+                        <div><i class="fa-regular fa-clock me-1"></i><span th:text="${#temporals.format(i.fechaHora, 'HH:mm')}">12:30</span></div>
+                        <span class="badge-estado bg-permitido mt-1" th:if="${i.atendida != null && i.atendida}">Atendida</span>
+                        <span class="badge-estado bg-pendiente mt-1" th:if="${i.atendida == null || !i.atendida}">Pendiente</span>
+                    </div>
+                </div>
+
+                <div class="px-2 pb-2">
+                    <div class="p-2 rounded" style="background:#f7f9fb; font-size:0.8rem; color:#5d6d7b; white-space:pre-wrap;"
+                         th:text="${i.descripcion}">Descripción de la incidencia...</div>
+                    <div class="d-flex gap-1 justify-content-end mt-2">
+                        <form th:if="${i.atendida == null || !i.atendida}"
+                              th:action="@{'/admin/peticiones/' + ${i.idIncidencia} + '/revisar'}" method="post" style="margin:0;">
+                            <button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;"
+                                    title="Marcar esta petición como revisada">
+                                <i class="fa-solid fa-check me-1"></i>Revisada
+                            </button>
+                        </form>
+                        <form th:action="@{'/admin/peticiones/' + ${i.idIncidencia} + '/eliminar'}" method="post" style="margin:0;"
+                              data-titulo="Eliminar petición"
+                              data-confirmar="Se borrará del historial de peticiones. Esta acción no se puede deshacer."
+                              data-boton="Sí, eliminar">
+                            <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;"
+                                    title="Eliminar del historial">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${#lists.isEmpty(incidencias)}" class="text-center text-muted py-4" style="font-size:0.82rem;">
+                No hay peticiones con este filtro.
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,47 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Seguridad: el .env guarda las credenciales REALES del servidor
+### y JAMÁS se sube al repositorio (ver las instrucciones del README) ###
+.env
+
+### Datos en tiempo de ejecución (NO deben subirse al repositorio) ###
+# Fotos subidas de los residentes: son datos, no código; la carpeta se
+# crea sola al usar el sistema (ImagenService usa Files.createDirectories)
+uploads/
+# Registros/logs de la aplicación
+*.log
+# Copia de la base de datos (respaldar-datos.bat): son DATOS, no código.
+# Viaja en el ZIP cuando compartes la carpeta, pero JAMÁS a GitHub.
+copia-de-datos/

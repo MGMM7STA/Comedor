@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Reportes: Vista General')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('reportes')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Reportes — Vista General del Comedor</span>
+
+        <a href="/reportes/individual" class="btn btn-light btn-sm-flat no-print"
+           title="Ir a la búsqueda detallada de un residente">
+            <i class="fa-solid fa-magnifying-glass me-1"></i>Buscar residente
+        </a>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="d-flex gap-2 mb-3 flex-wrap no-print">
+            <a class="tab-seccion tab-grande" th:classappend="${seccion == 'NORMAL'} ? 'activa'"
+               title="Asistencia a los turnos del comedor"
+               th:href="@{/reportes(seccion='NORMAL', fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, codigo=${codigo})}">
+                <i class="fa-solid fa-utensils"></i>Normal
+            </a>
+            <a class="tab-seccion tab-grande" th:classappend="${seccion == 'RESERVAS'} ? 'activa'"
+               title="Raciones reservadas por llegada tardía"
+               th:href="@{/reportes(seccion='RESERVAS', fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, codigo=${codigo})}">
+                <i class="fa-solid fa-plate-wheat"></i>Reservas
+            </a>
+            <a class="tab-seccion tab-grande" th:classappend="${seccion == 'JUSTIFICACIONES'} ? 'activa'"
+               title="Ausencias justificadas por preceptoría"
+               th:href="@{/reportes(seccion='JUSTIFICACIONES', fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, codigo=${codigo})}">
+                <i class="fa-solid fa-calendar-check"></i>Justificaciones
+            </a>
+            <a class="tab-seccion tab-grande" th:classappend="${seccion == 'EVENTOS'} ? 'activa'"
+               title="Pase de lista de los eventos aprobados"
+               th:href="@{/reportes(seccion='EVENTOS', fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, codigo=${codigo})}">
+                <i class="fa-solid fa-medal"></i>Eventos
+            </a>
+
+            <div class="ms-auto d-flex gap-2 align-items-center">
+                <span style="font-size:0.72rem; color:#8a97a3;">Vista:</span>
+                <span class="tab-seccion tab-vista activa" title="Vista minimalista para lectura veloz">
+                    <i class="fa-solid fa-list"></i>Simple
+                </span>
+                <a class="tab-seccion tab-vista"
+                   title="Abre la pantalla detallada con todas las columnas y todos los filtros"
+                   th:href="@{/reportes/completo(seccion=${seccion}, fecha=${fecha}, fechaHasta=${fechaHasta}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, limite=${limite}, codigo=${codigo})}">
+                    <i class="fa-solid fa-table-list"></i>Completo
+                </a>
+            </div>
+        </div>
+
+        <div class="card-panel mb-3 no-print">
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/reportes', 'fecha', 'fechaHasta',
+                 '&seccion=' + ${seccion} + '&turno=' + ${turno} + '&limite=' + ${limite} + '&orden=' + ${orden}
+                 + '&punto=' + (${punto} ?: '') + '&pabellon=' + (${pabellon} ?: 'TODOS') + '&codigo=' + (${codigo} ?: ''))}"></div>
+        </div>
+
+        <div class="card-panel mb-3 no-print">
+            <form th:action="@{/reportes}" method="get" id="formFiltros" class="d-flex gap-3 align-items-end flex-wrap">
+                <input type="hidden" name="seccion" th:value="${seccion}">
+                <input type="hidden" name="limite" id="campoLimite" th:value="${limite}">
+
+                <input type="hidden" name="fecha" th:value="${fecha}">
+                <input type="hidden" name="fechaHasta" th:value="${fechaHasta}">
+
+                <div th:if="${seccion == 'NORMAL'}">
+                    <div class="lbl">Turno</div>
+                    <select name="turno" class="form-select" style="font-size:0.85rem; min-width:140px;">
+                        <option value="TODOS" th:selected="${turno == 'TODOS'}">Todos (día completo)</option>
+                        <option value="DESAYUNO" th:selected="${turno == 'DESAYUNO'}">Desayuno</option>
+                        <option value="ALMUERZO" th:selected="${turno == 'ALMUERZO'}">Almuerzo</option>
+                        <option value="CENA" th:selected="${turno == 'CENA'}">Cena</option>
+                    </select>
+                </div>
+                <div th:if="${seccion == 'NORMAL'}">
+                    <div class="lbl">Punto</div>
+                    <select name="punto" class="form-select" style="font-size:0.85rem; min-width:110px;">
+                        <option value="">Todos</option>
+                        <option th:each="p : ${puntos}" th:value="${p.idPunto}" th:selected="${punto == p.idPunto}" th:text="${p.nombre}">Entrada A</option>
+
+                        <option value="-1" th:selected="${punto != null && punto == -1}"
+                                title="Historial de los puntos de acceso eliminados">[ Eliminados ]</option>
+                    </select>
+                </div>
+
+                <div th:if="${!pabellonFijo}">
+                    <div class="lbl">Residencia de Género</div>
+                    <select name="pabellon" class="form-select" style="font-size:0.85rem; min-width:110px;">
+                        <option value="TODOS" th:selected="${pabellon == 'TODOS'}">Todas</option>
+                        <option value="Varones" th:selected="${pabellon == 'Varones'}">Varones</option>
+                        <option value="Mujeres" th:selected="${pabellon == 'Mujeres'}">Mujeres</option>
+                    </select>
+                </div>
+                <div th:if="${pabellonFijo}">
+                    <div class="lbl">Residencia de Género</div>
+                    <input type="text" class="form-control" th:value="${pabellon}" disabled
+                           style="font-size:0.85rem; background:#f2f5f8; max-width:110px;"
+                           title="Como preceptor solo ves tu residencia de género">
+                </div>
+
+                <div>
+                    <div class="lbl">Buscar por código</div>
+                    <input type="text" name="codigo" class="form-control" style="font-size:0.85rem; min-width:180px;"
+                           th:value="${codigo}" placeholder="Código o nombre del residente"
+                           title="Filtra registros Y estadísticas por código o nombre del residente">
+                </div>
+
+                <button type="submit" class="btn btn-navy btn-sm-flat" title="Aplicar los filtros seleccionados">
+                    <i class="fa-solid fa-filter me-1"></i>Filtrar
+                </button>
+                <a href="/reportes" class="btn btn-light border btn-sm-flat" title="Vuelve a los filtros por defecto">
+                    <i class="fa-solid fa-eraser me-1"></i>Limpiar
+                </a>
+
+                <div class="d-flex gap-2 flex-wrap w-100 pt-2 mt-1 border-top">
+
+                    <button th:if="${seccion == 'NORMAL'}" type="button" class="btn btn-sm-flat"
+                            style="background:#27ae60; color:#fff;"
+                            onclick="document.getElementById('modalEstadisticas').style.display='flex'"
+                            title="Ver los contadores de permitidos, ausentes y justificados">
+                        📊 Ver Estadísticas
+                    </button>
+                    <button th:if="${seccion == 'NORMAL'}" type="submit" name="verHoras" value="1"
+                            class="btn btn-sm-flat" style="background:#8e44ad; color:#fff;"
+                            title="Gráfico de atenciones por franja horaria (usa la fecha del filtro)">
+                        <i class="fa-solid fa-chart-simple me-1"></i>Horas pico
+                    </button>
+
+                    <button type="button" class="btn btn-success btn-sm-flat btn-exportar-rango"
+                            data-titulo="Exportar reporte a Excel" data-ruta="/reportes/exportar"
+                            data-pdesde="fecha" data-phasta="fechaHasta"
+                            th:attr="data-extra='&seccion=' + ${seccion} + '&turno=' + ${turno} + '&limite=' + ${limite}
+                                     + '&orden=' + ${orden} + '&punto=' + (${punto} ?: '')
+                                     + '&pabellon=' + (${pabellon} ?: 'TODOS') + '&codigo=' + (${codigo} ?: '')"
+                            title="Elige un rango de fechas y descarga el Excel de la pestaña actual">
+                        <i class="fa-solid fa-file-excel me-1"></i>Exportar filtrado
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm-flat btn-exportar-rango"
+                            data-titulo="Exportar reporte a PDF" data-ruta="/reportes" data-imprimir="1"
+                            data-pdesde="fecha" data-phasta="fechaHasta"
+                            th:attr="data-extra='&seccion=' + ${seccion} + '&turno=' + ${turno} + '&limite=' + ${limite}
+                                     + '&orden=' + ${orden} + '&punto=' + (${punto} ?: '')
+                                     + '&pabellon=' + (${pabellon} ?: 'TODOS') + '&codigo=' + (${codigo} ?: '')"
+                            title="Elige un rango de fechas e imprime o guarda en PDF">
+                        <i class="fa-solid fa-file-pdf me-1"></i>PDF
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="modalEstadisticas" class="modal-sistema" style="display:none; z-index:3000;"
+             onclick="if (event.target === this) this.style.display='none'">
+            <div class="modal-caja">
+                <div class="modal-titulo">
+                    <i class="fa-solid fa-chart-column" style="color:#58d68d;"></i>
+                    Estadísticas del período
+                </div>
+                <div class="modal-texto">Conteo por comida del rango y filtros aplicados.</div>
+                <div class="row g-3 mb-3">
+                    <div class="col">
+                        <div class="stat-box bg-white">
+                            <div class="stat-num" style="color:#27ae60;" th:text="${rep.permitidos}">142</div>
+                            <div class="stat-lbl">Permitidos</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="stat-box bg-white">
+                            <div class="stat-num" style="color:#8a97a3;" th:text="${rep.ausentes}">50</div>
+                            <div class="stat-lbl">Ausentes</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="stat-box bg-white">
+                            <div class="stat-num" style="color:#f39c12;" th:text="${rep.justificados}">12</div>
+                            <div class="stat-lbl">Justificados</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-botones">
+                    <button type="button" class="btn btn-navy btn-sm-flat"
+                            onclick="document.getElementById('modalEstadisticas').style.display='none'">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-panel mb-3" th:if="${verNormal}">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <h6 class="fw-bold mb-0" style="color:#2c3e50;">
+                    Asistencia ·
+                    <span th:text="${#temporals.format(fecha, 'dd/MM/yyyy')}">03/05/2026</span>
+                    <span th:if="${fechaHasta != null}"> – <span th:text="${#temporals.format(fechaHasta, 'dd/MM/yyyy')}">10/05</span></span> ·
+                    <span th:text="${turno == 'TODOS'} ? 'Día completo' : ${#strings.capitalize(#strings.toLowerCase(turno))}">Almuerzo</span>
+                </h6>
+
+                <div class="d-flex align-items-center gap-1 no-print">
+                    <span style="font-size:0.72rem; color:#8a97a3;">Mostrar</span>
+                    <select class="form-select form-select-sm" style="font-size:0.76rem; width:auto;"
+                            onchange="cambiarLimite(this.value)" title="Cuántos registros se muestran por página">
+                        <option value="5" th:selected="${limite == 5}">5</option>
+                        <option value="10" th:selected="${limite == 10}">10</option>
+                        <option value="15" th:selected="${limite == 15}">15</option>
+                        <option value="20" th:selected="${limite == 20}">20</option>
+                        <option value="25" th:selected="${limite == 25}">25</option>
+                        <option value="50" th:selected="${limite == 50}">50</option>
+                        <option value="0" th:selected="${limite == 0}">Todos</option>
+                    </select>
+                    <span style="font-size:0.72rem; color:#8a97a3;" class="ms-1"
+                          th:if="${limite > 0 && rep.totalMovimientos > limite}"
+                          th:text="'Página ' + (${pag} + 1) + ' · ' + ${totalMostrado} + ' de ' + ${rep.totalMovimientos}">Página 1</span>
+                </div>
+            </div>
+
+            <table class="tabla-dark">
+                <thead>
+                <tr>
+                    <th>N°</th>
+
+                    <th>
+                        <a class="link-plain" style="color:#fff;"
+                           th:href="@{/reportes(seccion=${seccion}, turno=${turno}, fecha=${fecha}, fechaHasta=${fechaHasta}, punto=${punto}, limite=${limite}, pabellon=${pabellon}, codigo=${codigo}, orden=${orden == 'RECIENTES' ? 'ANTIGUOS' : 'RECIENTES'})}"
+                           th:title="${orden == 'RECIENTES'} ? 'Ordenado: más recientes primero (clic para invertir)' : 'Ordenado: más antiguos primero (clic para invertir)'">
+                            Fecha <i th:class="${orden == 'RECIENTES'} ? 'fa-solid fa-arrow-down' : 'fa-solid fa-arrow-up'"></i>
+                        </a>
+                    </th>
+
+                    <th>Código</th>
+                    <th>Residente</th>
+                    <th class="text-center" title="Resumen del día: Desayuno · Almuerzo · Cena">Su Día (D·A·C)</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="f, it : ${rep.filas}" th:with="m=${f.marcacion}"
+                    th:style="${m.anulada != null && m.anulada} ? 'background:#fdf2f0;'">
+                    <td th:text="${(pag * (limite > 0 ? limite : 0)) + it.count}">1</td>
+                    <td th:text="${#temporals.format(m.turno.fecha, 'dd/MM/yyyy')}">03/05/2026</td>
+
+                    <td>
+                        <a class="link-plain" style="color:#2c3e50; font-weight:600;"
+                           th:href="@{/reportes/individual(codigo=${m.residente.codigoAcceso})}"
+                           title="Ver reporte completo del residente">
+                            <span th:text="${m.residente.codigoAcceso}">U-2024-10542</span>
+                        </a>
+                    </td>
+                    <td>
+                        <a class="link-plain" style="color:#2c3e50; font-weight:600;"
+                           th:href="@{/reportes/individual(codigo=${m.residente.codigoAcceso})}"
+                           title="Ver reporte completo del residente">
+                            <span th:text="${m.residente.apellido} + ', ' + ${m.residente.nombre}">Mamani, Juan</span>
+                        </a>
+                    </td>
+                    <td class="text-center text-nowrap">
+                        <span th:each="comida : ${ {f.desayuno, f.almuerzo, f.cena} }" class="badge-estado me-1"
+                              style="padding:2px 6px; font-size:0.66rem;"
+                              th:classappend="${comida == 'SI'} ? 'bg-permitido' : (${comida == 'JUST'} ? 'bg-justificado' : (${comida == 'NO'} ? 'bg-denegado' : 'bg-ausente'))">
+                            <i th:if="${comida == 'SI'}" class="fa-solid fa-check"></i>
+                            <span th:if="${comida == 'JUST'}">J</span>
+                            <i th:if="${comida == 'NO'}" class="fa-solid fa-xmark"></i>
+                            <span th:if="${comida == 'PEND' or comida == ''}">—</span>
+                        </span>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(rep.filas)}">
+                    <td colspan="5" class="text-center text-muted py-3">Sin movimientos para los filtros elegidos.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-panel mb-3" th:if="${verExtras}" style="border-left:5px solid #2980b9;">
+            <h6 class="fw-bold mb-2" style="color:#21618c;">
+                <i class="fa-solid fa-utensils me-1"></i>Raciones Reservadas
+            </h6>
+            <table class="tabla-dark">
+                <thead>
+
+                <tr><th>N°</th><th>Fecha</th><th>Residente</th><th>Código</th><th>Turno</th><th>Estado</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="s, it : ${reservasDia}">
+                    <td th:text="${it.count}">1</td>
+                    <td th:text="${#temporals.format(s.fecha, 'dd/MM/yyyy')}">02/07</td>
+                    <td th:text="${s.residente.apellido} + ', ' + ${s.residente.nombre}">Torres Cruz, Ana</td>
+                    <td th:text="${s.residente.codigoAcceso}">U-2024-10542</td>
+                    <td th:text="${#strings.capitalize(#strings.toLowerCase(s.tipoComida))}">Almuerzo</td>
+                    <td><span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
+                              th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Pendiente</span></td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(reservasDia)}">
+                    <td colspan="7" class="text-center text-muted py-3">Sin raciones reservadas en este rango.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-panel mb-3" th:if="${verJustificaciones}" style="border-left:5px solid #f39c12;">
+            <h6 class="fw-bold mb-2" style="color:#ca7f0e;">
+                <i class="fa-solid fa-calendar-xmark me-1"></i>Justificaciones de Ausencia
+            </h6>
+            <table class="tabla-dark">
+                <thead>
+
+                <tr><th>N°</th><th>Fecha</th><th>Residente</th><th>Código</th><th>Registró</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="a, it : ${justificacionesDia}">
+                    <td th:text="${it.count}">1</td>
+                    <td style="font-size:0.78rem;">
+                        <span th:text="${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')}">05/05</span>
+                        <span th:if="${!a.fechaInicio.equals(a.fechaFin)}">
+                            – <span th:text="${#temporals.format(a.fechaFin, 'dd/MM/yyyy')}">11/05</span>
+                        </span>
+                    </td>
+                    <td th:text="${a.residente.apellido} + ', ' + ${a.residente.nombre}">Flores Torres, María E.</td>
+                    <td th:text="${a.residente.codigoAcceso}">U-2024-10542</td>
+                    <td th:text="${a.usuario != null} ? ${a.usuario.nombreCompleto} : '—'">Preceptor Ríos</td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(justificacionesDia)}">
+                    <td colspan="6" class="text-center text-muted py-3">Sin justificaciones registradas en este rango.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-panel mb-3" th:if="${verEventos}" style="border-left:5px solid #e67e22;">
+            <h6 class="fw-bold mb-2" style="color:#b9770e;">
+                <i class="fa-solid fa-medal me-1"></i>Eventos · Entrega de Raciones
+            </h6>
+            <div th:each="ev : ${eventosDia}" class="mb-3">
+                <div style="font-size:0.85rem;" class="mb-1">
+                    <strong th:text="${ev['evento'].nombre}">Excursión</strong>
+                    (<span th:text="${#temporals.format(ev['evento'].fechaEvento, 'dd/MM/yyyy')}">03/07</span> · ración adicional) ·
+                    Participantes: <span th:text="${ev['participantes']}">32</span> ·
+                    Recibieron: <strong style="color:#27ae60;" th:text="${ev['entregadas']}">28</strong>
+                    <span th:if="${!ev['conPase']}" class="badge-estado bg-pendiente ms-1">El preceptor aún no pasa lista</span>
+                </div>
+                <div style="max-height:260px; overflow-y:auto;" th:if="${ev['conPase']}">
+                    <table class="tabla-dark">
+                        <thead>
+                        <tr><th>N°</th><th>Residente</th><th>Código</th><th class="text-center">¿Recibió su ración?</th></tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="fe, it : ${ev['filas']}">
+                            <td th:text="${it.count}">1</td>
+                            <td th:text="${fe['nombre']}">Mamani, Juan</td>
+                            <td th:text="${fe['codigo']}">U-2024-10542</td>
+                            <td class="text-center">
+                                <span th:if="${fe['recibido'] == null}" class="badge-estado bg-ausente" title="Sin marcar en el pase de lista">—</span>
+                                <span th:if="${fe['recibido'] != null && fe['recibido']}" class="badge-estado bg-permitido"><i class="fa-solid fa-check"></i> Sí</span>
+                                <span th:if="${fe['recibido'] != null && !fe['recibido']}" class="badge-estado bg-denegado"><i class="fa-solid fa-xmark"></i> No</span>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div th:if="${#lists.isEmpty(eventosDia)}" class="text-center text-muted py-3" style="font-size:0.8rem;">
+                Sin eventos aprobados en este rango.
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-center gap-2 mb-3 no-print" th:if="${hayAnterior || hayMas}">
+            <a th:if="${hayAnterior}" class="btn btn-light border btn-sm-flat"
+               th:href="@{/reportes(seccion=${seccion}, turno=${turno}, fecha=${fecha}, fechaHasta=${fechaHasta}, punto=${punto}, limite=${limite}, pag=${pag - 1}, pabellon=${pabellon}, orden=${orden}, codigo=${codigo})}">
+                <i class="fa-solid fa-chevron-left me-1"></i>Anterior
+            </a>
+            <span class="btn btn-light border btn-sm-flat disabled" th:text="'Página ' + (${pag} + 1)">Página 1</span>
+            <a th:if="${hayMas}" class="btn btn-navy btn-sm-flat"
+               th:href="@{/reportes(seccion=${seccion}, turno=${turno}, fecha=${fecha}, fechaHasta=${fechaHasta}, punto=${punto}, limite=${limite}, pag=${pag + 1}, pabellon=${pabellon}, orden=${orden}, codigo=${codigo})}">
+                Siguiente<i class="fa-solid fa-chevron-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="modal-sistema" th:if="${verHoras}" style="display:flex;"
+     onclick="if (event.target === this) window.location.href = document.getElementById('linkCerrarHoras').href">
+    <div class="modal-caja modal-ancha">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="modal-titulo mb-0">
+                <i class="fa-solid fa-chart-simple" style="color:#8e44ad;"></i>
+                Horas Pico · Atenciones por franja
+            </div>
+            <a id="linkCerrarHoras" class="btn btn-light border btn-sm" style="font-size:0.72rem;" title="Cerrar"
+               th:href="@{/reportes(seccion=${seccion}, turno=${turno}, fecha=${fecha}, fechaHasta=${fechaHasta}, punto=${punto}, limite=${limite}, pag=${pag}, pabellon=${pabellon}, orden=${orden}, codigo=${codigo})}">
+                <i class="fa-solid fa-xmark"></i>
+            </a>
+        </div>
+
+        <form th:action="@{/reportes}" method="get" class="d-flex gap-2 align-items-end flex-wrap mb-3">
+            <input type="hidden" name="seccion" th:value="${seccion}">
+            <input type="hidden" name="verHoras" value="1">
+            <input type="hidden" name="turno" th:value="${turno}">
+            <input type="hidden" name="fecha" th:value="${fecha}">
+            <input type="hidden" name="fechaHasta" th:value="${fechaHasta}">
+            <input type="hidden" name="limite" th:value="${limite}">
+            <input type="hidden" name="orden" th:value="${orden}">
+            <input type="hidden" name="pabellon" th:value="${pabellon}">
+            <input type="hidden" name="codigo" th:value="${codigo}">
+            <div>
+                <div class="lbl">Fecha</div>
+                <input type="date" name="hpFecha" class="form-control form-control-sm" th:value="${hpFecha}"
+                       title="Día del que se grafican las atenciones (heredado del filtro)">
+            </div>
+            <div>
+                <div class="lbl">Turno</div>
+                <select name="hpTurno" class="form-select form-select-sm" style="font-size:0.8rem;"
+                        title="Limita el gráfico a un turno concreto">
+                    <option value="TODOS" th:selected="${hpTurno == 'TODOS'}">Todos</option>
+                    <option value="DESAYUNO" th:selected="${hpTurno == 'DESAYUNO'}">Desayuno</option>
+                    <option value="ALMUERZO" th:selected="${hpTurno == 'ALMUERZO'}">Almuerzo</option>
+                    <option value="CENA" th:selected="${hpTurno == 'CENA'}">Cena</option>
+                </select>
+            </div>
+            <button class="btn btn-navy btn-sm" style="font-size:0.76rem;" title="Actualizar el gráfico">
+                <i class="fa-solid fa-filter me-1"></i>Actualizar
+            </button>
+        </form>
+
+        <div th:if="${hpDatos != null && !#lists.isEmpty(hpDatos)}">
+            <div style="font-size:0.74rem; color:#8a97a3;" class="mb-2">
+                La línea recorre las franjas del día: cada punto es cuántas atenciones se permitieron en esa hora.
+            </div>
+
+            <div id="graficoHoras" style="background:#fff; border:1px solid #e3e9ee; border-radius:8px; padding:6px;"></div>
+
+            <div class="foot-bar mt-3" th:if="${hpPico != null}">
+                <i class="fa-solid fa-arrow-trend-up me-1"></i>
+                Franja más concurrida:
+                <strong style="color:#f1c40f;" th:text="${hpPico.etiqueta}">12:00 - 13:00</strong>
+                con <strong style="color:#58d68d;" th:text="${hpPico.cantidad}">28</strong> atenciones
+            </div>
+        </div>
+        <div th:if="${hpDatos == null || #lists.isEmpty(hpDatos)}" class="text-center text-muted py-3" style="font-size:0.82rem;">
+            Sin atenciones registradas en esa fecha y turno.
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+
+    function cambiarLimite(valor) {
+        const campo = document.getElementById('campoLimite');
+        if (campo) {
+            campo.value = valor;
+            document.getElementById('formFiltros').submit();
+        }
+    }
+
+    function dibujarGraficoHoras() {
+        const cont = document.getElementById('graficoHoras');
+        if (!cont) return;
+        const datos =  [];
+        if (!datos || datos.length === 0) return;
+
+        const W = 560, H = 230, margen = { izq: 38, der: 14, arr: 14, aba: 34 };
+        const anchoUtil = W - margen.izq - margen.der;
+        const altoUtil = H - margen.arr - margen.aba;
+        const max = Math.max(...datos.map(d => d.cantidad), 1);
+        const paso = datos.length > 1 ? anchoUtil / (datos.length - 1) : 0;
+
+        const puntos = datos.map((d, i) => ({
+            x: margen.izq + (datos.length > 1 ? i * paso : anchoUtil / 2),
+            y: margen.arr + altoUtil - (d.cantidad / max) * altoUtil,
+            d: d
+        }));
+
+        let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%; height:auto;">';
+
+        for (let gx = margen.izq; gx <= W - margen.der; gx += 26) {
+            svg += '<line x1="' + gx + '" y1="' + margen.arr + '" x2="' + gx + '" y2="' + (H - margen.aba) + '" stroke="#d6e4f0" stroke-width="1"/>';
+        }
+        for (let gy = margen.arr; gy <= H - margen.aba; gy += 24) {
+            svg += '<line x1="' + margen.izq + '" y1="' + gy + '" x2="' + (W - margen.der) + '" y2="' + gy + '" stroke="#d6e4f0" stroke-width="1"/>';
+        }
+
+        svg += '<line x1="' + margen.izq + '" y1="' + margen.arr + '" x2="' + margen.izq + '" y2="' + (H - margen.aba) + '" stroke="#2980b9" stroke-width="3"/>';
+        svg += '<line x1="' + margen.izq + '" y1="' + (H - margen.aba) + '" x2="' + (W - margen.der) + '" y2="' + (H - margen.aba) + '" stroke="#2980b9" stroke-width="3"/>';
+        svg += '<polygon points="' + margen.izq + ',4 ' + (margen.izq - 6) + ',16 ' + (margen.izq + 6) + ',16" fill="#2980b9"/>';
+        svg += '<polygon points="' + (W - 4) + ',' + (H - margen.aba) + ' ' + (W - 16) + ',' + (H - margen.aba - 6) + ' ' + (W - 16) + ',' + (H - margen.aba + 6) + '" fill="#2980b9"/>';
+
+        svg += '<polyline fill="none" stroke="#f5a623" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" points="'
+            + puntos.map(p => p.x + ',' + p.y).join(' ') + '"/>';
+
+        puntos.forEach(p => {
+            svg += '<circle cx="' + p.x + '" cy="' + p.y + '" r="4" fill="#f5a623"><title>'
+                + p.d.etiqueta + ': ' + p.d.cantidad + ' atenciones</title></circle>';
+            svg += '<text x="' + p.x + '" y="' + (p.y - 8) + '" text-anchor="middle" font-size="11" font-weight="700" fill="#2c3e50">' + p.d.cantidad + '</text>';
+            svg += '<text x="' + p.x + '" y="' + (H - margen.aba + 16) + '" text-anchor="middle" font-size="9" fill="#5d6d7b">' + p.d.etiqueta.substring(0, 5) + '</text>';
+        });
+        svg += '</svg>';
+        cont.innerHTML = svg;
+    }
+    dibujarGraficoHoras();
+
+    window.alRefrescar = dibujarGraficoHoras;
+</script>
+
+</body>
+</html>

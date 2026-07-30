@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Reportes: Búsqueda Individual')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('reportes')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Reportes — Búsqueda Individual</span>
+        <a href="/reportes" class="btn btn-light btn-sm-flat no-print"><i class="fa-solid fa-arrow-left me-1"></i>Volver</a>
+    </div>
+
+    <div class="contenido">
+        <div class="row g-3">
+
+            <div class="col-md-4 no-print">
+                <div class="card-panel">
+                    <form th:action="@{/reportes/individual}" method="get" id="formBusqueda">
+                        <span class="titulo-seccion">Buscar Residente</span>
+                        <input type="text" name="q" class="form-control mb-2" placeholder="Nombre del residente" th:value="${q}">
+
+                        <input type="text" name="codigo" class="form-control mb-3" placeholder="Código" th:value="${codigo}">
+
+                        <span class="titulo-seccion">Tipo de Reporte</span>
+
+                        <div class="d-flex gap-2 mb-3">
+                            <input type="radio" class="btn-check" name="tipo" value="dias" id="tipoDias" th:checked="${tipo != 'semanas'}" onchange="cambiarTipo()">
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="tipoDias"><i class="fa-solid fa-calendar-day me-1"></i>Días</label>
+                            <input type="radio" class="btn-check" name="tipo" value="semanas" id="tipoSemanas" th:checked="${tipo == 'semanas'}" onchange="cambiarTipo()">
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="tipoSemanas"><i class="fa-solid fa-calendar-week me-1"></i>Semanas</label>
+                        </div>
+
+                        <div th:if="${tipo != 'semanas'}">
+                            <div class="lbl" title="Mínimo: inicio de su estancia · Máximo: hoy">Rango de fechas</div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div style="font-size:0.72rem; color:#8a97a3;">Desde</div>
+                                    <input type="date" name="desde" id="desde" class="form-control" th:value="${desde}"
+                                           th:min="${rep != null && rep.residente.fechaIngreso != null} ? ${rep.residente.fechaIngreso} : null"
+                                           th:max="${hoy}">
+                                </div>
+                                <div class="col-6">
+                                    <div style="font-size:0.72rem; color:#8a97a3;">Hasta</div>
+                                    <input type="date" name="hasta" id="hasta" class="form-control" th:value="${hasta}"
+                                           th:min="${rep != null && rep.residente.fechaIngreso != null} ? ${rep.residente.fechaIngreso} : null"
+                                           th:max="${hoy}">
+                                </div>
+                            </div>
+                            <div style="font-size:0.68rem; color:#8a97a3;" class="mb-2" th:if="${rep != null}">
+                                El rango se limita solo a su estancia (no antes de su ingreso, no después de hoy).
+                            </div>
+                            <button type="button" class="btn btn-light border btn-sm w-100 mb-2" style="font-size:0.76rem;"
+                                    th:if="${rep != null && rep.residente.fechaIngreso != null}"
+                                    th:attr="onclick='desdeIngreso(\'' + ${rep.residente.fechaIngreso} + '\')'">
+                                <i class="fa-solid fa-backward-step me-1"></i>Desde su ingreso
+                                (<span th:text="${#temporals.format(rep.residente.fechaIngreso, 'dd/MM/yyyy')}">01/07/2026</span>)
+                            </button>
+                        </div>
+
+                        <div th:if="${tipo == 'semanas'}" class="mb-2">
+                            <div class="lbl">Semana</div>
+                            <input type="hidden" name="desde" id="semDesde" th:value="${semanaDomingo}">
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-light border btn-sm" title="Semana anterior"
+                                        th:attr="onclick='irSemana(\'' + ${semanaAnterior} + '\')'">
+                                    <i class="fa-solid fa-chevron-left"></i>
+                                </button>
+                                <div class="flex-fill text-center" style="font-size:0.82rem; color:#2c3e50;">
+                                    <span th:text="${#temporals.format(semanaDomingo,'dd/MM')} + ' – ' + ${#temporals.format(semanaSabado,'dd/MM')}">05/07 – 11/07</span>
+                                </div>
+                                <button type="button" class="btn btn-light border btn-sm" title="Semana siguiente"
+                                        th:attr="onclick='irSemana(\'' + ${semanaSiguiente} + '\')'" th:disabled="${!haySemanaSiguiente}">
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </div>
+                            <div style="font-size:0.68rem; color:#8a97a3;" class="mt-1">
+                                Domingo a sábado. Los días que todavía no llegan no aparecen.
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="pag" id="campoPag" th:value="${pag}">
+
+                        <div class="lbl">Secciones</div>
+                        <input type="hidden" name="conFiltros" value="1">
+                        <div style="position:relative;" class="mb-2">
+                            <button type="button" class="btn btn-light border w-100" style="font-size:0.82rem; text-align:left;"
+                                    onclick="document.getElementById('menuSeccionesInd').classList.toggle('d-none')"
+                                    title="Elige qué secciones quieres ver (1, 2, 3 o las 4)">
+                                <i class="fa-solid fa-list-check me-1"></i>Elegir secciones ▾
+                            </button>
+                            <div id="menuSeccionesInd" class="d-none p-2 rounded"
+                                 style="position:absolute; top:100%; left:0; right:0; z-index:300; background:#fff; border:1px solid #d5dde4; box-shadow:0 8px 24px rgba(0,0,0,0.15); font-size:0.8rem;">
+                                <label class="d-block py-1" style="cursor:pointer;" title="Asistencia diaria a los turnos del comedor">
+                                    <input type="checkbox" name="verNormal" class="form-check-input me-1" th:checked="${verNormal}"> Normal (asistencia)
+                                </label>
+                                <label class="d-block py-1" style="cursor:pointer;" title="Raciones reservadas por llegada tardía">
+                                    <input type="checkbox" name="verExtras" class="form-check-input me-1" th:checked="${verExtras}"> Extras (reservas)
+                                </label>
+                                <label class="d-block py-1" style="cursor:pointer;" title="Ausencias justificadas por preceptoría">
+                                    <input type="checkbox" name="verJustificaciones" class="form-check-input me-1" th:checked="${verJustificaciones}"> Justificaciones
+                                </label>
+                                <label class="d-block py-1" style="cursor:pointer;" title="Raciones de eventos y si las recibió">
+                                    <input type="checkbox" name="verEventos" class="form-check-input me-1" th:checked="${verEventos}"> Eventos
+                                </label>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-navy w-100 fw-bold mb-2">
+                            <i class="fa-solid fa-play me-1"></i>Generar Reporte
+                        </button>
+                        <a href="/reportes/individual" class="btn btn-light border btn-sm w-100 mb-2" style="font-size:0.78rem;"
+                           title="Borra la búsqueda y vuelve a los valores por defecto">
+                            <i class="fa-solid fa-eraser me-1"></i>Limpiar búsqueda
+                        </a>
+                    </form>
+
+                    <div class="d-flex gap-2 mb-2" th:if="${rep != null}">
+                        <a th:if="${rep.residente.apoderado != null && rep.residente.apoderado.telefono != null}"
+                           class="btn btn-success btn-sm-flat flex-fill" target="_blank"
+                           title="Enviar al responsable financiero"
+                           th:href="'https://wa.me/51' + ${#strings.replace(rep.residente.apoderado.telefono, '-', '')} + '?text=' + ${#uris.escapeQueryParam('Reporte de asistencia al comedor UPeU de ' + rep.residente.nombreCompleto + ' (' + rep.residente.codigoAcceso + '): ' + rep.asistencias + ' asistencias, ' + rep.justificadas + ' justificadas, ' + rep.injustificadas + ' injustificadas entre ' + desde + ' y ' + hasta + '. Vea el reporte completo aquí: ' + urlPadres)}">
+                            <i class="fa-brands fa-whatsapp me-1"></i>Apoderado
+                        </a>
+                        <button th:if="${rep.residente.apoderado == null || rep.residente.apoderado.telefono == null}"
+                                type="button" class="btn btn-secondary btn-sm-flat flex-fill" disabled
+                                title="El residente no tiene teléfono de responsable financiero registrado">
+                            <i class="fa-brands fa-whatsapp me-1"></i>Sin tel. RF
+                        </button>
+                        <a th:if="${rep.residente.celular != null && !#strings.isEmpty(rep.residente.celular)}"
+                           class="btn btn-sm-flat flex-fill" style="background:#128c7e; color:#fff;" target="_blank"
+                           title="Enviar al residente"
+                           th:href="'https://wa.me/51' + ${#strings.replace(rep.residente.celular, '-', '')} + '?text=' + ${#uris.escapeQueryParam('Hola ' + rep.residente.nombre + ', tu registro de asistencia al comedor UPeU entre ' + desde + ' y ' + hasta + ': ' + rep.asistencias + ' asistencias, ' + rep.justificadas + ' justificadas, ' + rep.injustificadas + ' injustificadas. Cualquier duda acércate a preceptoría.')}">
+                            <i class="fa-brands fa-whatsapp me-1"></i>Residente
+                        </a>
+                    </div>
+                    <div class="d-flex gap-2 mb-2" th:if="${rep != null}">
+                        <button type="button" class="btn btn-primary btn-sm-flat flex-fill" onclick="window.print()"
+                                title="Imprime o guarda en PDF lo que ves en pantalla">
+                            <i class="fa-solid fa-file-pdf me-1"></i>PDF
+                        </button>
+
+                        <button type="button" class="btn btn-success btn-sm-flat flex-fill" onclick="confirmarExcelIndividual()"
+                                title="Descarga el reporte del residente en Excel">
+                            <i class="fa-solid fa-file-excel me-1"></i>Excel
+                        </button>
+                    </div>
+
+                    <div class="p-2 rounded mb-3" style="background:#eaf3fb; border:1px solid #aed6f1;" th:if="${rep != null}">
+                        <div class="lbl mb-1"><i class="fa-solid fa-link me-1"></i>Enlace para padres</div>
+                        <div class="d-flex gap-1">
+                            <input type="text" id="linkPadres" class="form-control form-control-sm" style="font-size:0.7rem;"
+                                   th:value="${urlPadres}" readonly>
+                            <button type="button" class="btn btn-navy btn-sm" style="font-size:0.7rem;" onclick="copiarLink()">
+                                <i class="fa-solid fa-copy"></i>
+                            </button>
+                        </div>
+                        <div style="font-size:0.68rem; color:#21618c;" class="mt-1">
+                            El apoderado ve el reporte de su residente sin necesidad de cuenta.
+                        </div>
+                    </div>
+
+                    <div th:if="${rep != null}" style="font-size:0.8rem;">
+                        <div style="color:#8a97a3;">Residente:</div>
+                        <strong th:text="${rep.residente.nombreCompleto}">Juan C. Mamani Q.</strong>
+                        <div style="color:#8a97a3;" class="mt-1">Código: <span th:text="${rep.residente.codigoAcceso}" style="color:#2c3e50;"></span></div>
+                        <div style="color:#8a97a3;">Carrera: <span th:text="${rep.residente.carrera}" style="color:#2c3e50;"></span></div>
+                        <div style="color:#8a97a3;" class="mt-1">Resp. Financiero:</div>
+                        <strong th:if="${rep.residente.apoderado != null}"
+                                th:text="${rep.residente.apoderado.nombre} + ' · ' + ${rep.residente.apoderado.telefono}">Pedro Mamani · 999-000-111</strong>
+                        <span th:if="${rep.residente.apoderado == null}" class="text-muted">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card-panel" th:if="${rep != null}">
+                    <h5 class="fw-bold mb-1" style="color:#2c3e50;">
+                        Reporte por <span th:text="${tipo == 'semanas'} ? 'Semanas' : 'Días'">Días</span> —
+                        <span th:text="${rep.residente.nombreCompleto}">Juan Carlos Mamani Quispe</span>
+                    </h5>
+                    <div style="font-size:0.78rem; color:#8a97a3;" class="mb-3">
+                        <span th:text="${#temporals.format(desde, 'dd/MM/yyyy')}">28/04/2026</span> –
+                        <span th:text="${#temporals.format(hasta, 'dd/MM/yyyy')}">04/05/2026</span> ·
+                        <span th:text="${rep.residente.codigoAcceso}">U-2024-10542</span> ·
+                        <span th:text="${rep.residente.carrera}">Ing. de Sistemas</span>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-4">
+                            <div class="stat-box">
+                                <div class="stat-num" style="color:#27ae60;" th:text="${rep.asistencias}">16</div>
+                                <div class="stat-lbl">Asistencias / <span th:text="${rep.totalComidas}">21</span></div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-box">
+                                <div class="stat-num" style="color:#f39c12;" th:text="${rep.justificadas}">4</div>
+                                <div class="stat-lbl">Justificadas</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-box">
+                                <div class="stat-num" style="color:#e74c3c;" th:text="${rep.injustificadas}">1</div>
+                                <div class="stat-lbl">Injustificadas</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end align-items-center gap-2 mb-2 no-print" th:if="${verNormal}">
+                        <span class="lbl mb-0">Mostrar</span>
+                        <select name="limite" form="formBusqueda" class="form-select" style="font-size:0.82rem; width:auto;"
+                                title="Cuántos días del detalle se muestran por página"
+                                onchange="document.getElementById('campoPag').value=0; document.getElementById('formBusqueda').submit()">
+                            <option value="5" th:selected="${limite == 5}">5</option>
+                            <option value="10" th:selected="${limite == 10}">10</option>
+                            <option value="15" th:selected="${limite == 15}">15</option>
+                            <option value="20" th:selected="${limite == 20}">20</option>
+                            <option value="25" th:selected="${limite == 25}">25</option>
+                            <option value="50" th:selected="${limite == 50}">50</option>
+                            <option value="0" th:selected="${limite == 0}">Todos</option>
+                        </select>
+                    </div>
+
+                    <table class="tabla-dark" th:if="${verNormal}">
+                        <thead>
+                        <tr><th>Fecha</th><th>Día</th><th class="text-center">Desayuno</th><th class="text-center">Almuerzo</th><th class="text-center">Cena</th><th>Observaciones</th><th class="text-center no-print">Detalle</th></tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="f, it : ${rep.filas}">
+                            <td th:text="${#temporals.format(f.fecha, 'dd/MM')}">28/04</td>
+                            <td th:text="${f.dia}">Lunes</td>
+                            <td class="text-center" th:each="comida : ${ {f.desayuno, f.almuerzo, f.cena} }">
+                                <span th:if="${comida == 'SI'}" class="badge-estado bg-permitido"><i class="fa-solid fa-check"></i></span>
+                                <span th:if="${comida == 'JUST'}" class="badge-estado bg-justificado">Justif.</span>
+                                <span th:if="${comida == 'NO'}" class="badge-estado bg-denegado"><i class="fa-solid fa-xmark"></i></span>
+                                <span th:if="${comida == 'PEND'}" style="color:#c3ccd4;" title="El turno aún no ocurre">—</span>
+                                <span th:if="${comida == ''}" style="color:#c3ccd4;">—</span>
+                            </td>
+                            <td style="font-size:0.76rem;" th:style="${f.injustificada} ? 'color:#e74c3c;' : 'color:#8a97a3;'"
+                                th:text="${f.observacion} ?: '—'">—</td>
+
+                            <td class="text-center no-print">
+                                <button type="button" class="btn btn-primary btn-sm" style="font-size:0.7rem; padding:2px 8px; white-space:nowrap;"
+                                        th:attr="onclick='verDetalleDia(' + ${it.index} + ')'"
+                                        title="Ver todo lo de este día">
+                                    <i class="fa-solid fa-eye me-1"></i>Ver detalles</button>
+                                <div th:id="'det-' + ${it.index}" class="d-none">
+                                    <div class="mb-2" style="font-weight:600;"
+                                         th:text="${f.dia} + ' ' + ${#temporals.format(f.fecha,'dd/MM/yyyy')}">Lunes 05/07/2026</div>
+
+                                    <div class="mb-1"><strong>Desayuno:</strong>
+                                        <span th:if="${f.desayuno == 'SI'}" style="color:#1e8449;">Asistió a las <span th:text="${f.horaDesayuno}">07:12</span></span>
+                                        <span th:if="${f.desayuno == 'JUST'}" style="color:#b9770e;">Justificado — <span th:text="${f.motivoDesayuno}">motivo</span></span>
+                                        <span th:if="${f.desayuno == 'NO'}" style="color:#c0392b;">Ausente (sin justificar)</span>
+                                        <span th:if="${f.desayuno == 'PEND'}" style="color:#8a97a3;">El turno aún no ocurre</span>
+                                        <span th:if="${f.desayuno == ''}" style="color:#8a97a3;">Sin turno ese día</span>
+                                    </div>
+
+                                    <div class="mb-1"><strong>Almuerzo:</strong>
+                                        <span th:if="${f.almuerzo == 'SI'}" style="color:#1e8449;">Asistió a las <span th:text="${f.horaAlmuerzo}">12:30</span></span>
+                                        <span th:if="${f.almuerzo == 'JUST'}" style="color:#b9770e;">Justificado — <span th:text="${f.motivoAlmuerzo}">motivo</span></span>
+                                        <span th:if="${f.almuerzo == 'NO'}" style="color:#c0392b;">Ausente (sin justificar)</span>
+                                        <span th:if="${f.almuerzo == 'PEND'}" style="color:#8a97a3;">El turno aún no ocurre</span>
+                                        <span th:if="${f.almuerzo == ''}" style="color:#8a97a3;">Sin turno ese día</span>
+                                    </div>
+
+                                    <div class="mb-1"><strong>Cena:</strong>
+                                        <span th:if="${f.cena == 'SI'}" style="color:#1e8449;">Asistió a las <span th:text="${f.horaCena}">19:05</span></span>
+                                        <span th:if="${f.cena == 'JUST'}" style="color:#b9770e;">Justificado — <span th:text="${f.motivoCena}">motivo</span></span>
+                                        <span th:if="${f.cena == 'NO'}" style="color:#c0392b;">Ausente (sin justificar)</span>
+                                        <span th:if="${f.cena == 'PEND'}" style="color:#8a97a3;">El turno aún no ocurre</span>
+                                        <span th:if="${f.cena == ''}" style="color:#8a97a3;">Sin turno ese día</span>
+                                    </div>
+
+                                    <div class="mt-2" th:if="${reservasPorDia != null && reservasPorDia.containsKey(f.fecha.toString())}">
+                                        <strong>Reservas del día:</strong>
+                                        <div th:each="s : ${reservasPorDia.get(f.fecha.toString())}" class="mt-1" style="font-size:0.85rem;">
+                                            • <span th:text="${#strings.capitalize(#strings.toLowerCase(s.tipoComida))}">Almuerzo</span> —
+                                            reservó <span th:text="${s.usuario != null} ? ${s.usuario.nombreCompleto} : '—'">Prec. Ríos</span> —
+                                            <span th:text="${s.motivo}">motivo</span> —
+                                            <span th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Entregada</span>
+                                            <span th:if="${s.entregadoA != null}"> (a <span th:text="${s.entregadoATexto}">Residente</span>)</span>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 text-muted" style="font-size:0.85rem;"
+                                         th:if="${reservasPorDia == null || !reservasPorDia.containsKey(f.fecha.toString())}">
+                                        Sin reservas ese día.
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="d-flex justify-content-center align-items-center gap-2 mt-2 no-print"
+                         th:if="${verNormal && (hayAnterior or hayMas)}">
+                        <button type="button" class="btn btn-light border btn-sm-flat" th:if="${hayAnterior}"
+                                th:attr="onclick='irPagina(' + (${pag} - 1) + ')'">
+                            <i class="fa-solid fa-chevron-left me-1"></i>Anterior
+                        </button>
+                        <span class="btn btn-light border btn-sm-flat disabled" th:text="'Página ' + (${pag} + 1)">Página 1</span>
+                        <button type="button" class="btn btn-navy btn-sm-flat" th:if="${hayMas}"
+                                th:attr="onclick='irPagina(' + (${pag} + 1) + ')'">
+                            Siguiente<i class="fa-solid fa-chevron-right ms-1"></i>
+                        </button>
+                    </div>
+                    <div th:if="${verNormal && limite > 0 && totalFilas != null && totalFilas > limite}"
+                         style="font-size:0.72rem; color:#8a97a3;" class="mt-1 text-center">
+                        Mostrando <span th:text="${#lists.size(rep.filas)}">10</span> de
+                        <span th:text="${totalFilas}">30</span> días. Usa "Mostrar: Todos" para verlos juntos.
+                    </div>
+
+                    <div class="mt-3 p-2 rounded" style="background:#fdedec; border:1px solid #f5b7b1;"
+                         th:if="${verNormal && !#lists.isEmpty(rep.infracciones)}">
+                        <div class="lbl mb-2" style="color:#c0392b;">
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i>Infracciones / registros no válidos del período
+                        </div>
+                        <div th:each="inf : ${rep.infracciones}" style="font-size:0.78rem; color:#943126;" class="border-bottom py-1">
+                            <span th:text="${#temporals.format(inf.fechaHora, 'dd/MM HH:mm')}">03/07 12:04</span> —
+                            registro <strong th:text="${inf.estado}">PERMITIDO</strong> anulado
+                            (turno <span th:text="${#strings.toLowerCase(inf.turno.tipo)}">almuerzo</span>).
+                            Aclaración: <em th:text="${inf.aclaracion}">suplantación detectada</em>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 p-2 rounded" style="background:#eaf3fb; border:1px solid #aed6f1;"
+                         th:if="${verExtras && !#lists.isEmpty(reservasResidente)}">
+                        <div class="lbl mb-2" style="color:#21618c;"><i class="fa-solid fa-utensils me-1"></i>Extras · Raciones reservadas del período</div>
+                        <div th:each="s : ${reservasResidente}" style="font-size:0.78rem; color:#21618c;" class="border-bottom py-1">
+                            <span th:text="${#temporals.format(s.fecha, 'dd/MM')}">02/07</span> —
+                            Ración reservada de <span th:text="${#strings.toLowerCase(s.tipoComida)}">almuerzo</span>
+                            <span th:if="${s.horaRecojo != null}"> (recojo aprox. <span th:text="${s.horaRecojo}">14:30</span>)</span>
+                            · <span th:text="${s.motivo}">motivo</span> ·
+                            <span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
+                                  th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Atendida'">Atendida</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-2 text-muted" style="font-size:0.72rem;"
+                         th:if="${verExtras && #lists.isEmpty(reservasResidente)}">
+                        <i class="fa-solid fa-utensils me-1"></i>Sin raciones reservadas en este período.
+                    </div>
+
+                    <div class="mt-3 p-2 rounded" style="background:#fef9e7; border:1px solid #f7dc6f;"
+                         th:if="${verJustificaciones && justificacionesResidente != null && !#lists.isEmpty(justificacionesResidente)}">
+                        <div class="lbl mb-2" style="color:#9a7d0a;"><i class="fa-solid fa-calendar-xmark me-1"></i>Justificaciones de ausencia del período</div>
+                        <div th:each="a : ${justificacionesResidente}" style="font-size:0.78rem; color:#7d6608;" class="border-bottom py-1">
+                            <span th:text="${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')}">05/05</span> –
+                            <span th:text="${#temporals.format(a.fechaFin, 'dd/MM/yyyy')}">11/05</span> ·
+                            <span th:text="${a.motivo}">Viaje académico</span> ·
+                            registró <span th:text="${a.usuario != null} ? ${a.usuario.nombreCompleto} : '—'">Preceptor Ríos</span>
+                        </div>
+                    </div>
+                    <div class="mt-2 text-muted" style="font-size:0.72rem;"
+                         th:if="${verJustificaciones && (justificacionesResidente == null || #lists.isEmpty(justificacionesResidente))}">
+                        <i class="fa-solid fa-calendar-xmark me-1"></i>Sin justificaciones de ausencia en este período.
+                    </div>
+
+                    <div class="mt-3 p-2 rounded" style="background:#fdf6ec; border:1px solid #f5cba7;"
+                         th:if="${verEventos && !#lists.isEmpty(entregasResidente)}">
+                        <div class="lbl mb-2" style="color:#b9770e;"><i class="fa-solid fa-medal me-1"></i>Eventos · Raciones de eventos del período</div>
+                        <div th:each="en : ${entregasResidente}" style="font-size:0.78rem; color:#b9770e;" class="border-bottom py-1">
+                            <span th:text="${#temporals.format(en.evento.fechaEvento, 'dd/MM')}">03/07</span> —
+                            Evento "<span th:text="${en.evento.nombre}">Excursión</span>" (ración adicional) ·
+                            <span class="badge-estado" th:classappend="${en.recibido} ? 'bg-permitido' : 'bg-denegado'"
+                                  th:text="${en.recibido} ? 'Recibió su ración' : 'No recogió su ración'">Recibió su ración</span>
+                        </div>
+                    </div>
+                    <div class="mt-2 text-muted" style="font-size:0.72rem;"
+                         th:if="${verEventos && #lists.isEmpty(entregasResidente)}">
+                        <i class="fa-solid fa-medal me-1"></i>Sin raciones de eventos en este período.
+                    </div>
+                </div>
+
+                <div class="card-panel text-center py-5" th:if="${rep == null}">
+                    <i class="fa-solid fa-magnifying-glass-chart fa-2x mb-2" style="color:#b8c2cb;"></i>
+                    <div th:if="${noEncontrado}" class="fw-bold" style="color:#c0392b;">
+                        No se encontró ningún residente con esos datos.
+                    </div>
+                    <div th:if="${!noEncontrado}" style="color:#8a97a3; font-size:0.88rem;">
+                        Busca un residente por nombre o código y genera su reporte por días o por semanas.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalDiaDetalle" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:3000; align-items:center; justify-content:center;"
+     onclick="if(event.target===this) cerrarDetalleDia()">
+    <div style="background:#fff; border-radius:10px; max-width:460px; width:92%; max-height:85vh; overflow:auto; box-shadow:0 12px 40px rgba(0,0,0,0.3);">
+        <div style="background:#2c3e50; color:#fff; padding:12px 16px; border-radius:10px 10px 0 0; display:flex; justify-content:space-between; align-items:center;">
+            <strong><i class="fa-solid fa-calendar-day me-1"></i>Detalle del día</strong>
+            <button type="button" onclick="cerrarDetalleDia()" style="background:none; border:none; color:#fff; font-size:1.1rem; cursor:pointer; line-height:1;">✕</button>
+        </div>
+        <div id="modalDiaCuerpo" style="padding:16px; font-size:0.86rem; color:#2c3e50;"></div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+
+    function confirmarExcelIndividual() {
+        const nombre =  '';
+        const dias =  0;
+        const rango =  '';
+        const url =  '#';
+        confirmarSistema({
+            titulo: 'Exportar reporte a Excel',
+            estilo: 'exito',
+            boton: 'Sí, descargar Excel',
+            mensaje: 'Se descargará un .xlsx con el reporte de ' + nombre + ': asistencia día por día ('
+                + dias + ' días, del ' + rango + '), con sus estadísticas y observaciones.',
+            alConfirmar: () => { window.location.href = url; }
+        });
+    }
+
+    function desdeIngreso(fecha) {
+        document.getElementById('desde').value = fecha;
+        document.getElementById('formBusqueda').submit();
+    }
+
+    function copiarLink() {
+        const campo = document.getElementById('linkPadres');
+        campo.select();
+        navigator.clipboard.writeText(campo.value).then(() => {
+            avisoSistema('El enlace del reporte quedó copiado. Compártelo con el apoderado por WhatsApp o correo: podrá verlo sin necesidad de una cuenta.', 'Enlace copiado');
+        }).catch(() => document.execCommand('copy'));
+    }
+
+    function fechaLocal(d) {
+        const off = d.getTimezoneOffset();
+        return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+    }
+
+    function cambiarTipo() {
+        const pag = document.getElementById('campoPag'); if (pag) pag.value = 0;
+        ['desde', 'hasta', 'semDesde'].forEach(function (id) {
+            const el = document.getElementById(id); if (el) el.disabled = true;
+        });
+        document.getElementById('formBusqueda').submit();
+    }
+
+    function irSemana(fecha) {
+        const sd = document.getElementById('semDesde'); if (sd) sd.value = fecha;
+        const pag = document.getElementById('campoPag'); if (pag) pag.value = 0;
+        document.getElementById('formBusqueda').submit();
+    }
+
+    function irPagina(n) {
+        const p = document.getElementById('campoPag'); if (p) p.value = n;
+        document.getElementById('formBusqueda').submit();
+    }
+
+    function verDetalleDia(idx) {
+        const src = document.getElementById('det-' + idx);
+        if (!src) return;
+        document.getElementById('modalDiaCuerpo').innerHTML = src.innerHTML;
+        document.getElementById('modalDiaDetalle').style.display = 'flex';
+    }
+    function cerrarDetalleDia() {
+        document.getElementById('modalDiaDetalle').style.display = 'none';
+    }
+
+    document.addEventListener('click', function (e) {
+        const menu = document.getElementById('menuSeccionesInd');
+        if (menu && !menu.classList.contains('d-none')
+            && !menu.contains(e.target) && !e.target.closest('button[onclick*="menuSeccionesInd"]')) {
+            menu.classList.add('d-none');
+        }
+    });
+</script>
+
+</body>
+</html>

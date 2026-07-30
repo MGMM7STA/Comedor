@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Reportes: Modo Completo')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('reportes')}"></div>
+
+<div id="main">
+
+    <div class="page-header">
+        <span>Reportes — Vista General del Comedor</span>
+        <a href="/reportes/individual" class="btn btn-light btn-sm-flat no-print"
+           title="Ir a la búsqueda detallada de un residente">
+            <i class="fa-solid fa-magnifying-glass me-1"></i>Buscar residente
+        </a>
+    </div>
+
+    <div class="contenido">
+
+        <div class="d-flex gap-2 mb-3 flex-wrap no-print">
+            <a class="tab-seccion tab-grande" th:classappend="${seccion == 'NORMAL'} ? 'activa'"
+               title="Asistencia a los turnos del comedor"
+               th:href="@{/reportes/completo(seccion='NORMAL', fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, codigo=${codigo}, estadoMov=${estadoMov})}">
+                <i class="fa-solid fa-utensils"></i>Normal
+            </a>
+            <a class="tab-seccion tab-grande" th:classappend="${seccion == 'RESERVAS'} ? 'activa'"
+               title="Raciones reservadas por llegada tardía"
+               th:href="@{/reportes/completo(seccion='RESERVAS', fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, codigo=${codigo}, estadoMov=${estadoMov})}">
+                <i class="fa-solid fa-plate-wheat"></i>Reservas
+            </a>
+            <a class="tab-seccion tab-grande" th:classappend="${seccion == 'JUSTIFICACIONES'} ? 'activa'"
+               title="Ausencias justificadas por preceptoría"
+               th:href="@{/reportes/completo(seccion='JUSTIFICACIONES', fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, codigo=${codigo}, estadoMov=${estadoMov})}">
+                <i class="fa-solid fa-calendar-check"></i>Justificaciones
+            </a>
+            <a class="tab-seccion tab-grande" th:classappend="${seccion == 'EVENTOS'} ? 'activa'"
+               title="Pase de lista de los eventos aprobados"
+               th:href="@{/reportes/completo(seccion='EVENTOS', fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, codigo=${codigo}, estadoMov=${estadoMov})}">
+                <i class="fa-solid fa-medal"></i>Eventos
+            </a>
+
+            <div class="ms-auto d-flex gap-2 align-items-center">
+                <span style="font-size:0.72rem; color:#8a97a3;">Vista:</span>
+                <a class="tab-seccion tab-vista"
+                   title="Volver a la vista minimalista de lectura veloz"
+                   th:href="@{/reportes(seccion=${seccion}, fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, codigo=${codigo})}">
+                    <i class="fa-solid fa-list"></i>Simple
+                </a>
+                <span class="tab-seccion tab-vista activa" title="Estás en la vista detallada con todas las columnas">
+                    <i class="fa-solid fa-table-list"></i>Completo
+                </span>
+            </div>
+        </div>
+
+        <div class="card-panel mb-3 no-print">
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/reportes/completo', 'fecha', 'fechaHasta',
+                 '&seccion=' + ${seccion} + '&turno=' + ${turno} + '&limite=' + ${limite} + '&orden=' + ${orden}
+                 + '&punto=' + (${punto} ?: '') + '&pabellon=' + (${pabellon} ?: 'TODOS')
+                 + '&estadoMov=' + ${estadoMov} + '&codigo=' + (${codigo} ?: ''))}"></div>
+        </div>
+
+        <div class="card-panel mb-3 no-print">
+            <form th:action="@{/reportes/completo}" method="get" id="formFiltros" class="d-flex gap-3 align-items-end flex-wrap">
+                <input type="hidden" name="limite" id="campoLimite" th:value="${limite}">
+                <input type="hidden" name="seccion" th:value="${seccion}">
+
+                <input type="hidden" name="orden" th:value="${orden}">
+
+                <input type="hidden" name="fecha" th:value="${fecha}">
+                <input type="hidden" name="fechaHasta" th:value="${fechaHasta}">
+
+                <div th:if="${seccion == 'NORMAL'}">
+                    <div class="lbl">Turno</div>
+                    <select name="turno" class="form-select" style="font-size:0.85rem; min-width:130px;">
+                        <option value="TODOS" th:selected="${turno == 'TODOS'}">Todos</option>
+                        <option value="DESAYUNO" th:selected="${turno == 'DESAYUNO'}">Desayuno</option>
+                        <option value="ALMUERZO" th:selected="${turno == 'ALMUERZO'}">Almuerzo</option>
+                        <option value="CENA" th:selected="${turno == 'CENA'}">Cena</option>
+                    </select>
+                </div>
+                <div th:if="${seccion == 'NORMAL'}">
+                    <div class="lbl">Punto</div>
+                    <select name="punto" class="form-select" style="font-size:0.85rem; min-width:110px;">
+                        <option value="">Todos</option>
+                        <option th:each="p : ${puntos}" th:value="${p.idPunto}" th:selected="${punto == p.idPunto}" th:text="${p.nombre}">Entrada A</option>
+
+                        <option value="-1" th:selected="${punto != null && punto == -1}"
+                                title="Historial de los puntos de acceso eliminados">[ Eliminados ]</option>
+                    </select>
+                </div>
+                <div th:if="${!pabellonFijo}">
+                    <div class="lbl">Residencia de Género</div>
+                    <select name="pabellon" class="form-select" style="font-size:0.85rem; min-width:110px;">
+                        <option value="TODOS" th:selected="${pabellon == 'TODOS'}">Todas</option>
+                        <option value="Varones" th:selected="${pabellon == 'Varones'}">Varones</option>
+                        <option value="Mujeres" th:selected="${pabellon == 'Mujeres'}">Mujeres</option>
+                    </select>
+                </div>
+                <div th:if="${pabellonFijo}">
+                    <div class="lbl">Residencia de Género</div>
+                    <input type="text" class="form-control" th:value="${pabellon}" disabled
+                           style="font-size:0.85rem; background:#f2f5f8; max-width:110px;"
+                           title="Como preceptor solo ves tu residencia de género">
+                </div>
+
+                <div th:if="${seccion == 'NORMAL'}">
+                    <div class="lbl" title="Filtra por el resultado del registro (por defecto: permitidos)">Estado</div>
+                    <select name="estadoMov" class="form-select" style="font-size:0.85rem; min-width:120px;">
+                        <option value="PERMITIDO" th:selected="${estadoMov == 'PERMITIDO'}">Permitidos</option>
+                        <option value="DENEGADO" th:selected="${estadoMov == 'DENEGADO'}">Denegados</option>
+                        <option value="TODOS" th:selected="${estadoMov == 'TODOS'}">Todos</option>
+                    </select>
+                </div>
+                <div th:if="${seccion == 'NORMAL'}">
+                    <div class="lbl" title="Busca las acciones registradas por un cajero o preceptor concreto">Registrado por</div>
+                    <select name="registradoPor" class="form-select" style="font-size:0.85rem; min-width:160px;">
+                        <option value="">Cualquiera</option>
+                        <option th:each="u : ${personal}" th:value="${u.idUsuario}"
+                                th:selected="${registradoPor == u.idUsuario}"
+                                th:text="${u.nombreCompleto} + ' (' + ${u.rol} + ')'">Carlos M. (CAJERO)</option>
+                    </select>
+                </div>
+
+                <div th:if="${seccion == 'RESERVAS'}">
+                    <div class="lbl">Estado de la reserva</div>
+                    <select name="resEstado" class="form-select" style="font-size:0.85rem; min-width:130px;">
+                        <option value="TODOS" th:selected="${resEstado == 'TODOS'}">Todas</option>
+                        <option value="PENDIENTE" th:selected="${resEstado == 'PENDIENTE'}">Pendientes</option>
+                        <option value="ATENDIDA" th:selected="${resEstado == 'ATENDIDA'}">Entregadas</option>
+                    </select>
+                </div>
+                <div th:if="${seccion == 'RESERVAS'}">
+                    <div class="lbl" title="A quién le entregó físicamente la ración el cajero">Entregado a</div>
+                    <select name="resEntregadoA" class="form-select" style="font-size:0.85rem; min-width:130px;">
+                        <option value="TODOS" th:selected="${resEntregadoA == 'TODOS'}">Todos</option>
+                        <option value="RESIDENTE" th:selected="${resEntregadoA == 'RESIDENTE'}">Residente</option>
+                        <option value="PRECEPTOR" th:selected="${resEntregadoA == 'PRECEPTOR'}">Preceptor</option>
+                    </select>
+                </div>
+
+                <div th:if="${seccion == 'RESERVAS'}">
+                    <div class="lbl" title="Preceptor o cajero que registró la reserva">Quién reservó</div>
+                    <select name="resReservadoPor" class="form-select" style="font-size:0.85rem; min-width:160px;">
+                        <option value="">Cualquiera</option>
+                        <option th:each="u : ${personal}" th:value="${u.idUsuario}"
+                                th:selected="${resReservadoPor == u.idUsuario}"
+                                th:text="${u.nombreCompleto} + ' (' + ${u.rol} + ')'">Preceptor Ríos</option>
+                    </select>
+                </div>
+                <div th:if="${seccion == 'RESERVAS'}">
+                    <div class="lbl">Turno de la reserva</div>
+                    <select name="resTurno" class="form-select" style="font-size:0.85rem; min-width:130px;">
+                        <option value="TODOS" th:selected="${resTurno == 'TODOS'}">Todos</option>
+                        <option value="DESAYUNO" th:selected="${resTurno == 'DESAYUNO'}">Desayuno</option>
+                        <option value="ALMUERZO" th:selected="${resTurno == 'ALMUERZO'}">Almuerzo</option>
+                        <option value="CENA" th:selected="${resTurno == 'CENA'}">Cena</option>
+                    </select>
+                </div>
+
+                <div th:if="${seccion == 'JUSTIFICACIONES'}">
+                    <div class="lbl" title="Filtra por el preceptor que registró la justificación">Registrada por</div>
+                    <select name="jusPreceptor" class="form-select" style="font-size:0.85rem; min-width:160px;">
+                        <option value="">Cualquiera</option>
+                        <option th:each="u : ${personal}" th:value="${u.idUsuario}"
+                                th:selected="${jusPreceptor == u.idUsuario}"
+                                th:text="${u.nombreCompleto} + ' (' + ${u.rol} + ')'">Preceptor Ríos</option>
+                    </select>
+                </div>
+
+                <div th:if="${seccion == 'EVENTOS'}">
+                    <div class="lbl" title="Si el preceptor ya pasó (o no) la lista de entrega">Pase de lista</div>
+                    <select name="evPase" class="form-select" style="font-size:0.85rem; min-width:140px;">
+                        <option value="TODOS" th:selected="${evPase == 'TODOS'}">Todos</option>
+                        <option value="CON" th:selected="${evPase == 'CON'}">Con pase de lista</option>
+                        <option value="SIN" th:selected="${evPase == 'SIN'}">Sin pase de lista</option>
+                    </select>
+                </div>
+
+                <div>
+                    <div class="lbl">Buscar por código</div>
+                    <input type="text" name="codigo" class="form-control" style="font-size:0.85rem; min-width:170px;"
+                           th:value="${codigo}" placeholder="Código o nombre del residente">
+                </div>
+
+                <div class="d-flex gap-2 flex-wrap w-100 pt-2 mt-1 border-top">
+                    <button type="submit" class="btn btn-navy btn-sm-flat" title="Aplicar todos los filtros">
+                        <i class="fa-solid fa-filter me-1"></i>Filtrar
+                    </button>
+                    <a href="/reportes/completo" class="btn btn-light border btn-sm-flat" title="Quitar todos los filtros">
+                        <i class="fa-solid fa-eraser me-1"></i>Limpiar
+                    </a>
+
+                    <button type="button" class="btn btn-sm-flat" style="background:#16a085; color:#fff;"
+                            onclick="confirmarExportacionMasiva()"
+                            title="Descarga la base de datos completa, sin los filtros de pantalla">
+                        <i class="fa-solid fa-database me-1"></i>Exportación Masiva
+                    </button>
+
+                    <button type="button" class="btn btn-primary btn-sm-flat btn-exportar-rango"
+                            data-titulo="Exportar reporte completo a PDF" data-ruta="/reportes/completo" data-imprimir="1"
+                            data-pdesde="fecha" data-phasta="fechaHasta"
+                            th:attr="data-extra='&seccion=' + ${seccion} + '&turno=' + ${turno} + '&limite=' + ${limite}
+                                     + '&orden=' + ${orden} + '&punto=' + (${punto} ?: '')
+                                     + '&pabellon=' + (${pabellon} ?: 'TODOS') + '&estadoMov=' + ${estadoMov}
+                                     + '&codigo=' + (${codigo} ?: '')"
+                            title="Elige un rango de fechas e imprime o guarda en PDF">
+                        <i class="fa-solid fa-file-pdf me-1"></i>PDF
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card-panel mb-3" th:if="${seccion == 'NORMAL'}">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <h6 class="fw-bold mb-0" style="color:#2c3e50;">
+                    Detalle completo ·
+                    <span th:text="${#temporals.format(fecha, 'dd/MM/yyyy')}">03/05/2026</span>
+                    <span th:if="${fechaHasta != null}"> – <span th:text="${#temporals.format(fechaHasta, 'dd/MM/yyyy')}">10/05</span></span>
+                </h6>
+                <div class="d-flex align-items-center gap-1 no-print">
+                    <span style="font-size:0.72rem; color:#8a97a3;">Mostrar</span>
+                    <select class="form-select form-select-sm" style="font-size:0.76rem; width:auto;"
+                            onchange="cambiarLimite(this.value)" title="Cuántos registros se muestran por página">
+                        <option value="5" th:selected="${limite == 5}">5</option>
+                        <option value="10" th:selected="${limite == 10}">10</option>
+                        <option value="20" th:selected="${limite == 20}">20</option>
+                        <option value="50" th:selected="${limite == 50}">50</option>
+                        <option value="0" th:selected="${limite == 0}">Todos</option>
+                    </select>
+                    <span style="font-size:0.72rem; color:#8a97a3;" class="ms-1"
+                          th:if="${limite > 0 && totalFiltrado > limite}"
+                          th:text="'Página ' + (${pag} + 1) + ' · ' + ${totalMostrado} + ' de ' + ${totalFiltrado}">Página 1</span>
+                </div>
+            </div>
+
+            <div style="overflow-x:auto;">
+
+                <table class="tabla-dark" style="min-width:1000px;">
+                    <thead>
+                    <tr>
+                        <th>N°</th>
+
+                        <th>
+                            <a class="link-plain" style="color:#fff;"
+                               th:href="@{/reportes/completo(seccion=${seccion}, turno=${turno}, fecha=${fecha}, fechaHasta=${fechaHasta}, punto=${punto}, limite=${limite}, pabellon=${pabellon}, estadoMov=${estadoMov}, codigo=${codigo}, registradoPor=${registradoPor}, orden=${orden == 'RECIENTES' ? 'ANTIGUOS' : 'RECIENTES'})}"
+                               th:title="${orden == 'RECIENTES'} ? 'Ordenado: más recientes primero (clic para invertir)' : 'Ordenado: más antiguos primero (clic para invertir)'">
+                                Fecha <i th:class="${orden == 'RECIENTES'} ? 'fa-solid fa-arrow-down' : 'fa-solid fa-arrow-up'"></i>
+                            </a>
+                        </th>
+                        <th>Residente</th><th>Código</th><th>DNI</th>
+                        <th>Residencia de Género</th><th>Turno</th><th>Hora</th><th>Punto</th>
+                        <th>Estado</th>
+                        <th class="text-center" title="Resumen del día: Desayuno / Almuerzo / Cena">Su día (D·A·C)</th>
+                        <th>Registró</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="f, it : ${rep.filas}" th:with="m=${f.marcacion}"
+                        th:style="${m.anulada != null && m.anulada} ? 'background:#fdf2f0;'">
+                        <td th:text="${(pag * (limite > 0 ? limite : 0)) + it.count}">1</td>
+                        <td th:text="${#temporals.format(m.turno.fecha, 'dd/MM/yyyy')}">03/05/2026</td>
+                        <td>
+                            <a class="link-plain" style="color:#2c3e50; font-weight:600;"
+                               th:href="@{/reportes/individual(codigo=${m.residente.codigoAcceso})}"
+                               th:text="${m.residente.apellido} + ', ' + ${m.residente.nombre}"
+                               title="Ver reporte completo del residente">Mamani Quispe, Juan C.</a>
+                        </td>
+                        <td th:text="${m.residente.codigoAcceso}">U-2024-10542</td>
+                        <td th:text="${m.residente.dni} ?: '—'">74123456</td>
+                        <td th:text="${m.residente.pabellon} ?: '—'">Varones</td>
+                        <td th:text="${#strings.capitalize(#strings.toLowerCase(m.turno.tipo))}">Almuerzo</td>
+                        <td th:text="${#temporals.format(m.fechaHora, 'HH:mm')}">12:00</td>
+                        <td th:text="${m.punto != null} ? ${m.punto.nombre} : '—'">Ent. A</td>
+                        <td>
+                            <span th:if="${m.anulada == null || !m.anulada}" class="badge-estado"
+                                  th:classappend="${m.estado == 'PERMITIDO'} ? 'bg-permitido' : (${m.estado == 'DENEGADO'} ? 'bg-denegado' : 'bg-justificado')">
+                                <span th:text="${#strings.capitalize(#strings.toLowerCase(m.estado))}">Permitido</span>
+
+                                <span th:if="${m.estado == 'DENEGADO' && m.intentos != null && m.intentos > 1}"
+                                      th:text="'×' + ${m.intentos}"
+                                      th:title="${m.intentos} + ' intentos denegados en 5 minutos (una sola fila)'">×3</span>
+                            </span>
+                            <span th:if="${m.anulada != null && m.anulada}" class="badge-estado bg-denegado"
+                                  th:title="'INFRACCIÓN — registro no válido. Aclaración del cajero: ' + ${m.aclaracion}">
+                                <i class="fa-solid fa-triangle-exclamation me-1"></i>No válido
+                            </span>
+                        </td>
+                        <td class="text-center text-nowrap">
+                            <span th:each="comida : ${ {f.desayuno, f.almuerzo, f.cena} }" class="badge-estado me-1"
+                                  style="padding:2px 6px; font-size:0.66rem;"
+                                  th:classappend="${comida == 'SI'} ? 'bg-permitido' : (${comida == 'JUST'} ? 'bg-justificado' : (${comida == 'NO'} ? 'bg-denegado' : 'bg-ausente'))">
+                                <i th:if="${comida == 'SI'}" class="fa-solid fa-check"></i>
+                                <span th:if="${comida == 'JUST'}">J</span>
+                                <i th:if="${comida == 'NO'}" class="fa-solid fa-xmark"></i>
+                                <span th:if="${comida == 'PEND' or comida == ''}">—</span>
+                            </span>
+                        </td>
+                        <td style="font-size:0.76rem;" th:text="${m.usuario != null} ? ${m.usuario.nombreCompleto} : '—'">Carlos M.</td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(rep.filas)}">
+                        <td colspan="12" class="text-center text-muted py-3">Sin movimientos para los filtros elegidos.</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="foot-bar mt-3">
+                Total movimientos filtrados: <span th:text="${totalFiltrado}">324</span> ·
+                Permitidos: <span th:text="${rep.permitidos}">298</span> ·
+                Denegados: <span th:text="${rep.denegados}">18</span> ·
+                Justificados: <span th:text="${rep.justificados}">12</span> ·
+                Ausentes: <span th:text="${rep.ausentes}">50</span>
+            </div>
+        </div>
+
+        <div class="card-panel mb-3" th:if="${seccion == 'RESERVAS'}" style="border-left:5px solid #2980b9;">
+            <h6 class="fw-bold mb-2" style="color:#21618c;">
+                <i class="fa-solid fa-utensils me-1"></i>Reservas · Detalle completo
+            </h6>
+            <div style="overflow-x:auto;">
+                <table class="tabla-dark" style="min-width:900px;">
+                    <thead>
+                    <tr>
+
+                        <th>N°</th><th>Fecha</th><th>Residente</th><th>Código</th>
+                        <th>Residencia de Género</th><th>Turno</th><th>Hora programada</th>
+                        <th>Hora real</th><th>Reservó</th><th>Estado</th><th>Entregado a</th>
+                        <th class="text-center">Motivo</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="s, it : ${reservasCompleto}">
+                        <td th:text="${it.count}">1</td>
+                        <td th:text="${#temporals.format(s.fecha, 'dd/MM/yyyy')}">02/07</td>
+                        <td th:text="${s.residente.apellido} + ', ' + ${s.residente.nombre}">Mamani, Juan</td>
+                        <td th:text="${s.residente.codigoAcceso}">U-2024-10542</td>
+                        <td th:text="${s.residente.pabellon} ?: '—'">Varones</td>
+                        <td th:text="${#strings.capitalize(#strings.toLowerCase(s.tipoComida))}">Almuerzo</td>
+                        <td th:text="${s.horaRecojo} ?: '—'">14:30</td>
+                        <td th:text="${s.fechaHoraEntrega != null} ? ${#temporals.format(s.fechaHoraEntrega, 'HH:mm')} : '—'">14:42</td>
+                        <td style="font-size:0.76rem;" th:text="${s.usuario != null} ? ${s.usuario.nombreCompleto} : '—'">Prec. Ríos</td>
+                        <td><span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
+                                  th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Pendiente</span></td>
+                        <td style="font-size:0.76rem;" th:text="${s.entregadoATexto}">Residente titular</td>
+
+                        <td class="text-center">
+                            <button type="button" class="btn btn-primary btn-sm ver-motivo"
+                                    style="font-size:0.72rem; padding:3px 10px; white-space:nowrap;"
+                                    th:attr="data-motivo=${s.motivo}"
+                                    title="Ver el motivo completo de la reserva">
+                                <i class="fa-solid fa-eye me-1"></i>Ver detalles</button>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(reservasCompleto)}">
+                        <td colspan="12" class="text-center text-muted py-3">Sin reservas en este rango.</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card-panel mb-3" th:if="${seccion == 'JUSTIFICACIONES'}" style="border-left:5px solid #f39c12;">
+            <h6 class="fw-bold mb-2" style="color:#ca7f0e;">
+                <i class="fa-solid fa-calendar-xmark me-1"></i>Justificaciones · Detalle completo
+            </h6>
+            <table class="tabla-dark">
+                <thead>
+                <tr>
+
+                    <th>N°</th><th>Fecha</th><th>Residente</th><th>Código</th>
+                    <th>Residencia de Género</th><th>Registró</th>
+                    <th class="text-center">Motivo</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="a, it : ${justificacionesCompleto}">
+                    <td th:text="${it.count}">1</td>
+                    <td style="font-size:0.78rem;">
+                        <span th:text="${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')}">05/05</span>
+                        <span th:if="${!a.fechaInicio.equals(a.fechaFin)}">
+                            – <span th:text="${#temporals.format(a.fechaFin, 'dd/MM/yyyy')}">11/05</span>
+                        </span>
+                    </td>
+                    <td th:text="${a.residente.apellido} + ', ' + ${a.residente.nombre}">Flores, María</td>
+                    <td th:text="${a.residente.codigoAcceso}">U-2024-10542</td>
+                    <td th:text="${a.residente.pabellon} ?: '—'">Mujeres</td>
+                    <td th:text="${a.usuario != null} ? ${a.usuario.nombreCompleto} : '—'">Preceptor Ríos</td>
+
+                    <td class="text-center">
+                        <button type="button" class="btn btn-primary btn-sm ver-motivo"
+                                style="font-size:0.72rem; padding:3px 10px; white-space:nowrap;"
+                                th:attr="data-motivo=${a.motivo}"
+                                title="Ver el motivo completo de la justificación">
+                            <i class="fa-solid fa-eye me-1"></i>Ver detalles</button>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(justificacionesCompleto)}">
+                    <td colspan="7" class="text-center text-muted py-3">Sin justificaciones en este rango.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-panel mb-3" th:if="${seccion == 'EVENTOS'}" style="border-left:5px solid #e67e22;">
+            <h6 class="fw-bold mb-2" style="color:#b9770e;">
+                <i class="fa-solid fa-medal me-1"></i>Eventos · Detalle completo
+            </h6>
+            <div th:each="ev : ${eventosCompleto}" class="mb-3">
+                <div style="font-size:0.85rem;" class="mb-1">
+                    <strong th:text="${ev['evento'].nombre}">Excursión</strong>
+                    (<span th:text="${#temporals.format(ev['evento'].fechaEvento, 'dd/MM/yyyy')}">03/07</span> · ración adicional) ·
+                    Participantes: <span th:text="${ev['participantes']}">32</span> ·
+                    Recibieron: <strong style="color:#27ae60;" th:text="${ev['entregadas']}">28</strong>
+                    <span th:if="${!ev['conPase']}" class="badge-estado bg-pendiente ms-1">El preceptor aún no pasa lista</span>
+                </div>
+                <table class="tabla-dark" th:if="${ev['conPase']}">
+                    <thead>
+                    <tr><th>N°</th><th>Residente</th><th>Código</th><th class="text-center">¿Recibió su ración?</th></tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="fe, it : ${ev['filas']}">
+                        <td th:text="${it.count}">1</td>
+                        <td th:text="${fe['nombre']}">Mamani, Juan</td>
+                        <td th:text="${fe['codigo']}">U-2024-10542</td>
+                        <td class="text-center">
+                            <span th:if="${fe['recibido'] == null}" class="badge-estado bg-ausente">—</span>
+                            <span th:if="${fe['recibido'] != null && fe['recibido']}" class="badge-estado bg-permitido"><i class="fa-solid fa-check"></i> Sí</span>
+                            <span th:if="${fe['recibido'] != null && !fe['recibido']}" class="badge-estado bg-denegado"><i class="fa-solid fa-xmark"></i> No</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div th:if="${#lists.isEmpty(eventosCompleto)}" class="text-center text-muted py-3" style="font-size:0.8rem;">
+                Sin eventos aprobados en este rango.
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-center gap-2 mb-3 no-print" th:if="${seccion == 'NORMAL' && (hayAnterior || hayMas)}">
+            <a th:if="${hayAnterior}" class="btn btn-light border btn-sm-flat"
+               th:href="@{/reportes/completo(seccion=${seccion}, turno=${turno}, fecha=${fecha}, fechaHasta=${fechaHasta}, punto=${punto}, limite=${limite}, pag=${pag - 1}, pabellon=${pabellon}, orden=${orden}, estadoMov=${estadoMov}, codigo=${codigo}, registradoPor=${registradoPor})}">
+                <i class="fa-solid fa-chevron-left me-1"></i>Anterior
+            </a>
+            <span class="btn btn-light border btn-sm-flat disabled" th:text="'Página ' + (${pag} + 1)">Página 1</span>
+            <a th:if="${hayMas}" class="btn btn-navy btn-sm-flat"
+               th:href="@{/reportes/completo(seccion=${seccion}, turno=${turno}, fecha=${fecha}, fechaHasta=${fechaHasta}, punto=${punto}, limite=${limite}, pag=${pag + 1}, pabellon=${pabellon}, orden=${orden}, estadoMov=${estadoMov}, codigo=${codigo}, registradoPor=${registradoPor})}">
+                Siguiente<i class="fa-solid fa-chevron-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    function confirmarExportacionMasiva() {
+        confirmarSistema({
+            titulo: 'Exportación masiva de la base de datos',
+            estilo: 'peligro',
+            boton: 'Sí, descargar todo',
+            mensaje: 'Se descargará un Excel con TODA la información histórica disponible '
+                + '(movimientos, reservas, justificaciones y eventos), cada sección en su propia '
+                + 'pestaña del archivo. No se aplican los filtros de pantalla, por lo que puede '
+                + 'ser un archivo pesado y tardar unos segundos.',
+            alConfirmar: () => { window.location.href = '/reportes/exportar-masivo'; }
+        });
+    }
+
+    function cambiarLimite(valor) {
+        const campo = document.getElementById('campoLimite');
+        if (campo) {
+            campo.value = valor;
+            document.getElementById('formFiltros').submit();
+        }
+    }
+</script>
+
+</body>
+</html>

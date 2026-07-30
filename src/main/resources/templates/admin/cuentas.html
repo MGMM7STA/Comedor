@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Admin: Crear Nueva Cuenta')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('cuentas')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <div>
+            Administrador — Crear Nueva Cuenta
+            <div class="sub">Configuración › Crear Cuenta</div>
+        </div>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="row g-3">
+
+            <div class="col-md-8">
+                <div class="card-panel mb-3">
+                    <span class="titulo-seccion" th:text="${editando != null} ? 'Editar Cuenta: ' + ${editando.nombreCompleto} : 'Datos de la Cuenta'">Datos de la Cuenta</span>
+
+                    <div th:if="${soloLectura != null && soloLectura}" class="p-2 rounded mb-3"
+                         style="background:#fdedec; border:1px solid #f5b7b1; font-size:0.8rem; color:#943126;">
+                        <i class="fa-solid fa-lock me-1"></i>
+                        Esta cuenta está <strong>desactivada</strong>: puedes ver sus datos pero no editarlos.
+                        Actívala desde la tabla de abajo si necesitas modificarla.
+                    </div>
+
+                    <form th:action="@{/admin/cuentas/guardar}" method="post" data-navegacion
+                          th:attr="data-titulo=${editando != null} ? 'Guardar cambios de la cuenta' : 'Crear cuenta nueva',
+                                   data-confirmar=${editando != null} ? 'Se actualizarán los datos de esta cuenta.' : 'Se creará la cuenta con la contraseña temporal indicada: compártela con la persona.',
+                                   data-boton=${editando != null} ? 'Sí, guardar' : 'Sí, crear cuenta',
+                                   data-estilo='exito'">
+                        <input type="hidden" name="idUsuario" th:value="${editando != null} ? ${editando.idUsuario} : ''">
+                        <fieldset th:disabled="${soloLectura != null && soloLectura}" style="border:none; padding:0; margin:0;">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="lbl">Nombre completo</div>
+                                <input type="text" name="nombreCompleto" class="form-control" placeholder="Nombre y apellidos de la persona"
+                                       th:value="${editando != null} ? ${editando.nombreCompleto} : ''" required maxlength="150">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="lbl">Código de usuario</div>
+                                <input type="text" name="codigoUsuario" class="form-control" placeholder="Código institucional (se genera solo si lo dejas vacío)"
+                                       th:value="${editando != null} ? ${editando.codigoUsuario} : ''" maxlength="50">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="lbl">DNI</div>
+                                <input type="text" name="dni" class="form-control" placeholder="Documento de identidad"
+                                       th:value="${editando != null} ? ${editando.dni} : ''" maxlength="20">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="lbl">Correo institucional</div>
+                                <input type="email" name="correo" class="form-control" placeholder="Correo con el que iniciará sesión"
+                                       th:value="${editando != null} ? ${editando.correo} : ''" required maxlength="150">
+                            </div>
+
+                            <div class="col-md-6" th:if="${editando == null}">
+                                <div class="lbl">Contraseña temporal (auto)</div>
+                                <input type="text" name="claveTemporal" class="form-control" th:value="${claveTemporal}"
+                                       placeholder="Contraseña con la que entrará la primera vez"
+                                       style="background:#f2f5f8;" required
+                                       title="Se genera automáticamente: compártela con la persona">
+                            </div>
+
+                            <div class="col-md-6" th:if="${editando != null}">
+                                <div class="lbl">Nueva contraseña (vacío = no cambia)</div>
+                                <div class="d-flex gap-1">
+                                    <input type="text" name="claveTemporal" id="claveNuevaCampo" class="form-control"
+                                           placeholder="Escribe la nueva contraseña"
+                                           title="La contraseña actual no se puede ver; escribe una nueva o usa la sugerencia">
+                                    <button type="button" class="btn btn-light border" style="white-space:nowrap; font-size:0.78rem;"
+                                            onclick="sugerirClave()" title="El sistema te sugiere una contraseña segura">
+                                        <i class="fa-solid fa-dice me-1"></i>Sugerir
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="lbl">Teléfono</div>
+                                <input type="text" name="telefono" class="form-control" placeholder="Teléfono de contacto"
+                                       th:value="${editando != null} ? ${editando.telefono} : ''" maxlength="30">
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <span class="titulo-seccion">Seleccionar Rol</span>
+                        </div>
+
+                        <label class="d-block border rounded p-3 mb-2 rol-opcion" id="cardCajero" style="cursor:pointer;">
+                            <input type="radio" name="rol" value="CAJERO" class="form-check-input me-2" required
+                                   th:checked="${editando != null && editando.rol == 'CAJERO'}" onchange="togglePabellon()">
+                            <strong style="font-size:0.88rem;">Cajero</strong>
+                            <div style="font-size:0.78rem; color:#8a97a3; margin-left:26px;">
+                                Valida acceso en puntos del comedor, activa/cierra turnos.
+                            </div>
+                        </label>
+                        <label class="d-block border rounded p-3 mb-2 rol-opcion" id="cardPreceptor" style="cursor:pointer;">
+                            <input type="radio" name="rol" value="PRECEPTOR" class="form-check-input me-2" id="rolPreceptor"
+                                   th:checked="${editando == null || editando.rol == 'PRECEPTOR'}" onchange="togglePabellon()">
+                            <strong style="font-size:0.88rem;">Preceptor</strong>
+                            <div style="font-size:0.78rem; color:#8a97a3; margin-left:26px;">
+                                Gestiona residentes, ausencias y eventos especiales.
+                            </div>
+                        </label>
+
+                        <div id="zonaPabellon" class="border rounded p-3 mb-3" style="background:#fdf6ec;">
+                            <div class="lbl">Preceptoría a cargo</div>
+                            <select name="pabellon" class="form-select" style="font-size:0.87rem; max-width:280px;">
+                                <option value="Varones" th:selected="${editando != null && editando.pabellon == 'Varones'}">Preceptor de Varones</option>
+                                <option value="Mujeres" th:selected="${editando != null && editando.pabellon == 'Mujeres'}">Preceptora de Mujeres</option>
+                            </select>
+                            <div style="font-size:0.72rem; color:#8a97a3;" class="mt-1">
+                                Los residentes que registre quedarán automáticamente en esta residencia de género.
+                            </div>
+                        </div>
+
+                        </fieldset>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-navy btn-sm-flat px-4"
+                                    th:if="${soloLectura == null || !soloLectura}"
+                                    th:text="${editando != null} ? 'Guardar Cambios' : 'Crear Cuenta'">Crear Cuenta</button>
+                            <a th:href="${editando != null} ? '/admin/cuentas' : '/admin/puntos'"
+                               class="btn btn-light btn-sm-flat border px-4"
+                               th:text="${soloLectura != null && soloLectura} ? 'Volver' : 'Cancelar'">Cancelar</a>
+                        </div>
+                    </form>
+
+                </div>
+
+                <div class="card-panel">
+                    <span class="titulo-seccion">Cuentas Registradas</span>
+                    <table class="tabla-dark">
+                        <thead>
+                        <tr>
+                            <th>Nombre</th><th>Código</th><th>Correo</th><th>Rol</th><th>Residencia de Género</th><th>Estado</th><th>Acciones</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="c : ${cuentas}">
+                            <td th:text="${c.nombreCompleto}">Carlos Mamani</td>
+                            <td th:text="${c.codigoUsuario}">USR-2024-002</td>
+                            <td th:text="${c.correo}">cajero@upeu.edu.pe</td>
+                            <td><span class="badge-estado" th:classappend="${c.rol == 'CAJERO'} ? 'bg-justificado' : 'bg-permitido'" th:text="${c.rol}">CAJERO</span></td>
+                            <td th:text="${c.pabellon} ?: '—'">Varones</td>
+                            <td><span class="badge-estado" th:classappend="${c.activo} ? 'bg-permitido' : 'bg-denegado'" th:text="${c.activo} ? 'Activa' : 'Desactivada'">Activa</span></td>
+                            <td class="text-nowrap">
+                                <a th:href="@{'/admin/cuentas/' + ${c.idUsuario} + '/editar'}"
+                                   class="btn btn-success btn-sm" style="font-size:0.72rem;">Editar</a>
+                                <form th:action="@{'/admin/cuentas/' + ${c.idUsuario} + '/toggle'}" method="post" style="margin:0; display:inline;">
+                                    <button class="btn btn-outline-secondary btn-sm" style="font-size:0.72rem;"
+                                            th:text="${c.activo} ? 'Desactivar' : 'Activar'">Desactivar</button>
+                                </form>
+                                <form th:action="@{'/admin/cuentas/' + ${c.idUsuario} + '/eliminar'}" method="post" style="margin:0; display:inline;"
+                                      th:attr="data-titulo='Eliminar cuenta de ' + ${c.nombreCompleto},
+                                               data-confirmar='La cuenta se eliminará del sistema y no se puede deshacer. Si tiene registros asociados no se podrá y conviene solo desactivarla.',
+                                               data-boton='Sí, eliminar cuenta'">
+                                    <button class="btn btn-danger btn-sm" style="font-size:0.72rem;" title="Eliminar cuenta">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(cuentas)}">
+                            <td colspan="7" class="text-center text-muted py-3">Aún no hay cuentas de cajero o preceptor.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+
+                <div class="card-panel mb-3">
+                    <span class="titulo-seccion"><i class="fa-solid fa-user-shield me-1" style="color:#2c3e50;"></i>Mi cuenta (administrador)</span>
+                    <div style="font-size:0.74rem; color:#8a97a3;" class="mb-2">
+                        Sesión iniciada como <strong th:text="${miCorreo}">admin@upeu.edu.pe</strong>.
+                        Aquí cambias tu propia contraseña.
+                    </div>
+                    <form th:action="@{/admin/cuentas/mi-clave}" method="post" data-navegacion
+                          data-titulo="Cambiar mi contraseña"
+                          data-confirmar="Se cambiará la contraseña de tu cuenta de administrador. La próxima vez entrarás con la nueva."
+                          data-boton="Sí, cambiar" data-estilo="exito">
+                        <div class="lbl">Contraseña actual</div>
+                        <input type="password" name="claveActual" class="form-control mb-2" placeholder="Tu contraseña de ahora" required>
+                        <div class="lbl">Nueva contraseña</div>
+                        <div class="d-flex gap-1 mb-2">
+                            <input type="text" name="claveNueva" id="miClaveNueva" class="form-control"
+                                   placeholder="Mínimo 6 caracteres" required minlength="6">
+                            <button type="button" class="btn btn-light border" style="white-space:nowrap; font-size:0.78rem;"
+                                    onclick="sugerirMiClave()" title="El sistema te sugiere una contraseña segura">
+                                <i class="fa-solid fa-dice"></i>
+                            </button>
+                        </div>
+                        <div class="lbl">Repite la nueva contraseña</div>
+                        <input type="password" name="claveNuevaConfirma" class="form-control mb-3" placeholder="Escríbela otra vez" required>
+                        <button type="submit" class="btn btn-navy btn-sm-flat px-4 w-100">Cambiar mi contraseña</button>
+                    </form>
+                </div>
+
+                <div class="card-panel">
+                    <span class="titulo-seccion">Descripción de Roles</span>
+                    <div style="font-size:0.74rem; color:#8a97a3;" class="mb-2">
+                        Capacidades de las cuentas que puedes crear desde aquí.
+                    </div>
+
+                    <div class="mb-3">
+                        <strong style="font-size:0.85rem;"><i class="fa-solid fa-cash-register me-1" style="color:#e67e22;"></i>Cajero</strong>
+                        <ul style="font-size:0.78rem; color:#5d6d7b; padding-left:18px; margin:6px 0 0;">
+                            <li>Valida acceso de residentes</li>
+                            <li>Permite / deniega ingreso</li>
+                            <li>Reporta incidencias</li>
+                            <li>Gestiona turno activo</li>
+                        </ul>
+                    </div>
+                    <hr>
+                    <div>
+                        <strong style="font-size:0.85rem;"><i class="fa-solid fa-user-tie me-1" style="color:#8e44ad;"></i>Preceptor</strong>
+                        <ul style="font-size:0.78rem; color:#5d6d7b; padding-left:18px; margin:6px 0 0;">
+                            <li>Registra nuevos residentes</li>
+                            <li>Justifica ausencias</li>
+                            <li>Crea eventos especiales</li>
+                            <li>Lista residentes con resp. financiero</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    function togglePabellon() {
+        const esPreceptor = document.getElementById('rolPreceptor').checked;
+        document.getElementById('zonaPabellon').style.display = esPreceptor ? '' : 'none';
+        const activo = 'border-color:#2980b9; background:#eaf3fb; cursor:pointer;';
+        const normal = 'cursor:pointer;';
+        document.getElementById('cardPreceptor').style.cssText = esPreceptor ? activo : normal;
+        document.getElementById('cardCajero').style.cssText = esPreceptor ? normal : activo;
+    }
+    togglePabellon();
+
+    function sugerirClave() {
+        const palabras = ['UPeU', 'Comedor', 'Residencia', 'Acceso', 'Turno', 'Racion', 'Cocina'];
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let sufijo = '';
+        for (let i = 0; i < 4; i++) sufijo += chars.charAt(Math.floor(Math.random() * chars.length));
+        const palabra = palabras[Math.floor(Math.random() * palabras.length)];
+        const campo = document.getElementById('claveNuevaCampo');
+        if (campo) campo.value = palabra + '-' + sufijo;
+    }
+
+    function sugerirMiClave() {
+        const palabras = ['UPeU', 'Comedor', 'Residencia', 'Acceso', 'Turno', 'Racion', 'Cocina'];
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let sufijo = '';
+        for (let i = 0; i < 4; i++) sufijo += chars.charAt(Math.floor(Math.random() * chars.length));
+        const palabra = palabras[Math.floor(Math.random() * palabras.length)];
+        const campo = document.getElementById('miClaveNueva');
+        if (campo) campo.value = palabra + '-' + sufijo;
+    }
+</script>
+
+</body>
+</html>

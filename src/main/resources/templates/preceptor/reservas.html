@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Preceptor: Reservar Raciones')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('reservas')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>
+            Preceptor — Reserva de Raciones
+            <span th:if="${residenciaFija != null}" class="sub"
+                  th:text="'Residencia de Género: ' + ${residenciaFija}">Residencia de Género: Varones</span>
+        </span>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <form th:action="@{/preceptor/reservas/guardar}" method="post" id="formReserva"
+              data-titulo="Registrar las reservas"
+              data-confirmar="Se reservará la ración del turno elegido para todos los residentes de la lista, con el mismo motivo."
+              data-boton="Sí, reservar"
+              data-estilo="exito">
+            <div class="row g-3">
+
+                <div class="col-md-5">
+                    <div class="card-panel">
+                        <span class="titulo-seccion">Datos de la reserva</span>
+
+                        <div class="lbl">Fecha</div>
+                        <input type="date" name="fecha" id="fecha" class="form-control mb-3" required
+                               th:value="${hoy}" th:min="${hoy}" onchange="marcarTurnosBloqueados()"
+                               title="Las reservas se registran de hoy en adelante">
+
+                        <div class="lbl">Turno (uno solo)</div>
+                        <div class="d-flex gap-2 mb-1">
+                            <input type="radio" class="btn-check" name="tipoComida" value="DESAYUNO" id="tD" required>
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="tD" id="lblD"
+                                   title="Reservar el desayuno">Desayuno</label>
+                            <input type="radio" class="btn-check" name="tipoComida" value="ALMUERZO" id="tA">
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="tA" id="lblA"
+                                   title="Reservar el almuerzo">Almuerzo</label>
+                            <input type="radio" class="btn-check" name="tipoComida" value="CENA" id="tC">
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="tC" id="lblC"
+                                   title="Reservar la cena">Cena</label>
+                        </div>
+                        <div id="avisoBloqueo" class="mb-3" style="font-size:0.72rem; color:#c0392b;"></div>
+
+                        <div class="lbl" title="Hora aproximada en que pasarán a recoger">Hora de recojo (opcional)</div>
+                        <input type="time" name="horaRecojo" class="form-control mb-3"
+                               title="Hora aproximada en que pasarán a recoger la ración">
+
+                        <div class="lbl">Motivo o justificación (para toda la lista)</div>
+                        <textarea name="motivo" class="form-control mb-1" rows="4" required
+                                  placeholder="Motivo que aplica a todos los residentes agregados"
+                                  title="Este mismo motivo se guardará en cada una de las reservas" maxlength="300"></textarea>
+                        <div style="font-size:0.7rem; color:#8a97a3;" class="mb-3">
+                            Se aplicará el mismo motivo a todos los residentes de la lista.
+                        </div>
+
+                        <div class="p-2 rounded mb-3" style="background:#eaf3fb; border:1px solid #aed6f1; font-size:0.76rem; color:#21618c;">
+                            <i class="fa-solid fa-circle-info me-1"></i>
+                            Escribe o escanea el código del residente y presiona <strong>Enter</strong>:
+                            se irá agregando a la lista de la derecha.
+                        </div>
+
+                        <label class="d-flex align-items-center justify-content-between gap-2 mb-2 p-2 rounded"
+                               style="cursor:pointer; background:#e8f8f5; border:1px solid #a3e4d7;"
+                               title="Encendido: la lista se guarda como UN grupo (entrega masiva de un clic). Apagado: reservas individuales.">
+                            <span style="font-size:0.76rem; font-weight:800; color:#117a65;">
+                                <i class="fa-solid fa-people-group me-1"></i>Agrupar como RESERVA MASIVA
+                            </span>
+                            <input type="checkbox" name="agrupar" id="switchAgrupar" value="true"
+                                   class="form-check-input" style="width:2.2em; height:1.2em;" role="switch">
+                        </label>
+
+                        <button type="submit" class="btn btn-navy w-100 fw-bold" id="btnGuardar" disabled
+                                title="Registra la reserva de todos los residentes de la lista">
+                            <i class="fa-solid fa-check me-1"></i>Reservar para la lista
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-md-7">
+                    <div class="card-panel">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <h6 class="fw-bold mb-0" style="color:#2c3e50;">Residentes a reservar</h6>
+                            <span class="badge-estado bg-permitido">En la lista: <span id="conteo">0</span></span>
+                        </div>
+
+                        <div class="input-group mb-2">
+                            <span class="input-group-text bg-white">
+                                <i class="fa-solid fa-barcode" style="font-size:0.85rem; color:#8a97a3;"></i>
+                            </span>
+
+                            <input type="text" id="buscador" class="form-control" list="listaResidentes" autofocus
+                                   placeholder="Buscar código..."
+                                   title="Escribe o escanea el código y presiona Enter para agregarlo">
+                            <button type="button" class="btn btn-navy" onclick="agregar()"
+                                    title="Agregar el residente escrito a la lista">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </div>
+                        <datalist id="listaResidentes">
+                            <option th:each="r : ${residentes}" th:value="${r.codigoAcceso}"
+                                    th:text="${r.nombreCompleto}"></option>
+                        </datalist>
+                        <input type="hidden" name="codigos" id="codigosHidden">
+
+                        <table class="tabla-dark">
+                            <thead>
+                            <tr><th>N°</th><th>Código</th><th>Residente</th><th>Cuarto</th><th>Quitar</th></tr>
+                            </thead>
+                            <tbody id="cuerpoLista">
+                            <tr id="filaVacia">
+                                <td colspan="5" class="text-center text-muted py-3">
+                                    Aún no has agregado residentes. Usa el buscador de arriba.
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="d-flex justify-content-end mt-2">
+                            <button type="button" class="btn btn-light border btn-sm" style="font-size:0.74rem;"
+                                    onclick="vaciarLista()" title="Quitar a todos los residentes de la lista">
+                                <i class="fa-solid fa-eraser me-1"></i>Vaciar lista
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </form>
+
+        <div class="card-panel mt-3">
+            <span class="titulo-seccion">Reservas registradas</span>
+            <table class="tabla-dark">
+                <thead>
+                <tr><th>N°</th><th>Fecha</th><th>Residente</th><th>Código</th><th>Estado</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="s, it : ${misReservas}">
+                    <td th:text="${it.count}">1</td>
+                    <td th:text="${#temporals.format(s.fecha, 'dd/MM/yyyy')}">02/07/2026</td>
+                    <td th:text="${s.residente.apellido} + ', ' + ${s.residente.nombre}">Mamani, Juan</td>
+                    <td th:text="${s.residente.codigoAcceso}">U-2024-10542</td>
+                    <td>
+                        <span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
+                              th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Pendiente</span>
+                    </td>
+                    <td>
+
+                        <button type="button" class="btn btn-primary btn-sm" style="font-size:0.68rem;"
+                                onclick="verReservaPrec(this)" title="Ver el detalle completo de esta reserva"
+                                th:attr="data-residente=${s.residente.nombreCompleto},
+                                         data-codigo=${s.residente.codigoAcceso},
+                                         data-fecha=${#temporals.format(s.fecha, 'dd/MM/yyyy')},
+                                         data-turno=${#strings.capitalize(#strings.toLowerCase(s.tipoComida))},
+                                         data-programada=${s.horaRecojo} ?: '—',
+                                         data-real=${s.fechaHoraEntrega != null} ? ${#temporals.format(s.fechaHoraEntrega, 'HH:mm')} : 'Aún no recogida',
+                                         data-entregado=${s.entregadoATexto},
+                                         data-motivo=${s.motivo}">
+                            <i class="fa-solid fa-eye"></i> Ver detalles
+                        </button>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(misReservas)}">
+                    <td colspan="6" class="text-center text-muted py-3">Sin reservas registradas.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="modalReservaPrec" class="modal-sistema" style="display:none;">
+    <div class="modal-caja">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="modal-titulo mb-0">
+                <i class="fa-solid fa-utensils" style="color:#e67e22;"></i>
+                Detalle de la reserva
+            </div>
+            <button type="button" class="btn btn-light border btn-sm" style="font-size:0.72rem;"
+                    onclick="document.getElementById('modalReservaPrec').style.display='none'" title="Cerrar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div style="font-size:0.84rem; color:#5d6d7b;">
+            <div class="mb-1"><strong>Residente:</strong> <span id="rpResidente"></span> (<span id="rpCodigo"></span>)</div>
+            <div class="mb-1"><strong>Fecha y turno:</strong> <span id="rpFecha"></span> · <span id="rpTurno"></span></div>
+            <div class="mb-1"><strong>Hora programada de recojo:</strong> <span id="rpProgramada"></span></div>
+            <div class="mb-1"><strong>Hora real en que vino:</strong> <span id="rpReal"></span></div>
+            <div class="mb-1"><strong>Entregado a:</strong> <span id="rpEntregado"></span></div>
+
+            <div class="lbl mt-2 mb-1"><i class="fa-solid fa-quote-left me-1"></i>Motivo de la reserva</div>
+            <div class="p-2 rounded" style="background:#f7f9fb; border:1px solid #e3e9ee; white-space:pre-wrap;"
+                 id="rpMotivo">Motivo</div>
+        </div>
+        <div class="modal-botones mt-3">
+            <button type="button" class="btn btn-light border btn-sm-flat"
+                    onclick="document.getElementById('modalReservaPrec').style.display='none'">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+
+    const residentes =  [];
+
+    const comidasBloqueadas =  [] || [];
+    const fechaHoy =  '';
+
+    const lista = [];
+
+    window.hayTrabajoEnCurso = () => lista.length > 0;
+
+    function marcarTurnosBloqueados() {
+        const esHoy = document.getElementById('fecha').value === fechaHoy;
+        const mapa = { 'DESAYUNO': ['tD', 'lblD'], 'ALMUERZO': ['tA', 'lblA'], 'CENA': ['tC', 'lblC'] };
+        const bloqueados = [];
+        Object.keys(mapa).forEach(tipo => {
+            const [idInput, idLabel] = mapa[tipo];
+            const input = document.getElementById(idInput);
+            const label = document.getElementById(idLabel);
+            const bloqueado = esHoy && comidasBloqueadas.includes(tipo);
+            input.disabled = bloqueado;
+            label.style.opacity = bloqueado ? '0.45' : '';
+            label.style.textDecoration = bloqueado ? 'line-through' : '';
+            label.title = bloqueado ? 'Este turno de hoy ya pasó: no admite reservas' : 'Reservar este turno';
+            if (bloqueado) {
+                bloqueados.push(tipo.charAt(0) + tipo.slice(1).toLowerCase());
+                if (input.checked) input.checked = false;
+            }
+        });
+        document.getElementById('avisoBloqueo').textContent = bloqueados.length
+            ? 'Hoy ya no se puede reservar: ' + bloqueados.join(', ') + '.'
+            : '';
+    }
+
+    function agregar() {
+        const campo = document.getElementById('buscador');
+        const texto = campo.value.trim();
+        if (!texto) return;
+        const r = residentes.find(x => x.codigo && x.codigo.toLowerCase() === texto.toLowerCase())
+            || residentes.find(x => x.nombre && x.nombre.toLowerCase().includes(texto.toLowerCase()));
+        if (!r) { avisoSistema('No se encontró ningún residente con ese código o nombre.', 'Residente no encontrado'); return; }
+        if (lista.includes(r.codigo)) { avisoSistema('Ese residente ya está en la lista.', 'Ya agregado'); campo.value = ''; return; }
+        lista.push(r.codigo);
+        pintarLista();
+        campo.value = '';
+        campo.focus();
+    }
+
+    function quitar(codigo) {
+        const i = lista.indexOf(codigo);
+        if (i >= 0) lista.splice(i, 1);
+        pintarLista();
+    }
+
+    function vaciarLista() {
+        lista.length = 0;
+        pintarLista();
+    }
+
+    function pintarLista() {
+        const cuerpo = document.getElementById('cuerpoLista');
+        cuerpo.innerHTML = '';
+        if (lista.length === 0) {
+
+            cuerpo.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">'
+                + 'Aún no has agregado residentes. Usa el buscador de arriba.</td></tr>';
+        } else {
+            lista.forEach((cod, i) => {
+                const r = residentes.find(x => x.codigo === cod) || { nombre: '—', cuarto: '—' };
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + (i + 1) + '</td>'
+                    + '<td>' + cod + '</td>'
+                    + '<td>' + r.nombre + '</td>'
+                    + '<td>' + (r.cuarto || '—') + '</td>'
+                    + '<td><button type="button" class="btn btn-danger btn-sm" style="font-size:0.7rem;" '
+                    + 'title="Quitar de la lista" onclick="quitar(\'' + cod + '\')">Quitar</button></td>';
+                cuerpo.appendChild(tr);
+            });
+        }
+        document.getElementById('conteo').textContent = lista.length;
+        document.getElementById('codigosHidden').value = lista.join(',');
+        document.getElementById('btnGuardar').disabled = lista.length === 0;
+        actualizarConfirmacionLote();
+    }
+
+    function actualizarConfirmacionLote() {
+        const form = document.getElementById('formReserva');
+        const agrupar = document.getElementById('switchAgrupar').checked;
+        if (!agrupar && lista.length >= 2) {
+            form.dataset.titulo = '¿Guardar sin agrupar?';
+            form.dataset.confirmar = 'Tienes ' + lista.length + ' residentes con la RESERVA MASIVA apagada: '
+                + 'se guardarán como reservas individuales y el cajero las entregará una por una. '
+                + 'Con el switch encendido se empaquetan como UN grupo y el cajero entrega todo de un '
+                + 'solo clic al escanear a cualquiera. ¿Está seguro de que no desea aplicar la reserva masiva?';
+            form.dataset.boton = 'Sí, guardar individuales';
+            form.dataset.estilo = 'peligro';
+        } else if (agrupar) {
+            form.dataset.titulo = 'Registrar RESERVA MASIVA';
+            form.dataset.confirmar = 'Los ' + lista.length + ' residente(s) de la lista quedarán empaquetados '
+                + 'como UN grupo: el cajero podrá entregar todas sus raciones de un solo clic.';
+            form.dataset.boton = 'Sí, reservar en grupo';
+            form.dataset.estilo = 'exito';
+        } else {
+            form.dataset.titulo = 'Registrar las reservas';
+            form.dataset.confirmar = 'Se reservará la ración del turno elegido para todos los residentes de la lista, con el mismo motivo.';
+            form.dataset.boton = 'Sí, reservar';
+            form.dataset.estilo = 'exito';
+        }
+    }
+    document.getElementById('switchAgrupar').addEventListener('change', actualizarConfirmacionLote);
+
+    document.getElementById('buscador').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); agregar(); }
+    });
+
+    marcarTurnosBloqueados();
+    pintarLista();
+
+    window.alRefrescar = marcarTurnosBloqueados;
+
+    function verReservaPrec(btn) {
+        const d = btn.dataset;
+        document.getElementById('rpResidente').textContent = d.residente;
+        document.getElementById('rpCodigo').textContent = d.codigo;
+        document.getElementById('rpFecha').textContent = d.fecha;
+        document.getElementById('rpTurno').textContent = d.turno;
+        document.getElementById('rpProgramada').textContent = d.programada;
+        document.getElementById('rpReal').textContent = d.real;
+        document.getElementById('rpEntregado').textContent = d.entregado;
+        document.getElementById('rpMotivo').textContent = d.motivo;
+        const modal = document.getElementById('modalReservaPrec');
+        modal.style.display = 'flex';
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.getElementById('modalReservaPrec').style.display = 'none';
+    });
+</script>
+
+</body>
+</html>

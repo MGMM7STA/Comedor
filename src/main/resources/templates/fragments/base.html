@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:fragment="head(titulo)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${titulo} + ' · Comedor UPEU'">Comedor UPEU</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #eceff3; font-family: 'Segoe UI', Arial, sans-serif; font-size: 0.9rem; }
+
+        #sidebar {
+            width: 210px; height: 100vh;
+            background: linear-gradient(180deg, #33424f 0%, #2b3844 100%);
+            position: fixed; top: 0; left: 0;
+            display: flex; flex-direction: column;
+            z-index: 200; overflow-y: auto;
+        }
+        .side-avatar { text-align: center; padding: 26px 10px 18px; }
+        .side-avatar .circle {
+            width: 52px; height: 52px; border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 700; font-size: 1.25rem;
+        }
+        .side-avatar .rol-nombre { color: #b9c6d2; font-size: 0.78rem; margin-top: 8px; }
+        .circle-admin { background: #22303d; border: 2px solid #4a5a68; }
+        .circle-cajero { background: #2980b9; }
+        .circle-preceptor { background: #8e44ad; }
+
+        .sidebar-link {
+            color: #c7d2dc; padding: 10px 18px; font-size: 0.86rem;
+            display: flex; align-items: center; gap: 10px;
+            text-decoration: none; transition: all 0.15s; white-space: nowrap;
+        }
+        .sidebar-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .sidebar-link.active { background: #46586a; color: #fff; border-left: 4px solid #f1c40f; padding-left: 14px; }
+        .sidebar-link i { width: 18px; text-align: center; font-size: 0.95rem; }
+
+        .notif-burbuja {
+            background: #e74c3c; color: #fff; font-size: 0.62rem; font-weight: 800;
+            border-radius: 999px; min-width: 17px; height: 17px; padding: 0 5px;
+            display: inline-flex; align-items: center; justify-content: center; margin-left: auto;
+        }
+
+        .sidebar-footer { margin-top: auto; padding: 12px 0 18px; border-top: 1px solid rgba(255,255,255,0.08); }
+        .logout-btn {
+            color: #e8a87c; padding: 10px 18px; font-size: 0.86rem;
+            display: flex; align-items: center; gap: 10px;
+            background: none; border: none; width: 100%; cursor: pointer; text-align: left;
+        }
+        .logout-btn:hover { background: rgba(232,168,124,0.12); color: #f3c9a8; }
+
+        #main { margin-left: 210px; min-height: 100vh; display: flex; flex-direction: column; }
+        .page-header {
+            background: #2c3e50; color: #fff;
+            padding: 13px 26px; font-weight: 700; font-size: 1.02rem;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .page-header .sub { font-weight: 400; font-size: 0.75rem; color: #aebfce; }
+        .contenido { padding: 20px 24px; flex: 1; }
+
+        .card-panel { background: #fff; border: 1px solid #dde3e9; border-radius: 8px; padding: 16px 18px; }
+        .titulo-seccion {
+            display: inline-block; background: #2c3e50; color: #fff;
+            font-size: 0.75rem; font-weight: 700; padding: 4px 12px; border-radius: 4px;
+            letter-spacing: 0.3px; margin-bottom: 14px;
+        }
+        .lbl { font-size: 0.7rem; font-weight: 700; color: #6b7a88; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px; }
+
+        .tabla-dark { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+        .tabla-dark thead th { background: #2c3e50; color: #fff; padding: 8px 10px; font-weight: 600; white-space: nowrap; }
+        .tabla-dark tbody td { padding: 7px 10px; border-bottom: 1px solid #edf1f5; vertical-align: middle; }
+        .tabla-dark tbody tr:nth-child(even) { background: #f7f9fb; }
+        .tabla-dark tbody tr:hover { background: #eef3f8; }
+
+        .badge-estado { font-size: 0.7rem; font-weight: 700; padding: 3px 10px; border-radius: 4px; display: inline-block; }
+        .bg-permitido { background: #d5f5e3; color: #1e8449; }
+        .bg-denegado { background: #fadbd8; color: #c0392b; }
+        .bg-justificado { background: #fdebd0; color: #ca7f0e; }
+        .bg-ausente { background: #e5e8eb; color: #6b7a88; }
+        .bg-activo-solid { background: #27ae60; color: #fff; }
+        .bg-bloqueado-solid { background: #e74c3c; color: #fff; }
+        .bg-desactivado-solid { background: #b03a2e; color: #fff; }
+        .bg-cerrado-solid { background: #7f8c8d; color: #fff; }
+        .bg-pendiente { background: #fdebd0; color: #ca7f0e; }
+
+        .btn-navy { background: #2c3e50; color: #fff; border: none; }
+        .btn-navy:hover { background: #22303d; color: #fff; }
+        .btn-sm-flat { font-size: 0.78rem; padding: 5px 14px; border-radius: 5px; font-weight: 600; }
+
+        .stat-num { font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
+        .stat-lbl { font-size: 0.74rem; color: #8a97a3; }
+        .stat-box { background: #f7f9fb; border: 1px solid #e3e9ee; border-radius: 8px; padding: 12px 16px; text-align: center; }
+
+        .foot-bar {
+            background: #2c3e50; color: #cfd8e0; font-size: 0.76rem;
+            border-radius: 6px; padding: 8px 14px; text-align: center;
+        }
+
+        ::placeholder { color: #c6cfd7 !important; font-size: 0.78rem; opacity: 1; }
+
+        .selector-rango {
+            display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap;
+            background: #fff; border: 1px solid #dde3e9; border-radius: 8px; padding: 8px 10px;
+        }
+        .selector-rango .rango-campo { display: flex; flex-direction: column; gap: 2px; }
+        .selector-rango .rango-lbl {
+            font-size: 0.64rem; font-weight: 700; color: #6b7a88;
+            text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap;
+        }
+        .selector-rango .rango-lbl i { font-size: 0.6rem; color: #8a97a3; }
+        .selector-rango input[type="time"] { font-size: 0.78rem; width: 118px; }
+        .selector-rango .rango-flecha { color: #b8c2cb; padding-bottom: 6px; }
+
+        .datos-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 10px 16px; margin-bottom: 6px;
+        }
+        .datos-grid .dato { display: flex; align-items: flex-start; gap: 8px; }
+        .datos-grid .dato > i {
+            width: 26px; height: 26px; flex-shrink: 0; border-radius: 6px;
+            background: #eef3f8; color: #5d6d7b; font-size: 0.78rem;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .datos-grid .dato-lbl {
+            display: block; font-size: 0.63rem; font-weight: 700; color: #8a97a3;
+            text-transform: uppercase; letter-spacing: 0.4px; line-height: 1.3;
+        }
+        .datos-grid .dato-val { display: block; font-size: 0.85rem; color: #2c3e50; font-weight: 600; }
+
+        .tab-seccion {
+            border: 1px solid #d5dde4; background: #fff; color: #5d6d7b;
+            font-size: 0.78rem; font-weight: 700; padding: 7px 16px; border-radius: 8px;
+            cursor: pointer; transition: all 0.18s; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .tab-seccion:hover { border-color: #aab7c4; color: #2c3e50; }
+        .tab-seccion.activa {
+            background: #2c3e50; color: #fff; border-color: #2c3e50;
+            box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.18), 0 0 14px rgba(88, 214, 141, 0.55);
+        }
+        .tab-seccion.activa i { color: #58d68d; }
+
+        .tab-grande { font-size: 0.9rem; padding: 10px 22px; border-radius: 10px; }
+
+        .tab-vista { min-width: 118px; justify-content: center; }
+
+        .modal-sistema {
+            position: fixed; inset: 0; z-index: 2000;
+            background: rgba(24, 35, 46, 0.55);
+            display: flex; align-items: center; justify-content: center;
+            animation: aparecerFondo 0.15s ease;
+        }
+        .modal-caja {
+            background: #fff; border-radius: 12px; padding: 22px 26px;
+            max-width: 480px; width: 92%; max-height: 85vh; overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+            animation: aparecerCaja 0.18s ease;
+        }
+        .modal-caja.modal-ancha { max-width: 640px; }
+
+        .modal-caja.modal-gigante { max-width: 920px; padding: 26px 32px; }
+        .modal-titulo { font-weight: 800; color: #2c3e50; font-size: 1rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .modal-texto { font-size: 0.86rem; color: #5d6d7b; margin-bottom: 18px; }
+        .modal-botones { display: flex; gap: 10px; justify-content: flex-end; }
+        @keyframes aparecerFondo { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes aparecerCaja { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+        a.link-plain { text-decoration: none; }
+
+        .btn-menu {
+            position: fixed; top: 9px; left: 10px; z-index: 260;
+            width: 38px; height: 38px; border: none; border-radius: 8px;
+            background: #22303d; color: #fff; font-size: 1.05rem; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        }
+        .btn-menu:hover { background: #2c3e50; }
+
+        #sidebar { padding-top: 46px; }
+
+        #menuBackdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 190; display: none; }
+
+        @media (min-width: 769px) {
+            body.menu-min #sidebar { width: 60px; }
+            body.menu-min #main { margin-left: 60px; }
+            body.menu-min .side-avatar { display: none; }
+            body.menu-min .sidebar-link span,
+            body.menu-min .logout-btn span,
+            body.menu-min .reloj-lbl,
+            body.menu-min .notif-burbuja { display: none; }
+            body.menu-min .sidebar-link,
+            body.menu-min .logout-btn { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+            body.menu-min .sidebar-link.active { border-left: none; padding-left: 0; }
+            body.menu-min #relojSistema { font-size: 0.62rem; letter-spacing: 0; }
+        }
+
+        @media (max-width: 768px) {
+            #sidebar { transform: translateX(-100%); transition: transform 0.22s ease; }
+            #main { margin-left: 0; }
+            body.menu-movil-abierto #sidebar { transform: translateX(0); box-shadow: 6px 0 30px rgba(0,0,0,0.4); }
+            body.menu-movil-abierto #menuBackdrop { display: block; }
+
+            .page-header { padding-left: 56px; flex-wrap: wrap; gap: 4px 10px; }
+            .contenido { padding: 14px 12px; }
+            .card-panel { padding: 14px 12px; }
+
+            .card-panel { overflow-x: auto; }
+            .tabla-dark { font-size: 0.76rem; }
+
+            .stat-num { font-size: 1.3rem; }
+            .stat-box { padding: 8px 6px; }
+            .stat-lbl { font-size: 0.64rem; }
+
+            .tab-grande { font-size: 0.78rem; padding: 7px 12px; }
+            .tab-vista { min-width: 90px; }
+
+            .modal-caja { padding: 16px 14px; }
+
+            .datos-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media print {
+            #sidebar, .page-header, .no-print { display: none !important; }
+            #main { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<th:block th:fragment="sidebar(active)">
+<button id="btnMenu" class="btn-menu no-print" type="button" title="Mostrar u ocultar el menú" onclick="alternarMenu()">
+    <i class="fa-solid fa-bars"></i>
+</button>
+<div id="menuBackdrop" class="no-print" onclick="cerrarMenuMovil()"></div>
+<div id="sidebar">
+    <div sec:authorize="hasRole('ADMIN')">
+        <div class="side-avatar">
+            <div class="circle circle-admin">A</div>
+            <div class="rol-nombre">Admin</div>
+        </div>
+        <a href="/admin/puntos" class="sidebar-link" th:classappend="${active == 'puntos'} ? 'active'">
+            <i class="fa-solid fa-key" style="color:#f1c40f;"></i><span>Puntos de Acceso</span>
+        </a>
+        <a href="/admin/cuentas" class="sidebar-link" th:classappend="${active == 'cuentas'} ? 'active'">
+            <i class="fa-solid fa-users" style="color:#5dade2;"></i><span>Cuentas</span>
+        </a>
+        <a href="/preceptor/residentes" class="sidebar-link" th:classappend="${active == 'residentes'} ? 'active'">
+            <i class="fa-solid fa-address-card" style="color:#af7ac5;"></i><span>Residentes</span>
+        </a>
+
+        <a href="/admin/eventos" class="sidebar-link" th:classappend="${active == 'eventos'} ? 'active'">
+            <i class="fa-solid fa-medal" style="color:#e67e22;"></i><span>Eventos</span>
+            <span th:if="${notifEventos != null && notifEventos > 0}" class="notif-burbuja"
+                  th:text="${notifEventos}" title="Eventos esperando tu aprobación">1</span>
+        </a>
+
+        <a href="/admin/peticiones" class="sidebar-link" th:classappend="${active == 'peticiones'} ? 'active'"
+           title="Raciones alteradas, reportes de cajeros y avisos de preceptores">
+            <i class="fa-solid fa-inbox" style="color:#ec7063;"></i><span>Incidencias</span>
+            <span th:if="${notifPeticiones != null && notifPeticiones > 0}" class="notif-burbuja"
+                  th:text="${notifPeticiones}" title="Incidencias y avisos sin revisar">2</span>
+        </a>
+
+        <a href="/admin/justificaciones" class="sidebar-link" th:classappend="${active == 'justificaciones'} ? 'active'"
+           title="Inasistencias justificadas por preceptoría">
+            <i class="fa-solid fa-calendar-check" style="color:#f7dc6f;"></i><span>Justificaciones</span>
+        </a>
+        <a href="/admin/reservas" class="sidebar-link" th:classappend="${active == 'reservas'} ? 'active'"
+           title="Gestión integral de raciones reservadas">
+            <i class="fa-solid fa-utensils" style="color:#f0b27a;"></i><span>Reservas</span>
+        </a>
+
+        <a href="/movimientos" class="sidebar-link" th:classappend="${active == 'movimientos'} ? 'active'"
+           title="Actividad consolidada diaria: qué consumió y qué no cada residente">
+            <i class="fa-solid fa-list-check" style="color:#85c1e9;"></i><span>Movimientos</span>
+        </a>
+        <a href="/reportes" class="sidebar-link" th:classappend="${active == 'reportes'} ? 'active'"
+           title="Reportes del comedor por rango de fechas">
+            <i class="fa-solid fa-chart-column" style="color:#58d68d;"></i><span>Reportes</span>
+        </a>
+    </div>
+
+    <div sec:authorize="hasRole('CAJERO')">
+        <div class="side-avatar">
+            <div class="circle circle-cajero">C</div>
+            <div class="rol-nombre">Cajero</div>
+        </div>
+        <a href="/cajero/validar" class="sidebar-link" th:classappend="${active == 'validar'} ? 'active'">
+            <i class="fa-solid fa-square-check" style="color:#2ecc71;"></i><span>Validar Acceso</span>
+        </a>
+    </div>
+
+    <div sec:authorize="hasRole('PRECEPTOR')">
+        <div class="side-avatar">
+            <div class="circle circle-preceptor">P</div>
+            <div class="rol-nombre">Preceptor</div>
+        </div>
+        <a href="/preceptor/residentes" class="sidebar-link" th:classappend="${active == 'residentes'} ? 'active'"
+           title="Lista de residentes a tu cargo">
+            <i class="fa-solid fa-users" style="color:#5dade2;"></i><span>Residentes</span>
+        </a>
+        <a href="/preceptor/residentes/nuevo" class="sidebar-link" th:classappend="${active == 'nuevo'} ? 'active'"
+           title="Registrar un residente nuevo">
+            <i class="fa-solid fa-user-plus" style="color:#aab7c4;"></i><span>Nuevo Registro</span>
+        </a>
+        <a href="/preceptor/ausencias" class="sidebar-link" th:classappend="${active == 'ausencias'} ? 'active'"
+           title="Justificar ausencias por período">
+            <i class="fa-solid fa-calendar-xmark" style="color:#ec7063;"></i><span>Ausencias</span>
+        </a>
+        <a href="/preceptor/reservas" class="sidebar-link" th:classappend="${active == 'reservas'} ? 'active'"
+           title="Reservar raciones para varios residentes a la vez">
+            <i class="fa-solid fa-utensils" style="color:#f0b27a;"></i><span>Reservas</span>
+        </a>
+        <a href="/preceptor/eventos" class="sidebar-link" th:classappend="${active == 'eventos'} ? 'active'"
+           title="Eventos especiales y pase de lista">
+            <i class="fa-solid fa-medal" style="color:#e67e22;"></i><span>Eventos</span>
+        </a>
+
+        <a href="/movimientos" class="sidebar-link" th:classappend="${active == 'movimientos'} ? 'active'"
+           title="Actividad consolidada diaria de tus residentes">
+            <i class="fa-solid fa-list-check" style="color:#85c1e9;"></i><span>Movimientos</span>
+        </a>
+        <a href="/reportes" class="sidebar-link" th:classappend="${active == 'reportes'} ? 'active'"
+           title="Reportes de tu residencia de género">
+            <i class="fa-solid fa-chart-column" style="color:#58d68d;"></i><span>Reportes</span>
+        </a>
+    </div>
+
+    <div class="sidebar-footer">
+
+        <div class="text-center mb-2" title="Hora exacta del servidor del sistema">
+            <span id="relojSistema" th:attr="data-ms=${relojServidorMs}"
+                  style="color:#f1c40f; font-weight:800; font-size:0.95rem; letter-spacing:1px;">--:--:--</span>
+            <div class="reloj-lbl" style="color:#7d8c9a; font-size:0.6rem;">HORA DEL SISTEMA</div>
+        </div>
+
+        <script>
+            (function () {
+                const reloj = document.getElementById('relojSistema');
+                if (!reloj || reloj.dataset.iniciado) return;
+                reloj.dataset.iniciado = '1';
+
+                const ms = parseInt(reloj.dataset.ms, 10);
+                const desfase = isNaN(ms) ? 0 : ms - Date.now();
+                function pintarHora() {
+                    const ahora = new Date(Date.now() + desfase);
+                    const dos = n => String(n).padStart(2, '0');
+                    reloj.textContent = dos(ahora.getHours()) + ':' + dos(ahora.getMinutes()) + ':' + dos(ahora.getSeconds());
+                }
+                pintarHora();
+                setInterval(pintarHora, 1000);
+            })();
+        </script>
+
+        <script>
+            function esMovil() { return window.matchMedia('(max-width: 768px)').matches; }
+            window.alternarMenu = function () {
+                if (esMovil()) {
+                    document.body.classList.toggle('menu-movil-abierto');
+                } else {
+                    document.body.classList.toggle('menu-min');
+
+                    localStorage.setItem('menuMin', document.body.classList.contains('menu-min') ? '1' : '0');
+                }
+            };
+            window.cerrarMenuMovil = function () { document.body.classList.remove('menu-movil-abierto'); };
+
+            if (localStorage.getItem('menuMin') === '1' && !esMovil()) {
+                document.body.classList.add('menu-min');
+            }
+        </script>
+        <form th:action="@{/logout}" method="post" style="margin:0;">
+            <button type="submit" class="logout-btn">
+                <i class="fa-solid fa-door-open"></i><span>Cerrar Sesión</span>
+            </button>
+        </form>
+    </div>
+
+    <script>
+
+        (function () {
+            let versionActual = null;
+            let actualizando = false;
+
+            function trabajoEnCurso() {
+                if (window.hayTrabajoEnCurso && window.hayTrabajoEnCurso()) return true;
+
+                for (const id of ['modalSistema', 'modalResidente']) {
+                    const m = document.getElementById(id);
+                    if (m && m.style.display === 'flex') return true;
+                }
+                const campos = document.querySelectorAll('input:not([type=hidden]), textarea, select');
+                for (const c of campos) {
+                    if (c.type === 'checkbox' || c.type === 'radio') {
+                        if (c.checked !== c.defaultChecked) return true;
+                    } else if (c.tagName === 'SELECT') {
+                        for (const o of c.options) if (o.selected !== o.defaultSelected) return true;
+                    } else if (c.type === 'file') {
+                        if (c.files && c.files.length > 0) return true;
+                    } else if ((c.value || '') !== (c.defaultValue || '')) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            async function actualizarEnSitio() {
+                if (actualizando) return;
+                actualizando = true;
+                try {
+                    const r = await fetch(window.location.href, { cache: 'no-store' });
+                    if (!r.ok) { window.location.reload(); return; }
+                    const html = await r.text();
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+                    const nuevoMain = doc.getElementById('main');
+                    const main = document.getElementById('main');
+                    if (nuevoMain && main) {
+                        main.innerHTML = nuevoMain.innerHTML;
+                        if (window.apagarSugerencias) window.apagarSugerencias();
+                        if (window.enlazarConfirmaciones) window.enlazarConfirmaciones();
+                        if (window.alRefrescar) window.alRefrescar();
+                    } else {
+                        window.location.reload();
+                    }
+                } catch (e) {
+
+                } finally {
+                    actualizando = false;
+                }
+            }
+
+            async function sondear() {
+                try {
+                    const r = await fetch('/api/version', { cache: 'no-store' });
+                    if (!r.ok) return;
+                    const v = (await r.text()).trim();
+                    if (versionActual === null) { versionActual = v; return; }
+                    if (v !== versionActual && !trabajoEnCurso()) {
+                        versionActual = v;
+                        await actualizarEnSitio();
+                    }
+
+                } catch (e) {  }
+            }
+
+            setInterval(sondear, 2500);
+            sondear();
+        })();
+
+        window.apagarSugerencias = function () {
+            document.querySelectorAll('form').forEach(function (f) { f.setAttribute('autocomplete', 'off'); });
+            document.querySelectorAll('input, textarea, select').forEach(function (c) { c.setAttribute('autocomplete', 'off'); });
+        };
+        apagarSugerencias();
+
+        new MutationObserver(function (cambios) {
+            for (const c of cambios) {
+                for (const nodo of c.addedNodes) {
+                    if (nodo.nodeType !== 1) continue;
+                    if (nodo.matches && nodo.matches('form, input, textarea, select')) nodo.setAttribute('autocomplete', 'off');
+                    if (nodo.querySelectorAll) nodo.querySelectorAll('form, input, textarea, select')
+                            .forEach(function (x) { x.setAttribute('autocomplete', 'off'); });
+                }
+            }
+        }).observe(document.body, { childList: true, subtree: true });
+
+        let esperaAutoGuardar = null;
+        document.addEventListener('change', function (e) {
+            if (e.target.matches && e.target.matches('input[type="time"].auto-guardar') && e.target.form) {
+                const campo = e.target;
+                clearTimeout(esperaAutoGuardar);
+                esperaAutoGuardar = setTimeout(function () {
+
+                    if (campo.isConnected && campo.form) campo.form.requestSubmit();
+                }, 1200);
+            }
+        });
+    </script>
+
+    <script>
+
+        window.confirmarSistema = function (opciones) {
+            const modal = document.getElementById('modalSistema');
+            const btnOk = document.getElementById('modalConfirmar');
+            const btnNo = document.getElementById('modalCancelar');
+            const icono = document.getElementById('modalIcono');
+            document.getElementById('modalTitulo').textContent = opciones.titulo || 'Confirmar acción';
+            document.getElementById('modalTexto').textContent = opciones.mensaje || '¿Deseas continuar?';
+            btnOk.textContent = opciones.boton || 'Sí, continuar';
+            btnOk.className = 'btn btn-sm-flat ' + (opciones.estilo === 'exito' ? 'btn-success'
+                : (opciones.estilo === 'normal' ? 'btn-navy' : 'btn-danger'));
+            icono.className = opciones.estilo === 'exito' ? 'fa-solid fa-circle-check'
+                : 'fa-solid fa-triangle-exclamation';
+            icono.style.color = opciones.estilo === 'exito' ? '#27ae60' : '#e67e22';
+            btnNo.style.display = '';
+            modal.style.display = 'flex';
+
+            const cerrar = () => { modal.style.display = 'none'; btnOk.onclick = null; btnNo.onclick = null; modal.onclick = null; };
+            btnOk.onclick = () => { cerrar(); if (opciones.alConfirmar) opciones.alConfirmar(); };
+            btnNo.onclick = cerrar;
+            modal.onclick = (e) => { if (e.target === modal) cerrar(); };
+            document.addEventListener('keydown', function esc(e) {
+                if (e.key === 'Escape') { cerrar(); document.removeEventListener('keydown', esc); }
+            });
+            btnOk.focus();
+        };
+
+        window.avisoSistema = function (mensaje, titulo) {
+            const modal = document.getElementById('modalSistema');
+            const btnOk = document.getElementById('modalConfirmar');
+            const btnNo = document.getElementById('modalCancelar');
+            const icono = document.getElementById('modalIcono');
+            document.getElementById('modalTitulo').textContent = titulo || 'Aviso';
+            document.getElementById('modalTexto').textContent = mensaje;
+            btnOk.textContent = 'Entendido';
+            btnOk.className = 'btn btn-navy btn-sm-flat';
+            icono.className = 'fa-solid fa-circle-info';
+            icono.style.color = '#2980b9';
+            btnNo.style.display = 'none';
+            modal.style.display = 'flex';
+            const cerrar = () => { modal.style.display = 'none'; btnNo.style.display = ''; btnOk.onclick = null; modal.onclick = null; };
+            btnOk.onclick = cerrar;
+            modal.onclick = (e) => { if (e.target === modal) cerrar(); };
+            btnOk.focus();
+        };
+
+        window.enlazarConfirmaciones = function () {  };
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            const campo = e.target;
+            if (!campo || !['INPUT', 'SELECT'].includes(campo.tagName)) return;
+            const form = campo.closest('form[data-navegacion]');
+            if (!form) return;
+            const campos = Array.from(form.querySelectorAll(
+                'input:not([type=hidden]):not([disabled]), select:not([disabled])'));
+            const idx = campos.indexOf(campo);
+            if (idx >= 0 && idx < campos.length - 1) {
+                e.preventDefault();
+                campos[idx + 1].focus();
+                if (campos[idx + 1].select) campos[idx + 1].select();
+            }
+
+        }, true);
+        document.addEventListener('submit', function (e) {
+            const f = e.target;
+            if (!f || !f.dataset || !f.dataset.confirmar) return;
+            if (f.dataset.confirmado === '1') { f.dataset.confirmado = ''; return; }
+            e.preventDefault();
+            const accion = f.getAttribute('action');
+            confirmarSistema({
+                titulo: f.dataset.titulo || 'Confirmar acción',
+                mensaje: f.dataset.confirmar,
+                boton: f.dataset.boton || 'Sí, continuar',
+                estilo: f.dataset.estilo || 'peligro',
+                alConfirmar: () => {
+
+                    const objetivo = f.isConnected ? f
+                        : document.querySelector('form[action="' + accion + '"]');
+                    if (objetivo) { objetivo.dataset.confirmado = '1'; objetivo.submit(); }
+                }
+            });
+        }, true);
+
+        window.exportarConRango = function (opciones) {
+            const modal = document.getElementById('modalExportar');
+            document.getElementById('exportarTitulo').textContent = opciones.titulo || 'Exportar';
+            const ini = document.getElementById('exportarDesde');
+            const fin = document.getElementById('exportarHasta');
+            const hoy = new Date().toISOString().slice(0, 10);
+            if (!ini.value) ini.value = hoy;
+            if (!fin.value) fin.value = hoy;
+            modal.style.display = 'flex';
+            document.getElementById('exportarOk').onclick = function () {
+                if (!ini.value || !fin.value) { avisoSistema('Indica la fecha inicial y la fecha final.', 'Faltan fechas'); return; }
+                if (fin.value < ini.value) { avisoSistema('La fecha final no puede ser anterior a la inicial.', 'Rango inválido'); return; }
+                modal.style.display = 'none';
+                const url = opciones.ruta + '?' + opciones.pDesde + '=' + ini.value
+                    + '&' + opciones.pHasta + '=' + fin.value + (opciones.extra || '');
+
+                window.location.href = opciones.imprimir ? url + '&imprimir=1' : url;
+            };
+            document.getElementById('exportarCancelar').onclick = function () { modal.style.display = 'none'; };
+            modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+        };
+
+        if (new URLSearchParams(window.location.search).get('imprimir') === '1') {
+            setTimeout(() => window.print(), 400);
+        }
+
+        document.addEventListener('change', function (e) {
+            const c = e.target;
+            if (!c.classList || !c.classList.contains('nav-semana-fecha') || !c.value) return;
+            window.location.href = c.dataset.ruta + '?' + c.dataset.pdesde + '=' + c.value
+                + '&' + c.dataset.phasta + '=' + c.value + (c.dataset.extra || '');
+        });
+
+        window.refrescarCadena = function (grupo, pref) {
+            const orden = (pref === 'p') ? ['D', 'A', 'C'] : ['C', 'A', 'D'];
+            let sePuedeMarcar = true;
+            orden.forEach(function (letra) {
+                const ch = grupo.querySelector('input[data-cadena="' + pref + '"][data-comida="' + letra + '"]');
+                if (!ch) return;
+
+                if (ch.dataset.cerrada === '1') { ch.checked = false; ch.disabled = true; return; }
+                ch.disabled = !sePuedeMarcar;
+                if (ch.disabled) ch.checked = false;
+                sePuedeMarcar = ch.checked;
+            });
+        };
+
+        document.addEventListener('change', function (e) {
+            const ch = e.target;
+            if (!ch.dataset || !ch.dataset.cadena) return;
+            const grupo = ch.closest('[data-grupo-cadena]') || document;
+            refrescarCadena(grupo, ch.dataset.cadena);
+        });
+
+        document.addEventListener('click', function (e) {
+            const b = e.target.closest ? e.target.closest('.ver-motivo') : null;
+            if (!b) return;
+            avisoSistema(b.dataset.motivo && b.dataset.motivo.trim() !== ''
+                ? b.dataset.motivo : 'Sin motivo registrado', 'Motivo completo');
+        });
+
+        document.addEventListener('click', function (e) {
+            const b = e.target.closest ? e.target.closest('.btn-exportar-rango') : null;
+            if (!b) return;
+            exportarConRango({
+                titulo: b.dataset.titulo,
+                ruta: b.dataset.ruta,
+                pDesde: b.dataset.pdesde || 'desde',
+                pHasta: b.dataset.phasta || 'hasta',
+                extra: b.dataset.extra || '',
+                imprimir: b.dataset.imprimir === '1'
+            });
+        });
+    </script>
+</div>
+
+<div id="modalSistema" class="modal-sistema" style="display:none; z-index:3000;">
+    <div class="modal-caja">
+        <div class="modal-titulo">
+            <i id="modalIcono" class="fa-solid fa-circle-question" style="color:#e67e22;"></i>
+            <span id="modalTitulo">Confirmar acción</span>
+        </div>
+        <div class="modal-texto" id="modalTexto">¿Deseas continuar?</div>
+        <div class="modal-botones">
+            <button type="button" id="modalCancelar" class="btn btn-light border btn-sm-flat">Cancelar</button>
+            <button type="button" id="modalConfirmar" class="btn btn-danger btn-sm-flat">Sí, continuar</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalExportar" class="modal-sistema" style="display:none; z-index:3000;">
+    <div class="modal-caja">
+        <div class="modal-titulo">
+            <i class="fa-solid fa-file-export" style="color:#27ae60;"></i>
+            <span id="exportarTitulo">Exportar</span>
+        </div>
+        <div class="modal-texto">Elige el rango de fechas que quieres exportar y confirma.</div>
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            <div>
+                <div class="lbl">Fecha inicial</div>
+                <input type="date" id="exportarDesde" class="form-control form-control-sm">
+            </div>
+            <div>
+                <div class="lbl">Fecha final</div>
+                <input type="date" id="exportarHasta" class="form-control form-control-sm">
+            </div>
+        </div>
+        <div class="modal-botones">
+            <button type="button" id="exportarCancelar" class="btn btn-light border btn-sm-flat">Cancelar</button>
+            <button type="button" id="exportarOk" class="btn btn-success btn-sm-flat">
+                <i class="fa-solid fa-download me-1"></i>Descargar
+            </button>
+        </div>
+    </div>
+</div>
+</th:block>
+
+<div th:fragment="flash" class="no-print">
+    <div th:if="${ok}" class="alert alert-success py-2 mb-3" style="border-radius:8px; font-size:0.85rem;">
+        <i class="fa-solid fa-circle-check me-2"></i><span th:text="${ok}"></span>
+    </div>
+    <div th:if="${error}" class="alert alert-danger py-2 mb-3" style="border-radius:8px; font-size:0.85rem;">
+        <i class="fa-solid fa-circle-exclamation me-2"></i><span th:text="${error}"></span>
+    </div>
+</div>
+
+<div th:fragment="nav-semana(nav, ruta, pDesde, pHasta, extra)" class="no-print mb-3"
+     th:with="nombresDias=${ {'Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'} },
+              antIso=${#temporals.format(nav.anterior, 'yyyy-MM-dd')},
+              sigIso=${#temporals.format(nav.siguiente, 'yyyy-MM-dd')},
+              hoyIso=${#temporals.format(nav.hoy, 'yyyy-MM-dd')},
+              fechaIso=${#temporals.format(nav.fecha, 'yyyy-MM-dd')}">
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+        <a class="btn btn-light border btn-sm-flat"
+           th:href="${ruta + '?' + pDesde + '=' + antIso + '&' + pHasta + '=' + antIso + extra}"
+           title="Ir a la semana anterior">
+            <i class="fa-solid fa-chevron-left me-1"></i>Anterior
+        </a>
+        <span class="fw-bold" style="font-size:0.86rem; color:#2c3e50;"
+              th:text="${nav.etiqueta}">Semana del 19/07 al 25/07</span>
+        <a th:if="${nav.haySiguiente}" class="btn btn-light border btn-sm-flat"
+           th:href="${ruta + '?' + pDesde + '=' + sigIso + '&' + pHasta + '=' + sigIso + extra}"
+           title="Ir a la semana siguiente">
+            Siguiente<i class="fa-solid fa-chevron-right ms-1"></i>
+        </a>
+        <span th:unless="${nav.haySiguiente}" class="btn btn-light border btn-sm-flat"
+              style="opacity:0.45; pointer-events:none;" title="Ya estás en la semana actual">
+            Siguiente<i class="fa-solid fa-chevron-right ms-1"></i>
+        </span>
+
+        <div class="d-flex align-items-center gap-1 ms-auto">
+            <span class="lbl" style="margin:0;">Buscar semana</span>
+            <input type="date" class="form-control form-control-sm nav-semana-fecha"
+                   style="width:150px; font-size:0.78rem;"
+                   th:value="${fechaIso}" th:max="${hoyIso}"
+                   th:attr="data-ruta=${ruta}, data-pdesde=${pDesde}, data-phasta=${pHasta}, data-extra=${extra}"
+                   title="Elige una fecha para saltar a su semana">
+        </div>
+    </div>
+
+    <div class="d-flex gap-1 flex-wrap">
+        <th:block th:each="d, it : ${nav.dias}" th:with="dIso=${#temporals.format(d, 'yyyy-MM-dd')}">
+            <a th:if="${!d.isAfter(nav.hoy)}" class="tab-seccion"
+               th:classappend="${d.equals(nav.fecha)} ? 'activa'"
+               th:href="${ruta + '?' + pDesde + '=' + dIso + '&' + pHasta + '=' + dIso + extra}"
+               th:title="'Ver solo el ' + ${nombresDias[it.index]} + ' ' + ${#temporals.format(d, 'dd/MM')}">
+                <span th:text="${nombresDias[it.index]}">Domingo</span>
+                <span style="font-size:0.66rem; opacity:0.75;" th:text="${#temporals.format(d, 'dd/MM')}">19/07</span>
+            </a>
+            <span th:if="${d.isAfter(nav.hoy)}" class="tab-seccion"
+                  style="opacity:0.4; pointer-events:none;"
+                  th:title="'El ' + ${nombresDias[it.index]} + ' aún no ocurre'">
+                <span th:text="${nombresDias[it.index]}">Sábado</span>
+                <span style="font-size:0.66rem; opacity:0.75;" th:text="${#temporals.format(d, 'dd/MM')}">25/07</span>
+            </span>
+        </th:block>
+    </div>
+</div>
+
+</body>
+</html>

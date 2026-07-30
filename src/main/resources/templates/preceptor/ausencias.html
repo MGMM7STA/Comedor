@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Preceptor: Control de Ausencias')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('ausencias')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Preceptor — Control de Ausencias</span>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <form th:action="@{/preceptor/ausencias/guardar}" method="post" id="formAusencia">
+            <div class="row g-3">
+
+                <div class="col-md-5">
+                    <div class="card-panel">
+                        <span class="titulo-seccion">Configuración</span>
+
+                        <div class="lbl">Buscar residente</div>
+                        <input type="text" id="buscador" class="form-control mb-2" placeholder="Código o nombre..." list="listaResidentes">
+                        <datalist id="listaResidentes"></datalist>
+                        <button type="button" class="btn btn-navy btn-sm-flat w-100 mb-3" onclick="agregarResidente()">
+                            <i class="fa-solid fa-plus me-1"></i>Agregar
+                        </button>
+
+                        <div class="lbl">Tipo de ausencia</div>
+                        <div class="d-flex gap-2 mb-2">
+                            <input type="radio" class="btn-check" name="modoAusencia" id="modoRango" checked onchange="cambiarModo()">
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="modoRango"><i class="fa-solid fa-calendar-week me-1"></i>Rango de fechas</label>
+                            <input type="radio" class="btn-check" name="modoAusencia" id="modoDia" onchange="cambiarModo()">
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="modoDia"><i class="fa-solid fa-calendar-day me-1"></i>Un solo día</label>
+                        </div>
+
+                        <div class="lbl">Período de ausencia</div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <div style="font-size:0.72rem; color:#8a97a3;" id="lblDesde">Desde</div>
+                                <input type="date" name="desde" id="desde" class="form-control" th:value="${hoy}" required
+                                       onchange="sincronizarFechas(); aplicarBloqueoPrimerDia(); actualizarResumen()">
+                            </div>
+                            <div class="col-6" id="zonaHasta">
+                                <div style="font-size:0.72rem; color:#8a97a3;">Hasta</div>
+                                <input type="date" name="hasta" id="hasta" class="form-control" th:value="${hoy}" required
+                                       onchange="actualizarResumen()" title="Último día del período de ausencia">
+                            </div>
+                        </div>
+
+                        <div class="lbl">Motivo / Justificación</div>
+                        <textarea name="motivo" class="form-control mb-3" rows="3"
+                                  placeholder="Ej. Viaje académico – Congreso de Ingeniería, Lima" required maxlength="300"></textarea>
+
+                        <div class="p-2 rounded mb-3" style="background:#eaf3fb; border:1px solid #aed6f1; font-size:0.76rem; color:#21618c;">
+                            <i class="fa-solid fa-circle-info me-1"></i>
+                            Días intermedios se bloquean automáticamente (D+A+C). Solo 1er y último día manual.
+                            <div class="mt-1">
+                                Las comidas se marcan en orden: el <strong>primer día</strong> desde el desayuno
+                                hacia la cena (sale del comedor) y el <strong>último día</strong> desde la cena
+                                hacia el desayuno (regresa). Cada casilla se habilita al marcar la anterior.
+                            </div>
+                        </div>
+
+                        <div class="p-2 rounded mb-3" style="background:#f7f9fb; border:1px solid #e3e9ee; font-size:0.78rem;">
+                            <strong>Resumen</strong>
+                            <div id="resumenTexto" style="color:#5d6d7b;">Sin residentes seleccionados.</div>
+                        </div>
+
+                        <button type="submit" class="btn btn-navy w-100 fw-bold" id="btnConfirmar" disabled>
+                            <i class="fa-solid fa-check me-1"></i>Confirmar Registro
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-md-7">
+                    <div class="card-panel">
+                        <h6 class="fw-bold mb-2" style="color:#2c3e50;">Residentes Seleccionados</h6>
+
+                        <div style="overflow-x:auto;">
+                        <table class="tabla-dark" id="tablaSel">
+                            <thead>
+                            <tr>
+                                <th rowspan="2">Residente</th>
+                                <th rowspan="2">Código</th>
+
+                                <th colspan="3" class="text-center">
+                                    <div id="cabPrimero">Primer Día</div>
+                                    <div id="fechaPrimero" style="font-weight:400; font-size:0.7rem; color:#aebfce;">—</div>
+                                </th>
+                                <th colspan="3" class="text-center colU">
+                                    <div>Último Día</div>
+                                    <div id="fechaUltimo" style="font-weight:400; font-size:0.7rem; color:#aebfce;">—</div>
+                                </th>
+                                <th rowspan="2"></th>
+                            </tr>
+                            <tr>
+                                <th class="text-center" style="font-size:0.7rem;">D</th>
+                                <th class="text-center" style="font-size:0.7rem;">A</th>
+                                <th class="text-center" style="font-size:0.7rem;">C</th>
+                                <th class="text-center colU" style="font-size:0.7rem;">D</th>
+                                <th class="text-center colU" style="font-size:0.7rem;">A</th>
+                                <th class="text-center colU" style="font-size:0.7rem;">C</th>
+                            </tr>
+                            </thead>
+                            <tbody id="cuerpoSel">
+                            <tr id="filaVacia">
+                                <td colspan="9" class="text-center text-muted py-3">Busca y agrega residentes para registrar su ausencia.</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                        </div>
+
+                        <div class="p-2 rounded mt-2 text-center" style="background:#eaf3fb; border:1px solid #aed6f1; font-size:0.74rem; color:#21618c;">
+                            D = Desayuno · A = Almuerzo · C = Cena
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="card-panel mt-3">
+            <h6 class="fw-bold mb-2" style="color:#2c3e50;">Ausencias Vigentes</h6>
+            <div style="font-size:0.72rem; color:#8a97a3;" class="mb-2">
+                Las futuras se pueden <strong>eliminar</strong>; las que ya empezaron se pueden
+                <strong>cancelar</strong> (lo ya transcurrido se conserva en el historial).
+            </div>
+
+            <table class="tabla-dark">
+                <thead>
+                <tr><th>N°</th><th>Fecha</th><th>Residente</th><th>Código</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="a, it : ${ausenciasVigentes}" th:with="estado=${estadoAusencias.get(a.idAusencia)}">
+                    <td th:text="${it.count}">1</td>
+                    <td style="font-size:0.78rem;">
+                        <span th:text="${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')}">05/05</span>
+                        <span th:if="${!a.fechaInicio.equals(a.fechaFin)}">
+                            – <span th:text="${#temporals.format(a.fechaFin, 'dd/MM/yyyy')}">11/05</span>
+                        </span>
+                    </td>
+                    <td th:text="${a.residente.apellido} + ', ' + ${a.residente.nombre}">Mamani, Juan</td>
+                    <td th:text="${a.residente.codigoAcceso}">U-2024-10542</td>
+                    <td>
+
+                        <button type="button" class="btn btn-primary btn-sm" style="font-size:0.68rem;"
+                                onclick="verAusencia(this)" title="Ver el detalle completo de esta ausencia"
+                                th:attr="data-residente=${a.residente.nombreCompleto},
+                                         data-codigo=${a.residente.codigoAcceso},
+                                         data-fechas=${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')} + ' al ' + ${#temporals.format(a.fechaFin, 'dd/MM/yyyy')},
+                                         data-estado=${estado == 'FUTURA'} ? 'Aún no empieza' : 'En curso',
+                                         data-motivo=${a.motivo}">
+                            <i class="fa-solid fa-eye"></i> Ver detalles
+                        </button>
+
+                        <form th:if="${estado == 'FUTURA'}"
+                              th:action="@{'/preceptor/ausencias/' + ${a.idAusencia} + '/eliminar'}" method="post" style="margin:0;"
+                              data-titulo="Eliminar ausencia futura"
+                              data-confirmar="La ausencia aún no empieza: se eliminará por completo."
+                              data-boton="Sí, eliminar">
+                            <button class="btn btn-outline-danger btn-sm" style="font-size:0.68rem;"
+                                    title="Eliminar esta ausencia (aún no empieza)">
+                                <i class="fa-solid fa-trash"></i> Eliminar
+                            </button>
+                        </form>
+
+                        <form th:if="${estado == 'EN_CURSO'}"
+                              th:action="@{'/preceptor/ausencias/' + ${a.idAusencia} + '/cancelar'}" method="post" style="margin:0;"
+                              data-titulo="Cancelar ausencia en curso"
+                              data-confirmar="Cierre anticipado: los turnos que ya pasaron justificados se conservan, y desde este momento el residente vuelve a marcar normalmente."
+                              data-boton="Sí, cancelar desde ahora">
+                            <button class="btn btn-sm" style="font-size:0.68rem; background:#f39c12; color:#fff;"
+                                    title="Cancelar desde ahora (lo transcurrido se conserva)">
+                                <i class="fa-solid fa-scissors me-1"></i>Cancelar
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(ausenciasVigentes)}">
+                    <td colspan="5" class="text-center text-muted py-3">Sin ausencias vigentes.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    const residentes =  [];
+    const seleccionados = new Set();
+
+    const comidasBloqueadas =  [] || [];
+    const fechaHoy =  '';
+    const letraATurno = { 'D': 'DESAYUNO', 'A': 'ALMUERZO', 'C': 'CENA' };
+
+    function aplicarBloqueoPrimerDia() {
+        const desdeEsHoy = document.getElementById('desde').value === fechaHoy;
+        document.querySelectorAll('#cuerpoSel tr[data-grupo-cadena]').forEach(fila => {
+            ['D', 'A', 'C'].forEach(letra => {
+                const ch = fila.querySelector('input[data-cadena="p"][data-comida="' + letra + '"]');
+                if (!ch) return;
+                const cerrada = desdeEsHoy && comidasBloqueadas.includes(letraATurno[letra]);
+                ch.dataset.cerrada = cerrada ? '1' : '0';
+                ch.title = cerrada ? 'Este turno de hoy ya cerró: no se puede justificar' : '';
+            });
+            refrescarCadena(fila, 'p');
+            refrescarCadena(fila, 'u');
+        });
+    }
+
+    window.hayTrabajoEnCurso = () => seleccionados.size > 0;
+
+    const datalist = document.getElementById('listaResidentes');
+    residentes.forEach(r => {
+        const op = document.createElement('option');
+        op.value = r.codigo + ' — ' + r.nombre;
+        datalist.appendChild(op);
+    });
+
+    function agregarResidente() {
+        const q = document.getElementById('buscador').value.trim().toLowerCase();
+        if (!q) return;
+        const r = residentes.find(x =>
+            (x.codigo + ' — ' + x.nombre).toLowerCase() === q ||
+            x.codigo.toLowerCase() === q ||
+            x.nombre.toLowerCase().includes(q));
+        if (!r) { avisoSistema('No se encontró ese residente. Escribe el código o elige una opción de la lista desplegable.', 'Residente no encontrado'); return; }
+        if (seleccionados.has(r.id)) { avisoSistema('Ese residente ya está en la lista de seleccionados.', 'Ya agregado'); return; }
+        seleccionados.add(r.id);
+
+        const fila = document.createElement('tr');
+        fila.id = 'sel_' + r.id;
+
+        fila.setAttribute('data-grupo-cadena', '1');
+        let celdas = '<td style="font-size:0.8rem;">' + r.nombre + '<input type="hidden" name="ids" value="' + r.id + '"></td>' +
+            '<td style="font-size:0.78rem;">' + r.codigo + '</td>';
+
+        ['p', 'u'].forEach(pref => {
+            ['D', 'A', 'C'].forEach(letra => {
+                celdas += '<td class="text-center' + (pref === 'u' ? ' colU' : '') + '">' +
+                    '<input type="checkbox" class="form-check-input" name="' + pref + letra + '_' + r.id + '"' +
+                    ' data-cadena="' + pref + '" data-comida="' + letra + '"></td>';
+            });
+        });
+        celdas += '<td><button type="button" class="btn btn-danger btn-sm" style="font-size:0.7rem;" onclick="quitar(' + r.id + ')">Quitar</button></td>';
+        fila.innerHTML = celdas;
+        document.getElementById('cuerpoSel').appendChild(fila);
+
+        document.getElementById('buscador').value = '';
+        aplicarBloqueoPrimerDia();
+        ocultarUltimoDia();
+        actualizarResumen();
+    }
+
+    function quitar(id) {
+        seleccionados.delete(id);
+        const fila = document.getElementById('sel_' + id);
+        if (fila) fila.remove();
+        actualizarResumen();
+    }
+
+    function actualizarResumen() {
+        const vacia = document.getElementById('filaVacia');
+        if (vacia) vacia.style.display = seleccionados.size ? 'none' : '';
+        document.getElementById('btnConfirmar').disabled = seleccionados.size === 0;
+
+        const d = document.getElementById('desde').value;
+        const h = document.getElementById('hasta').value;
+        let texto = seleccionados.size + ' residente(s) seleccionado(s)';
+        if (esModoDia()) {
+            if (d) texto = 'Un solo día: ' + d + '<br>' +
+                'Solo se justifican las comidas marcadas (D/A/C)<br>' + texto;
+        } else if (d && h) {
+            const dias = Math.round((new Date(h) - new Date(d)) / 86400000) + 1;
+            if (dias > 0) texto = 'Período: ' + d + ' al ' + h + ' · ' + dias + ' día(s)<br>' +
+                'Días intermedios: bloqueo auto D+A+C<br>' + texto;
+        }
+        document.getElementById('resumenTexto').innerHTML = texto;
+        mostrarFechasEnCabecera();
+    }
+
+    function mostrarFechasEnCabecera() {
+        const d = document.getElementById('desde').value;
+        const h = document.getElementById('hasta').value;
+        const fmt = (iso) => {
+            if (!iso) return '—';
+            const p = iso.split('-');
+            return p[2] + '/' + p[1] + '/' + p[0];
+        };
+        document.getElementById('fechaPrimero').textContent = fmt(d);
+        document.getElementById('fechaUltimo').textContent = esModoDia() ? fmt(d) : fmt(h);
+    }
+
+    document.getElementById('buscador').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); agregarResidente(); }
+    });
+
+    function esModoDia() { return document.getElementById('modoDia').checked; }
+
+    function cambiarModo() {
+        const dia = esModoDia();
+        document.getElementById('zonaHasta').style.display = dia ? 'none' : '';
+        document.getElementById('lblDesde').textContent = dia ? 'Fecha' : 'Desde';
+        document.getElementById('cabPrimero').textContent = dia ? 'Comidas del día' : 'Primer Día';
+        sincronizarFechas();
+        aplicarBloqueoPrimerDia();
+        ocultarUltimoDia();
+        actualizarResumen();
+    }
+
+    function ocultarUltimoDia() {
+        const dia = esModoDia();
+        document.querySelectorAll('.colU').forEach(c => {
+            c.style.display = dia ? 'none' : '';
+            const ch = c.querySelector('input[type=checkbox]');
+            if (ch && dia) { ch.checked = false; ch.disabled = true; }
+        });
+    }
+
+    function sincronizarFechas() {
+        if (esModoDia()) {
+            document.getElementById('hasta').value = document.getElementById('desde').value;
+        }
+    }
+
+    document.getElementById('formAusencia').addEventListener('submit', () => {
+        if (esModoDia()) sincronizarFechas();
+    });
+
+    function verAusencia(btn) {
+        const d = btn.dataset;
+        document.getElementById('avResidente').textContent = d.residente;
+        document.getElementById('avCodigo').textContent = d.codigo;
+        document.getElementById('avFechas').textContent = d.fechas;
+        document.getElementById('avEstado').textContent = d.estado;
+        document.getElementById('avMotivo').textContent = d.motivo;
+        const modal = document.getElementById('modalAusencia');
+        modal.style.display = 'flex';
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.getElementById('modalAusencia').style.display = 'none';
+    });
+</script>
+
+<div id="modalAusencia" class="modal-sistema" style="display:none;">
+    <div class="modal-caja">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="modal-titulo mb-0">
+                <i class="fa-solid fa-calendar-xmark" style="color:#ec7063;"></i>
+                Detalle de la ausencia
+            </div>
+            <button type="button" class="btn btn-light border btn-sm" style="font-size:0.72rem;"
+                    onclick="document.getElementById('modalAusencia').style.display='none'" title="Cerrar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div style="font-size:0.84rem; color:#5d6d7b;">
+            <div class="mb-1"><strong>Residente:</strong> <span id="avResidente"></span> (<span id="avCodigo"></span>)</div>
+            <div class="mb-1"><strong>Período:</strong> <span id="avFechas"></span></div>
+            <div class="mb-1"><strong>Estado:</strong> <span id="avEstado" class="badge-estado bg-pendiente"></span></div>
+
+            <div class="lbl mt-2 mb-1"><i class="fa-solid fa-quote-left me-1"></i>Motivo / Justificación</div>
+            <div class="p-2 rounded" style="background:#f7f9fb; border:1px solid #e3e9ee; white-space:pre-wrap;"
+                 id="avMotivo">Motivo</div>
+        </div>
+        <div class="modal-botones mt-3">
+            <button type="button" class="btn btn-light border btn-sm-flat"
+                    onclick="document.getElementById('modalAusencia').style.display='none'">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

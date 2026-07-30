@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/base :: head('Lista de Residentes')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('residentes')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>
+            Gestión de Residentes
+            <span th:if="${pabellonScope != null}" class="sub"
+                  th:text="'Residencia de Género: ' + ${pabellonScope}">Residencia de Género: Varones</span>
+        </span>
+        <span sec:authorize="hasRole('ADMIN')" class="badge-estado bg-justificado" title="Como administrador solo puedes consultar; la gestión es del preceptor">
+            <i class="fa-solid fa-eye me-1"></i>Solo lectura
+        </span>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div th:if="${avisosPreceptor != null && !#lists.isEmpty(avisosPreceptor)}" class="p-2 rounded mb-3"
+             style="background:#fef9e7; border:1px solid #f7dc6f;" sec:authorize="hasRole('PRECEPTOR')">
+            <div class="lbl mb-1" style="color:#9a7d0a;">
+                <i class="fa-solid fa-bullhorn me-1"></i>Avisos del administrador
+            </div>
+            <div th:each="a : ${avisosPreceptor}" style="font-size:0.8rem; color:#7d6608;" class="py-1">
+                <i class="fa-regular fa-message me-1"></i>
+                <span th:text="${a.texto}">Reunión de preceptores el viernes.</span>
+                <span style="font-size:0.68rem; color:#b7950b;" class="ms-1"
+                      th:text="'(' + ${#temporals.format(a.fechaHora, 'dd/MM HH:mm')} + ')'">(02/07 10:00)</span>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <div class="stat-box bg-white">
+                    <div class="stat-num" style="color:#2c3e50;" th:text="${total}">95</div>
+                    <div class="stat-lbl">Total</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box bg-white">
+                    <div class="stat-num" style="color:#27ae60;" th:text="${activos}">95</div>
+                    <div class="stat-lbl">Activos</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box bg-white">
+                    <div class="stat-num" style="color:#e74c3c;" th:text="${inactivos}">0</div>
+                    <div class="stat-lbl">Inactivos</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-panel">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <form th:action="@{/preceptor/residentes}" method="get" class="d-flex gap-2">
+                    <div class="input-group" style="max-width:320px;">
+                        <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass" style="font-size:0.8rem; color:#8a97a3;"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Código o nombre del residente" th:value="${q}">
+                    </div>
+                    <button class="btn btn-light border btn-sm-flat">Buscar</button>
+
+                    <a th:if="${q != null && !#strings.isEmpty(q)}" href="/preceptor/residentes"
+                       class="btn btn-light border btn-sm-flat" title="Quita el filtro de búsqueda">
+                        <i class="fa-solid fa-eraser me-1"></i>Ver todos
+                    </a>
+                </form>
+                <div class="d-flex gap-2 flex-wrap" sec:authorize="hasRole('PRECEPTOR')">
+
+                    <button type="button" class="btn btn-light border btn-sm-flat"
+                            onclick="document.getElementById('zonaAviso').classList.toggle('d-none')"
+                            title="Envía un mensaje directo a la bandeja de peticiones del administrador">
+                        <i class="fa-solid fa-paper-plane me-1"></i>Aviso al admin
+                    </button>
+                    <a href="/preceptor/residentes/plantilla" class="btn btn-light border btn-sm-flat"
+                       title="Descarga el Excel con las columnas listas para llenar (sin residencia de género: se asigna sola)">
+                        <i class="fa-solid fa-file-arrow-down me-1"></i>Plantilla
+                    </a>
+                    <button type="button" class="btn btn-primary btn-sm-flat" onclick="document.getElementById('zonaImportar').classList.toggle('d-none')"
+                            title="Sube un Excel con varios residentes a la vez">
+                        <i class="fa-solid fa-file-excel me-1"></i>Importar Excel
+                    </button>
+                    <a href="/preceptor/residentes/nuevo" class="btn btn-success btn-sm-flat">
+                        <i class="fa-solid fa-plus me-1"></i>Agregar Residente
+                    </a>
+                </div>
+            </div>
+
+            <div id="zonaAviso" class="d-none mb-3 p-3 rounded" style="background:#f4ecf7; border:1px solid #d7bde2;"
+                 sec:authorize="hasRole('PRECEPTOR')">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="lbl mb-0"><i class="fa-solid fa-paper-plane me-1"></i>Aviso directo al administrador</div>
+                    <button type="button" class="btn btn-light border btn-sm" style="font-size:0.7rem;"
+                            onclick="document.getElementById('zonaAviso').classList.add('d-none')" title="Cerrar">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <form th:action="@{/preceptor/aviso-admin}" method="post" class="d-flex gap-2 align-items-start"
+                      data-titulo="Enviar aviso al administrador"
+                      data-confirmar="El mensaje llegará a la bandeja de peticiones del administrador con tu nombre."
+                      data-boton="Sí, enviar" data-estilo="exito">
+                    <textarea name="mensaje" class="form-control" rows="2" maxlength="500" required
+                              placeholder="Mensaje que verá el administrador en su bandeja de peticiones"></textarea>
+                    <button type="submit" class="btn btn-navy btn-sm-flat px-3" title="Enviar el aviso">
+                        <i class="fa-solid fa-paper-plane me-1"></i>Enviar
+                    </button>
+                </form>
+            </div>
+
+            <div id="zonaImportar" class="d-none mb-3 p-3 rounded" style="background:#eaf3fb; border:1px solid #aed6f1;">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="lbl mb-0"><i class="fa-solid fa-file-excel me-1"></i>Importación masiva desde Excel</div>
+                    <button type="button" class="btn btn-light border btn-sm" style="font-size:0.7rem;"
+                            onclick="document.getElementById('zonaImportar').classList.add('d-none')" title="Cerrar">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <form th:action="@{/preceptor/residentes/importar}" method="post" enctype="multipart/form-data"
+                      class="d-flex gap-2 align-items-center flex-wrap">
+                    <input type="file" name="archivo" accept=".xlsx" class="form-control" style="max-width:340px; font-size:0.82rem;" required>
+                    <button type="submit" class="btn btn-navy btn-sm-flat"><i class="fa-solid fa-upload me-1"></i>Importar</button>
+                    <span style="font-size:0.74rem; color:#21618c;">
+                        Formato: Nombres, Apellidos, DNI, Código, Carrera, Cuarto, Celular, Resp. Financiero,
+                        Relación, DNI Resp., Teléfono Resp., Inicio/Fin de estancia y Estado.
+                        Carrera, Relación y Estado traen combo desplegable en la plantilla.
+                        La residencia de género se asigna sola según tu preceptoría.
+                    </span>
+                    <a href="/preceptor/residentes/plantilla" class="btn btn-light border btn-sm" style="font-size:0.74rem;">
+                        <i class="fa-solid fa-file-arrow-down me-1"></i>Descargar plantilla
+                    </a>
+                </form>
+            </div>
+
+            <table class="tabla-dark">
+                <thead>
+
+                <tr>
+                    <th>N°</th><th>Foto</th><th>Nombre</th><th>Código</th><th>Carrera</th>
+                    <th>Resp. Fin.</th><th>Preceptor</th><th>Celular</th><th>Acciones</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="r, it : ${residentes}">
+                    <td th:text="${it.count}">1</td>
+                    <td>
+                        <div style="width:30px; height:30px; border-radius:50%; background:#e8edf1; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                            <img th:if="${r.fotoUrl != null}" th:src="${r.fotoUrl}" style="width:100%; height:100%; object-fit:cover;" alt="">
+                            <i th:if="${r.fotoUrl == null}" class="fa-solid fa-user" style="color:#aab7c4; font-size:0.8rem;"></i>
+                        </div>
+                    </td>
+                    <td>
+                        <span th:text="${r.apellido} + ', ' + ${r.nombre}">Mamani Quispe, Juan C.</span>
+                        <i th:if="${r.deuda != null && r.deuda}" class="fa-solid fa-circle-dollar-to-slot ms-1"
+                           style="color:#e74c3c;" title="Deuda pendiente"></i>
+                    </td>
+                    <td th:text="${r.codigoAcceso}">U-2024-10542</td>
+                    <td th:text="${r.carrera}">Sistemas</td>
+                    <td th:text="${r.apoderado != null} ? ${r.apoderado.nombre} : '—'">Pedro M.</td>
+                    <td th:text="${r.preceptor != null} ? ${r.preceptor.apellido} : '—'">Ríos</td>
+                    <td th:text="${r.celular}">999-001</td>
+                    <td class="text-nowrap">
+
+                        <button type="button" class="btn btn-primary btn-sm" style="font-size:0.72rem;"
+                                onclick="verRapido(this)" title="Vista rápida del residente"
+                                th:attr="data-id=${r.idResidente},
+                                         data-nombre=${r.nombreCompleto},
+                                         data-codigo=${r.codigoAcceso},
+                                         data-dni=${r.dni} ?: '—',
+                                         data-carrera=${r.carrera} ?: '—',
+                                         data-pabellon=(${r.pabellon} ?: '—') + ' · Cuarto ' + (${r.cuarto} ?: '—'),
+                                         data-celular=${r.celular} ?: '—',
+                                         data-estado=${r.estado},
+                                         data-deuda=${r.deuda != null && r.deuda} ? 'Con deuda' : 'Pago al día',
+                                         data-foto=${r.fotoUrl} ?: '',
+                                         data-apoderado=${r.apoderado != null} ? (${r.apoderado.nombre} + ' (' + (${r.apoderado.relacion} ?: 'RF') + ') · ' + (${r.apoderado.telefono} ?: '—')) : '—',
+                                         data-estancia=(${r.fechaIngreso != null} ? ${#temporals.format(r.fechaIngreso, 'dd/MM/yyyy')} : '—') + ' → ' + (${r.fechaFinEstancia != null} ? ${#temporals.format(r.fechaFinEstancia, 'dd/MM/yyyy')} : 'actualidad')">
+                            <i class="fa-solid fa-eye"></i> Ver
+                        </button>
+                        <a sec:authorize="hasRole('PRECEPTOR')" th:href="@{'/preceptor/residentes/' + ${r.idResidente} + '/editar'}"
+                           class="btn btn-success btn-sm" style="font-size:0.72rem;">Editar</a>
+                        <form sec:authorize="hasRole('PRECEPTOR')" th:action="@{'/preceptor/residentes/' + ${r.idResidente} + '/eliminar'}"
+                              method="post" style="display:inline; margin:0;"
+                              th:attr="data-titulo='Eliminar a ' + ${r.nombreCompleto},
+                                       data-confirmar='El residente se eliminará del sistema y no se puede deshacer. Si tiene historial (marcaciones o ausencias) no se podrá y conviene marcarlo como INACTIVO.',
+                                       data-boton='Sí, eliminar'">
+                            <button class="btn btn-danger btn-sm" style="font-size:0.72rem;" title="Eliminar residente">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(residentes)}">
+                    <td colspan="9" class="text-center text-muted py-3">No se encontraron residentes.</td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="foot-bar mt-3">
+                Total: <span th:text="${total}">95</span> ·
+                Activos: <span th:text="${activos}">95</span> ·
+                Inactivos: <span th:text="${inactivos}">0</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalResidente" class="modal-sistema" style="display:none;">
+    <div class="modal-caja modal-ancha">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="modal-titulo mb-0">
+                <i class="fa-solid fa-user-graduate" style="color:#2980b9;"></i>
+                <span id="mrNombre">Residente</span>
+            </div>
+            <button type="button" class="btn btn-light border btn-sm" style="font-size:0.72rem;"
+                    onclick="document.getElementById('modalResidente').style.display='none'" title="Cerrar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="d-flex gap-3 flex-wrap">
+            <div style="width:150px; height:150px; background:#e8edf1; border-radius:10px; border:2px solid #d5dde4; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;">
+                <img id="mrFoto" src="" alt="" style="width:100%; height:100%; object-fit:cover; display:none;">
+                <i id="mrSinFoto" class="fa-solid fa-user fa-3x" style="color:#aab7c4;"></i>
+            </div>
+            <div style="font-size:0.85rem; flex:1; min-width:240px;">
+                <div class="mb-1"><strong>Código:</strong> <span id="mrCodigo"></span></div>
+                <div class="mb-1"><strong>DNI:</strong> <span id="mrDni"></span></div>
+                <div class="mb-1"><strong>Carrera:</strong> <span id="mrCarrera"></span></div>
+                <div class="mb-1"><strong>Residencia de Género:</strong> <span id="mrPabellon"></span></div>
+                <div class="mb-1"><strong>Celular:</strong> <span id="mrCelular"></span></div>
+                <div class="mb-1"><strong>Resp. financiero:</strong> <span id="mrApoderado"></span></div>
+                <div class="mb-1"><strong>Estancia:</strong> <span id="mrEstancia"></span></div>
+                <div class="mt-2">
+                    <span class="badge-estado" id="mrEstado">ACTIVO</span>
+                    <span class="badge-estado" id="mrDeuda">Pago al día</span>
+                </div>
+            </div>
+        </div>
+        <div class="modal-botones mt-3">
+            <a id="mrReporte" href="#" class="btn btn-success btn-sm-flat"><i class="fa-solid fa-chart-column me-1"></i>Ver Reporte</a>
+            <a id="mrFicha" href="#" class="btn btn-navy btn-sm-flat"><i class="fa-solid fa-address-card me-1"></i>Ficha completa</a>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+
+    const comidasBloqueadas =  [] || [];
+    const fechaHoy =  '';
+
+    function bloquearComidasHoy() {
+        const fecha = document.getElementById('fechaReserva');
+        const combo = document.getElementById('turnoReserva');
+        if (!fecha || !combo) return;
+        const esHoy = fecha.value === fechaHoy;
+        let primeraLibre = null;
+        Array.from(combo.options).forEach(op => {
+            const bloqueada = esHoy && comidasBloqueadas.includes(op.value);
+            op.disabled = bloqueada;
+            op.textContent = op.value.charAt(0) + op.value.slice(1).toLowerCase()
+                + (bloqueada ? ' (turno cerrado hoy)' : '');
+            if (!bloqueada && primeraLibre === null) primeraLibre = op.value;
+        });
+
+        if (combo.selectedOptions.length && combo.selectedOptions[0].disabled && primeraLibre !== null) {
+            combo.value = primeraLibre;
+        }
+    }
+    bloquearComidasHoy();
+
+    window.alRefrescar = bloquearComidasHoy;
+
+    function verRapido(btn) {
+        const d = btn.dataset;
+        document.getElementById('mrNombre').textContent = d.nombre;
+        document.getElementById('mrCodigo').textContent = d.codigo;
+        document.getElementById('mrDni').textContent = d.dni;
+        document.getElementById('mrCarrera').textContent = d.carrera;
+        document.getElementById('mrPabellon').textContent = d.pabellon;
+        document.getElementById('mrCelular').textContent = d.celular;
+        document.getElementById('mrApoderado').textContent = d.apoderado;
+        document.getElementById('mrEstancia').textContent = d.estancia;
+        const estado = document.getElementById('mrEstado');
+        estado.textContent = d.estado;
+        estado.className = 'badge-estado ' + (d.estado === 'ACTIVO' ? 'bg-permitido' : 'bg-denegado');
+        const deuda = document.getElementById('mrDeuda');
+        deuda.textContent = d.deuda;
+        deuda.className = 'badge-estado ' + (d.deuda === 'Con deuda' ? 'bg-denegado' : 'bg-permitido');
+        const foto = document.getElementById('mrFoto');
+        const sinFoto = document.getElementById('mrSinFoto');
+        if (d.foto) { foto.src = d.foto; foto.style.display = ''; sinFoto.style.display = 'none'; }
+        else { foto.style.display = 'none'; sinFoto.style.display = ''; }
+        document.getElementById('mrReporte').href = '/reportes/individual?codigo=' + encodeURIComponent(d.codigo);
+        document.getElementById('mrFicha').href = '/preceptor/residentes/' + d.id;
+        const modal = document.getElementById('modalResidente');
+        modal.style.display = 'flex';
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.getElementById('modalResidente').style.display = 'none';
+    });
+</script>
+
+</body>
+</html>

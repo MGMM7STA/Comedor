@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Pase de Lista del Evento')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('eventos')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <div>
+            Pase de Lista — Entrega de Raciones del Evento
+            <div class="sub">Eventos › Pase de lista</div>
+        </div>
+        <a href="/preceptor/eventos" class="btn btn-light btn-sm-flat no-print">
+            <i class="fa-solid fa-arrow-left me-1"></i>Volver a Eventos
+        </a>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="card-panel mb-3 no-print">
+            <form th:action="@{/preceptor/pase-lista}" method="get" class="d-flex gap-2 align-items-center flex-wrap">
+                <div class="lbl mb-0">Evento:</div>
+                <select name="evento" class="form-select" style="font-size:0.85rem; max-width:340px;" onchange="this.form.submit()">
+                    <option value="">— Elige un evento aprobado —</option>
+                    <option th:each="e : ${eventosAprobados}" th:value="${e.idEvento}"
+                            th:selected="${eventoLista != null && eventoLista.idEvento == e.idEvento}"
+                            th:text="${e.nombre} + ' (' + ${#temporals.format(e.fechaEvento, 'dd/MM/yyyy')} + ')'">Excursión</option>
+                </select>
+                <span style="font-size:0.72rem; color:#8a97a3;">Al elegir, la lista se carga sola.</span>
+            </form>
+        </div>
+
+        <div class="card-panel text-center text-muted py-5" th:if="${eventoLista == null}" style="font-size:0.85rem;">
+            <i class="fa-solid fa-clipboard-check fa-2x mb-2" style="color:#b8c2cb;"></i><br>
+            Elige un evento aprobado arriba para marcar quiénes recibieron su ración.
+        </div>
+
+        <div class="card-panel" th:if="${eventoLista != null}">
+            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                <strong style="font-size:0.95rem; color:#2c3e50;">
+                    <i class="fa-solid fa-medal me-1" style="color:#e67e22;"></i>
+                    <span th:text="${eventoLista.nombre}">Excursión</span> ·
+                    <span th:text="${#temporals.format(eventoLista.fechaEvento, 'dd/MM/yyyy')}">15/06</span>
+                    <span class="badge-estado" th:if="${esPasado}" style="background:#d6dbdf; color:#5d6d7b;">REALIZADO</span>
+                    <span class="badge-estado bg-permitido ms-1">Recibidas: <span th:text="${recibidos}">0</span> / <span th:text="${#lists.size(participantesLista)}">32</span></span>
+                </strong>
+                <div class="d-flex gap-1 align-items-center flex-wrap no-print">
+                    <a href="/preceptor/eventos/plantilla-lista" class="btn btn-light border btn-sm" style="font-size:0.72rem;"
+                       title="Excel de una columna: llénala con los códigos de quienes SÍ recibieron">
+                        <i class="fa-solid fa-file-arrow-down me-1"></i>Plantilla
+                    </a>
+                    <form th:action="@{'/preceptor/eventos/' + ${eventoLista.idEvento} + '/lista/importar'}"
+                          method="post" enctype="multipart/form-data" class="d-flex gap-1">
+                        <input type="file" name="archivo" accept=".xlsx" class="form-control form-control-sm" style="max-width:200px; font-size:0.72rem;" required>
+                        <button class="btn btn-primary btn-sm" style="font-size:0.72rem;"
+                                title="Sube la plantilla llena: esos códigos se marcan como recibidos">
+                            <i class="fa-solid fa-file-excel me-1"></i>Importar
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div style="font-size:0.74rem; color:#8a97a3;" class="mb-2">
+                Marca <i class="fa-solid fa-check" style="color:#27ae60;"></i> si el residente recibió su ración del evento; desmarca si no la recogió.
+                Por defecto todos están marcados. Esto se refleja en los reportes y en el enlace de los padres.
+            </div>
+
+            <form th:action="@{'/preceptor/eventos/' + ${eventoLista.idEvento} + '/lista'}" method="post">
+                <table class="tabla-dark">
+                    <thead>
+                    <tr><th>N°</th><th>Código</th><th>Nombre</th><th>Carrera</th><th class="text-center">¿Recibió su ración?</th></tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="r, it : ${participantesLista}">
+                        <td th:text="${it.count}">1</td>
+                        <td th:text="${r.codigoAcceso}">U-2024-10542</td>
+                        <td th:text="${r.apellido} + ', ' + ${r.nombre}">Mamani Quispe, Juan C.</td>
+                        <td th:text="${r.carrera}">Sistemas</td>
+                        <td class="text-center">
+                            <input type="checkbox" class="form-check-input" style="width:1.35em; height:1.35em;"
+                                   th:name="'rec_' + ${r.idResidente}"
+                                   th:checked="${entregas.get(r.idResidente) == null || entregas.get(r.idResidente)}">
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-navy btn-sm-flat px-4">
+                        <i class="fa-solid fa-check me-1"></i>Guardar Pase de Lista
+                    </button>
+                    <a href="/preceptor/eventos" class="btn btn-light border btn-sm-flat">Cancelar</a>
+                </div>
+            </form>
+
+            <div class="mt-3 p-2 rounded no-print" th:if="${!esPasado}" style="background:#fdf6ec; border:1px solid #f5cba7;">
+                <div class="lbl mb-1"><i class="fa-solid fa-user-minus me-1"></i>¿Alguien ya no irá al evento? Solicita su exclusión al admin</div>
+                <form th:action="@{'/preceptor/eventos/' + ${eventoLista.idEvento} + '/solicitar-exclusion'}" method="post"
+                      class="d-flex gap-2 align-items-end flex-wrap">
+                    <div style="min-width:230px;">
+                        <div style="font-size:0.7rem; color:#8a97a3;">Residente</div>
+                        <input type="text" name="codigo" class="form-control form-control-sm" list="listaExclusion" placeholder="Código o nombre" required>
+                        <datalist id="listaExclusion">
+                            <option th:each="r : ${participantesLista}" th:value="${r.codigoAcceso} + ' — ' + ${r.nombreCompleto}"></option>
+                        </datalist>
+                    </div>
+                    <div class="flex-fill" style="min-width:180px;">
+                        <div style="font-size:0.7rem; color:#8a97a3;">Motivo</div>
+                        <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Motivo de la exclusión" required maxlength="300">
+                    </div>
+                    <button class="btn btn-navy btn-sm" style="font-size:0.76rem;">
+                        <i class="fa-solid fa-paper-plane me-1"></i>Enviar solicitud
+                    </button>
+                </form>
+            </div>
+            <div class="mt-3 p-2 rounded" th:if="${esPasado}" style="background:#eef1f4; border:1px solid #d6dbdf; font-size:0.76rem; color:#5d6d7b;">
+                <i class="fa-solid fa-circle-info me-1"></i>Este evento ya se realizó: ya no se pueden solicitar exclusiones,
+                pero el pase de lista sí se puede completar o corregir.
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Preceptor: Registro de Residente')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('nuevo')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <div>
+            Preceptor — <span th:text="${residente.idResidente == null} ? 'Registro de Nuevo Residente' : 'Editar Residente'">Registro de Nuevo Residente</span>
+            <div class="sub">Residentes › <span th:text="${residente.idResidente == null} ? 'Nuevo Registro' : 'Editar'">Nuevo Registro</span></div>
+        </div>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <form th:action="@{/preceptor/residentes/guardar}" method="post" enctype="multipart/form-data" data-navegacion
+              th:attr="data-titulo=${residente.idResidente == null} ? 'Registrar residente' : 'Guardar cambios del residente',
+                       data-confirmar=${residente.idResidente == null} ? 'Se registrará al residente con los datos del formulario. Podrás editarlos después si algo cambia.' : 'Se actualizará la ficha del residente con los nuevos datos.',
+                       data-boton=${residente.idResidente == null} ? 'Sí, registrar' : 'Sí, guardar',
+                       data-estilo='exito'">
+            <input type="hidden" name="idResidente" th:value="${residente.idResidente}">
+
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <div class="card-panel mb-3">
+                        <span class="titulo-seccion">Datos Personales</span>
+
+                        <div class="row g-3">
+                            <div class="col-md-3 text-center">
+
+                                <div style="width:100%; max-width:210px; aspect-ratio:1 / 1; background:#e8edf1; border:1px dashed #b8c2cb; border-radius:8px; display:flex; align-items:center; justify-content:center; margin:0 auto; overflow:hidden;">
+
+                                    <img id="fotoPreview" th:src="${residente.fotoUrl}"
+                                         th:style="${residente.fotoUrl != null} ? 'width:100%; height:100%; object-fit:cover;' : 'width:100%; height:100%; object-fit:cover; display:none;'"
+                                         alt="Foto">
+                                    <i th:if="${residente.fotoUrl == null}" class="fa-solid fa-camera fa-2x" style="color:#aab7c4;" id="fotoIcono"></i>
+                                </div>
+                                <input type="file" name="foto" id="foto" accept="image/*" class="form-control form-control-sm mt-2" style="font-size:0.72rem;">
+                                <div style="font-size:0.68rem; color:#8a97a3;">Foto</div>
+                            </div>
+                            <div class="col-md-9">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="lbl">Nombres</div>
+                                        <input type="text" name="nombre" class="form-control" placeholder="Nombres del residente" th:value="${residente.nombre}" required maxlength="150">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="lbl">Apellidos</div>
+                                        <input type="text" name="apellido" class="form-control" placeholder="Apellidos del residente" th:value="${residente.apellido}" required maxlength="150">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="lbl">DNI</div>
+                                        <input type="text" name="dni" class="form-control" placeholder="Documento de identidad" th:value="${residente.dni}" maxlength="20">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="lbl">Código universitario</div>
+                                        <input type="text" name="codigoAcceso" class="form-control" placeholder="Código con el que marcará su ingreso" th:value="${residente.codigoAcceso}" required maxlength="50">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <div class="lbl">Carrera / EP</div>
+                                        <select name="carrera" class="form-select" style="font-size:0.87rem;">
+                                            <option value="" th:selected="${residente.carrera == null || residente.carrera == ''}">— Selecciona la carrera —</option>
+                                            <optgroup th:each="fac : ${facultades}" th:label="${fac.key}">
+                                                <option th:each="c : ${fac.value}" th:value="${c}"
+                                                        th:selected="${residente.carrera == c}" th:text="${c}">Ingeniería de Sistemas</option>
+                                            </optgroup>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="lbl">Residencia de Género</div>
+
+                                        <div th:if="${pabellonAuto != null}">
+                                            <input type="text" class="form-control" th:value="${pabellonAuto}" disabled
+                                                   style="background:#f2f5f8;"
+                                                   title="Se asigna sola según la residencia que tienes a cargo">
+                                            <div style="font-size:0.68rem; color:#8a97a3;">Automático según tu preceptoría</div>
+                                        </div>
+                                        <select th:if="${pabellonAuto == null}" name="pabellon" class="form-select" style="font-size:0.87rem;"
+                                                title="Residencia de género a la que pertenece el residente">
+                                            <option value="Varones" th:selected="${residente.pabellon == 'Varones'}">Varones</option>
+                                            <option value="Mujeres" th:selected="${residente.pabellon == 'Mujeres'}">Mujeres</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="lbl">Cuarto N°</div>
+                                        <input type="text" name="cuarto" class="form-control" placeholder="Número de cuarto" th:value="${residente.cuarto}" maxlength="50">
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="lbl">Semestre</div>
+                                        <input type="text" class="form-control" disabled
+                                               style="font-size:0.87rem; background:#f2f5f8; font-weight:600;"
+                                               th:value="${residente.semestreTexto}"
+                                               title="Asignado automáticamente según la fecha del sistema">
+                                        <div style="font-size:0.68rem; color:#8a97a3;">Automático según la fecha del sistema</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="lbl">Celular</div>
+                                        <input type="text" name="celular" class="form-control" placeholder="Celular del residente" th:value="${residente.celular}" maxlength="30">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="lbl">Estado</div>
+                                        <select name="estado" class="form-select" style="font-size:0.87rem;">
+                                            <option value="ACTIVO" th:selected="${residente.estado == 'ACTIVO'}">Activo</option>
+                                            <option value="INACTIVO" th:selected="${residente.estado == 'INACTIVO'}">Inactivo</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="lbl">Estado de pago</div>
+                                        <select name="deuda" class="form-select" style="font-size:0.87rem;">
+                                            <option value="false" th:selected="${residente.deuda == null || !residente.deuda}">Al día</option>
+                                            <option value="true" th:selected="${residente.deuda != null && residente.deuda}">Con deuda</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-panel mb-3">
+                        <span class="titulo-seccion">Responsable Financiero</span>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="lbl">Nombre completo</div>
+                                <input type="text" name="apoNombre" class="form-control" placeholder="Nombre del padre, madre o tutor que paga"
+                                       th:value="${residente.apoderado != null} ? ${residente.apoderado.nombre} : ''" maxlength="150">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="lbl">Relación</div>
+                                <input type="text" name="apoRelacion" class="form-control" placeholder="Parentesco con el residente (padre, madre, tutor...)"
+                                       th:value="${residente.apoderado != null} ? ${residente.apoderado.relacion} : ''" maxlength="50">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="lbl">DNI del responsable</div>
+                                <input type="text" name="apoDni" class="form-control" placeholder="Documento del responsable"
+                                       th:value="${residente.apoderado != null} ? ${residente.apoderado.dni} : ''" maxlength="20">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="lbl">Teléfono de contacto</div>
+                                <input type="text" name="apoTelefono" class="form-control" placeholder="Número al que se enviará el reporte"
+                                       th:value="${residente.apoderado != null} ? ${residente.apoderado.telefono} : ''" maxlength="30">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-navy btn-sm-flat px-4"><i class="fa-solid fa-check me-1"></i>Confirmar</button>
+                        <a href="/preceptor/residentes" class="btn btn-light btn-sm-flat border px-4">Cancelar</a>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card-panel">
+                        <span class="titulo-seccion">Resumen Previo</span>
+                        <div style="font-size:0.78rem; color:#8a97a3;">Código:</div>
+                        <div style="font-size:0.85rem; font-weight:600;" class="mb-2" id="resCodigo" th:text="${residente.codigoAcceso} ?: '—'">U-2024-10542</div>
+                        <div style="font-size:0.78rem; color:#8a97a3;">Nombre:</div>
+                        <div style="font-size:0.85rem; font-weight:600;" class="mb-2" id="resNombre" th:text="${residente.idResidente != null} ? ${residente.nombreCompleto} : '—'">Juan C. Mamani Q.</div>
+                        <div style="font-size:0.78rem; color:#8a97a3;">DNI:</div>
+                        <div style="font-size:0.85rem; font-weight:600;" class="mb-2" id="resDni" th:text="${residente.dni} ?: '—'">74123456</div>
+                        <div style="font-size:0.78rem; color:#8a97a3;">Carrera:</div>
+                        <div style="font-size:0.85rem; font-weight:600;" class="mb-2" id="resCarrera" th:text="${residente.carrera} ?: '—'">Ing. Sistemas</div>
+                        <div style="font-size:0.78rem; color:#8a97a3;">Residencia de Género:</div>
+                        <div style="font-size:0.85rem; font-weight:600;" class="mb-2" id="resPabellon" th:text="${residente.pabellon} ?: '—'">Varones · C14</div>
+                        <div style="font-size:0.78rem; color:#8a97a3;">Resp. Financiero:</div>
+                        <div style="font-size:0.85rem; font-weight:600;" class="mb-2" id="resApoderado"
+                             th:text="${residente.apoderado != null} ? ${residente.apoderado.nombre} : '—'">—</div>
+                        <div style="font-size:0.78rem; color:#8a97a3;">Teléfono RF:</div>
+                        <div style="font-size:0.85rem; font-weight:600;" id="resTelefono"
+                             th:text="${residente.apoderado != null} ? ${residente.apoderado.telefono} : '—'">999-000-111</div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+
+    function enlazar(nombreCampo, idDestino, transform) {
+        const campo = document.querySelector('[name="' + nombreCampo + '"]');
+        if (!campo) return;
+        campo.addEventListener('input', () => {
+            document.getElementById(idDestino).textContent = (transform ? transform() : campo.value) || '—';
+        });
+        campo.addEventListener('change', () => {
+            document.getElementById(idDestino).textContent = (transform ? transform() : campo.value) || '—';
+        });
+    }
+    enlazar('codigoAcceso', 'resCodigo');
+    enlazar('dni', 'resDni');
+    enlazar('carrera', 'resCarrera');
+    enlazar('apoNombre', 'resApoderado');
+    enlazar('apoTelefono', 'resTelefono');
+    const nombreFn = () => {
+        const n = document.querySelector('[name="nombre"]').value;
+        const a = document.querySelector('[name="apellido"]').value;
+        return (n + ' ' + a).trim();
+    };
+    enlazar('nombre', 'resNombre', nombreFn);
+    enlazar('apellido', 'resNombre', nombreFn);
+    const pabFn = () => {
+        const p = document.querySelector('[name="pabellon"]').value;
+        const c = document.querySelector('[name="cuarto"]').value;
+        return c ? p + ' · C' + c : p;
+    };
+    enlazar('pabellon', 'resPabellon', pabFn);
+    enlazar('cuarto', 'resPabellon', pabFn);
+
+    document.getElementById('foto').addEventListener('change', function () {
+        if (this.files && this.files[0]) {
+            const preview = document.getElementById('fotoPreview');
+            const icono = document.getElementById('fotoIcono');
+            preview.src = URL.createObjectURL(this.files[0]);
+            preview.style.display = 'block';
+            if (icono) icono.style.display = 'none';
+        }
+    });
+</script>
+
+</body>
+</html>

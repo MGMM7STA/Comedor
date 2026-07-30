@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/base :: head('Admin: Gestión de Puntos de Acceso')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('puntos')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Administrador — Gestión de Puntos de Acceso</span>
+        <div class="d-flex gap-2 no-print">
+
+            <a href="/admin/programar" class="btn btn-light btn-sm-flat"
+               title="Programar horarios semanales para que los puntos y turnos se abran y cierren solos">
+                <i class="fa-regular fa-calendar-days me-1"></i>Programar
+            </a>
+            <a href="/admin/puntos/nuevo" class="btn btn-light btn-sm-flat" title="Registrar un nuevo punto de acceso">
+                <i class="fa-solid fa-plus me-1"></i>Nuevo Punto
+            </a>
+        </div>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="mb-3 p-2 rounded" th:if="${!#lists.isEmpty(notasPersonales)}"
+             style="background:#fdf6ec; border:1px dashed #e8b562;">
+            <div class="lbl mb-1"><i class="fa-solid fa-lock me-1"></i>Tus notas personales (solo tú las ves)</div>
+            <div th:each="n : ${notasPersonales}" class="d-flex justify-content-between align-items-center" style="font-size:0.8rem; color:#9a7d0a;">
+                <span><i class="fa-solid fa-pen me-2"></i><span th:text="${n.texto}">Nota</span>
+                    <span style="font-size:0.68rem; color:#c2a878;" th:text="'(' + ${#temporals.format(n.fechaHora, 'dd/MM HH:mm')} + ')'"></span></span>
+                <form th:action="@{'/admin/apuntes/' + ${n.idApunte} + '/eliminar'}" method="post" style="margin:0;">
+                    <button class="btn btn-link p-0 text-danger" style="font-size:0.72rem;" title="Eliminar nota">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card-panel mb-3">
+            <div class="lbl mb-2">Actividad de turnos en este momento</div>
+
+            <div class="row g-3 justify-content-center" th:if="${hayActividad}">
+                <th:block th:each="tipoT : ${vistaTurnos.keySet()}">
+                    <div th:class="${colTurnos}" th:if="${!#lists.isEmpty(vistaTurnos.get(tipoT))}"
+                         th:with="colorFondo=${tipoT == 'DESAYUNO'} ? '#eafaf1' : (${tipoT == 'ALMUERZO'} ? '#fdf2e9' : '#f4ecf7'),
+                                  colorBorde=${tipoT == 'DESAYUNO'} ? '#7dcea0' : (${tipoT == 'ALMUERZO'} ? '#f0b27a' : '#c39bd3'),
+                                  colorTexto=${tipoT == 'DESAYUNO'} ? '#1e8449' : (${tipoT == 'ALMUERZO'} ? '#ba4a00' : '#7d3c98')">
+
+                        <div class="p-2 rounded h-100 text-center" th:style="'background:' + ${colorFondo} + '; border:1px solid ' + ${colorBorde} + ';'">
+                            <h6 class="fw-bold mb-2" th:style="'color:' + ${colorTexto} + ';'">
+                                <i th:class="${tipoT == 'DESAYUNO'} ? 'fa-solid fa-sun me-1' : (${tipoT == 'ALMUERZO'} ? 'fa-solid fa-utensils me-1' : 'fa-solid fa-moon me-1')"></i>
+                                <span th:text="${#strings.capitalize(#strings.toLowerCase(tipoT))}">Desayuno</span>
+                            </h6>
+                            <div th:each="e : ${vistaTurnos.get(tipoT)}" class="mb-2" style="font-size:0.82rem; color:#2c3e50;">
+                                <i class="fa-solid fa-door-open me-1" style="color:#8a97a3;"></i>
+                                <strong th:text="${e['nombre']}">Entrada A</strong>:
+                                <span th:text="${e['horario']}">07:00 a 09:00</span>
+                                <div style="font-size:0.68rem; color:#8a97a3;"
+                                     th:text="'Atiende: ' + ${e['cajero']}">Atiende: Carlos Mamani</div>
+                            </div>
+                        </div>
+                    </div>
+                </th:block>
+            </div>
+            <div th:if="${!hayActividad}" class="text-center text-muted py-3" style="font-size:0.8rem;">
+                Ningún turno está siendo atendido en este momento. Las entradas se abren
+                según lo agendado en "Programar" o a mano con su interruptor.
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-4" th:each="p : ${puntos}">
+                <div class="card-panel h-100 d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="titulo-seccion mb-0" th:text="${p.nombre}">ENTRADA A</span>
+                        <div class="d-flex align-items-center gap-1">
+
+                            <form th:if="${reprogPendiente.get(p.idPunto)}"
+                                  th:action="@{/admin/programar/reaplicar}" method="post" style="margin:0;"
+                                  th:attr="data-titulo='Reprogramación disponible para ' + ${p.nombre},
+                                           data-confirmar='Hay una reprogramación disponible, ¿desea aplicarla? La entrada tomará el horario y el personal agendados para hoy.',
+                                           data-estilo='exito',
+                                           data-boton='Sí, aplicarla'">
+                                <input type="hidden" name="idPunto" th:value="${p.idPunto}">
+                                <input type="hidden" name="volver" value="puntos">
+                                <button class="btn btn-sm" style="font-size:0.66rem; padding:2px 7px; background:#f39c12; color:#fff;"
+                                        title="Hay una reprogramación pendiente para su turno: clic para aplicarla">
+                                    <i class="fa-solid fa-rotate"></i>
+                                </button>
+                            </form>
+                            <span class="badge-estado" th:classappend="${p.operativo} ? 'bg-permitido' : 'bg-denegado'"
+                                  th:text="${p.operativo} ? 'Operativo' : 'Cerrado'">Operativo</span>
+                            <form th:action="@{'/admin/puntos/' + ${p.idPunto} + '/eliminar'}" method="post" style="margin:0;"
+                                  th:attr="data-titulo='Eliminar ' + ${p.nombre},
+                                           data-confirmar='El punto de acceso se eliminará del sistema. Si tiene marcaciones o incidencias registradas no se podrá eliminar y conviene solo cerrarlo.',
+                                           data-boton='Sí, eliminar'">
+                                <button class="btn btn-outline-danger btn-sm" style="font-size:0.66rem; padding:2px 7px;"
+                                        title="Eliminar punto de acceso">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <form th:action="@{'/admin/puntos/' + ${p.idPunto} + '/toggle'}" method="post" class="mb-1">
+
+                        <button th:if="${p.operativo}" type="submit" class="btn p-0 border-0 bg-transparent"
+                                title="Entrada abierta: clic para cerrarla manualmente">
+                            <i class="fa-solid fa-toggle-on fa-2x" style="color:#27ae60;"></i>
+                        </button>
+
+                        <button th:if="${!p.operativo && !necesitaTurno.get(p.idPunto)}" type="submit"
+                                class="btn p-0 border-0 bg-transparent"
+                                title="Entrada cerrada: clic para abrirla (su horario vigente ya indica el turno)">
+                            <i class="fa-solid fa-toggle-off fa-2x" style="color:#e74c3c;"></i>
+                        </button>
+
+                        <button th:if="${!p.operativo && necesitaTurno.get(p.idPunto)}" type="button"
+                                class="btn p-0 border-0 bg-transparent"
+                                th:attr="onclick='document.getElementById(\'selTurno-' + ${p.idPunto} + '\').classList.toggle(\'d-none\')'"
+                                title="Entrada sin horario vigente: al abrirla debes elegir a qué turno servirá">
+                            <i class="fa-solid fa-toggle-off fa-2x" style="color:#e74c3c;"></i>
+                        </button>
+                        <span style="font-size:0.72rem; font-weight:700;"
+                              th:style="${p.operativo} ? 'color:#27ae60;' : 'color:#e74c3c;'"
+                              th:text="${p.operativo} ? '● ABIERTO' : '● CERRADO'">● ABIERTO</span>
+
+                        <div th:id="'selTurno-' + ${p.idPunto}" class="d-none mt-1 p-2 rounded"
+                             style="background:#fef9e7; border:1px solid #f7dc6f;">
+                            <div style="font-size:0.7rem; color:#9a7d0a;" class="mb-1">
+                                <i class="fa-solid fa-circle-question me-1"></i>¿Para qué turno abres esta entrada?
+                            </div>
+                            <div class="d-flex gap-1 flex-wrap">
+                                <button type="submit" name="turnoManual" value="DESAYUNO"
+                                        class="btn btn-sm btn-outline-success" style="font-size:0.7rem;">Desayuno</button>
+                                <button type="submit" name="turnoManual" value="ALMUERZO"
+                                        class="btn btn-sm" style="font-size:0.7rem; border:1px solid #f0b27a; color:#ba4a00;">Almuerzo</button>
+                                <button type="submit" name="turnoManual" value="CENA"
+                                        class="btn btn-sm" style="font-size:0.7rem; border:1px solid #c39bd3; color:#7d3c98;">Cena</button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div style="font-size:0.78rem; color:#8a97a3;">Ubicación:</div>
+                    <div style="font-size:0.83rem;" th:text="${p.ubicacion} ?: '—'">Comedor Principal - Planta Baja</div>
+
+                    <div style="font-size:0.78rem; color:#8a97a3;" class="mt-2">Operador asignado:</div>
+                    <div style="font-size:0.83rem; font-weight:600;"
+                         th:text="${p.cajero != null} ? ${p.cajero.nombreCompleto} : 'Sin asignar'"
+                         th:style="${p.cajero == null} ? 'color:#b8c2cb; font-style:italic;'">Carlos Mamani</div>
+
+                    <div style="font-size:0.78rem; color:#8a97a3;" class="mt-2">Horario fijo:</div>
+                    <div style="font-size:0.83rem;" th:text="${p.horarioTexto}">8:00 - 14:00</div>
+
+                    <div class="d-flex gap-2 mt-3 pt-2 border-top">
+                        <a th:href="@{'/admin/puntos/' + ${p.idPunto} + '/editar'}" class="btn btn-navy btn-sm-flat flex-fill"
+                           title="Editar nombre, ubicación, operador y horario de este punto">
+                            <i class="fa-solid fa-gear me-1"></i>Editar configuración
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-panel">
+            <div class="lbl mb-2">
+                Turno activo: <span th:text="${turnoActivo != null} ? ${turnoActivo.tipo} : 'NINGUNO'">DESAYUNO</span>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="stat-box">
+                        <div class="stat-num" style="color:#2c3e50;" th:text="${habilitados}">123</div>
+                        <div class="stat-lbl">Residentes habilitados</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-box">
+                        <div class="stat-num" style="color:#27ae60;" th:text="${atendidos}">12</div>
+                        <div class="stat-lbl">Atendidos hoy</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-box">
+                        <div class="stat-num" style="color:#f39c12;" th:text="${pendientes}">111</div>
+                        <div class="stat-lbl">Pendientes</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-box">
+                        <div class="stat-num" style="color:#e74c3c;" th:text="${bloqueados}">0</div>
+                        <div class="stat-lbl">Bloqueados</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="foot-bar mt-3">
+                <i class="fa-solid fa-utensils me-1"></i>
+                Cocina — Raciones del turno:
+                Servidas <strong style="color:#58d68d;" th:text="${racionesServidas}">3</strong> ·
+                Reservadas (tardíos) <strong style="color:#f1c40f;" th:text="${racionesReservadas}">1</strong> ·
+                Por servir <strong style="color:#aebfce;" th:text="${racionesPorServir}">3</strong>
+                <span th:if="${eventoHoy != null}" class="ms-2" style="color:#e67e22;">
+                    · <i class="fa-solid fa-medal me-1"></i>EVENTO HOY "<span th:text="${eventoHoy.nombre}">Excursión</span>":
+                    <strong th:text="${eventoHoyRaciones}">32</strong> raciones adicionales
+                </span>
+            </div>
+        </div>
+
+        <div class="card-panel mt-3">
+            <h6 class="fw-bold mb-2" style="color:#2c3e50;">
+                <i class="fa-solid fa-note-sticky me-1" style="color:#f1c40f;"></i>Apuntes y Avisos
+            </h6>
+            <div style="font-size:0.76rem; color:#8a97a3;" class="mb-2">
+                <strong>Aviso a cajeros</strong> o <strong>a preceptores</strong>: aparece arriba en sus pantallas.
+                <strong>Nota personal</strong>: solo la ves tú, arriba de este panel. Máximo 250 caracteres.
+            </div>
+
+            <form th:action="@{/admin/apuntes}" method="post" class="d-flex gap-2 mb-1 flex-wrap align-items-end" data-navegacion>
+                <select name="tipo" class="form-select" style="max-width:190px; font-size:0.84rem;" title="Quién verá este apunte">
+                    <option value="AVISO">Aviso a cajeros</option>
+                    <option value="PRECEPTOR">Aviso a preceptores</option>
+                    <option value="PERSONAL">Nota personal (solo tú)</option>
+                </select>
+                <input type="text" name="texto" id="textoApunte" class="form-control" maxlength="250" style="min-width:240px; flex:1;"
+                       placeholder="Texto del aviso o la nota" required
+                       oninput="document.getElementById('contadorApunte').textContent = (250 - this.value.length) + ' caracteres restantes'">
+                <div class="selector-rango">
+                    <div class="rango-campo">
+                        <span class="rango-lbl"><i class="fa-regular fa-calendar"></i> Día en que se muestra</span>
+                        <input type="date" name="fecha" class="form-control form-control-sm" required
+                               th:value="${#temporals.format(#temporals.createToday(), 'yyyy-MM-dd')}"
+                               title="Día exacto en que el aviso aparecerá en pantalla">
+                    </div>
+
+                    <div class="rango-campo">
+                        <span class="rango-lbl"><i class="fa-solid fa-play"></i> Desde</span>
+                        <input type="time" name="horaInicio" class="form-control form-control-sm"
+                               title="Opcional: desde qué hora de ese día se muestra el aviso (vacío = desde el inicio del día)">
+                    </div>
+                    <span class="rango-flecha"><i class="fa-solid fa-arrow-right-long"></i></span>
+                    <div class="rango-campo">
+                        <span class="rango-lbl"><i class="fa-solid fa-stop"></i> Hasta</span>
+                        <input type="time" name="horaFin" class="form-control form-control-sm"
+                               title="Opcional: hasta qué hora de ese día se muestra el aviso (vacío = hasta el final del día)">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-navy btn-sm-flat px-3" title="Publicar el aviso o guardar la nota">
+                    <i class="fa-solid fa-plus me-1"></i>Agregar
+                </button>
+            </form>
+            <div id="contadorApunte" style="font-size:0.68rem; color:#8a97a3;" class="mb-3">250 caracteres restantes</div>
+
+            <div th:each="a : ${avisos}" class="d-flex justify-content-between align-items-center border-bottom py-2 gap-2 flex-wrap">
+                <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size:0.83rem;">
+                    <span class="badge-estado bg-justificado">CAJEROS</span>
+                    <span th:text="${a.texto}" style="color:#2c3e50;">Mañana de 8 a 10 mantenimiento en Entrada B</span>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="badge-estado bg-ausente" th:if="${a.fecha != null}"
+                          th:title="'Día en que se muestra el aviso'">
+                        <i class="fa-regular fa-calendar me-1"></i><span th:text="${#temporals.format(a.fecha, 'dd/MM/yyyy')}">19/07</span>
+                    </span>
+                    <span class="badge-estado bg-ausente" title="Franja horaria en la que se muestra">
+                        <i class="fa-regular fa-clock me-1"></i><span th:text="${a.franjaTexto}">07:00 - 21:00</span>
+                    </span>
+
+                    <span class="badge-estado bg-pendiente" th:if="${!a.estaVigente()}"
+                          title="Fuera de su día o franja: el destinatario no lo ve en este momento">
+                        <i class="fa-regular fa-eye-slash me-1"></i>No visible ahora
+                    </span>
+                    <span style="font-size:0.66rem; color:#b8c2cb;" th:title="'Momento en que se creó el aviso'"
+                          th:text="'creado ' + ${#temporals.format(a.fechaHora, 'dd/MM HH:mm')}">creado 02/07 10:00</span>
+                    <form th:action="@{'/admin/apuntes/' + ${a.idApunte} + '/eliminar'}" method="post" style="margin:0;">
+                        <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;" title="Eliminar aviso">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div th:each="a : ${avisosPrec}" class="d-flex justify-content-between align-items-center border-bottom py-2 gap-2 flex-wrap">
+                <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size:0.83rem;">
+                    <span class="badge-estado" style="background:#e8daef; color:#7d3c98;">PRECEPTORES</span>
+                    <span th:text="${a.texto}" style="color:#2c3e50;">Reunión de preceptores el viernes</span>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="badge-estado bg-ausente" th:if="${a.fecha != null}"
+                          th:title="'Día en que se muestra el aviso'">
+                        <i class="fa-regular fa-calendar me-1"></i><span th:text="${#temporals.format(a.fecha, 'dd/MM/yyyy')}">19/07</span>
+                    </span>
+                    <span class="badge-estado bg-ausente" title="Franja horaria en la que se muestra">
+                        <i class="fa-regular fa-clock me-1"></i><span th:text="${a.franjaTexto}">07:00 - 21:00</span>
+                    </span>
+
+                    <span class="badge-estado bg-pendiente" th:if="${!a.estaVigente()}"
+                          title="Fuera de su día o franja: el destinatario no lo ve en este momento">
+                        <i class="fa-regular fa-eye-slash me-1"></i>No visible ahora
+                    </span>
+                    <span style="font-size:0.66rem; color:#b8c2cb;" th:title="'Momento en que se creó el aviso'"
+                          th:text="'creado ' + ${#temporals.format(a.fechaHora, 'dd/MM HH:mm')}">creado 02/07 10:00</span>
+                    <form th:action="@{'/admin/apuntes/' + ${a.idApunte} + '/eliminar'}" method="post" style="margin:0;">
+                        <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;" title="Eliminar aviso">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div th:if="${#lists.isEmpty(avisos) && #lists.isEmpty(avisosPrec)}" class="text-center text-muted py-2" style="font-size:0.8rem;">
+                Sin avisos vigentes. Las incidencias están en <a href="/admin/peticiones">Peticiones</a>.
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

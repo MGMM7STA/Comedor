@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Admin: Justificaciones')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('justificaciones')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Administrador — Justificaciones de Inasistencia</span>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="card-panel mb-3">
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/justificaciones', 'desde', 'hasta', '&orden=' + ${orden} + '&limite=' + ${limite})}"></div>
+
+            <form th:action="@{/admin/justificaciones}" method="get" class="d-flex gap-2 align-items-end flex-wrap" data-navegacion>
+                <input type="hidden" name="desde" th:value="${desde}">
+                <input type="hidden" name="hasta" th:value="${hasta}">
+                <input type="hidden" name="orden" th:value="${orden}">
+                <input type="hidden" name="limite" th:value="${limite}">
+                <div style="min-width:230px;">
+                    <div class="lbl">Buscar residente</div>
+                    <input type="text" name="q" class="form-control" th:value="${q}"
+                           placeholder="Código o nombre del residente"
+                           title="Filtra las justificaciones por residente">
+                </div>
+                <button type="submit" class="btn btn-navy btn-sm-flat" title="Aplicar la búsqueda">
+                    <i class="fa-solid fa-magnifying-glass me-1"></i>Consultar
+                </button>
+                <a href="/admin/justificaciones" class="btn btn-light border btn-sm-flat" title="Quitar los filtros aplicados">
+                    <i class="fa-solid fa-eraser me-1"></i>Limpiar
+                </a>
+            </form>
+        </div>
+
+        <div class="card-panel">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <span class="titulo-seccion mb-0">Inasistencias justificadas</span>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+
+                    <button type="button" class="btn btn-success btn-sm no-print btn-exportar-rango" style="font-size:0.72rem;"
+                            data-titulo="Exportar justificaciones a Excel" data-ruta="/admin/justificaciones/exportar"
+                            th:attr="data-extra='&q=' + (${q} ?: '') + '&limite=' + ${limite} + '&orden=' + ${orden}"
+                            title="Elige un rango de fechas y descarga el Excel">
+                        <i class="fa-solid fa-file-excel me-1"></i>Excel
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm no-print btn-exportar-rango" style="font-size:0.72rem;"
+                            data-titulo="Exportar justificaciones a PDF" data-ruta="/admin/justificaciones" data-imprimir="1"
+                            th:attr="data-extra='&q=' + (${q} ?: '') + '&limite=' + ${limite} + '&orden=' + ${orden}"
+                            title="Elige un rango de fechas e imprime o guarda en PDF">
+                        <i class="fa-solid fa-file-pdf me-1"></i>PDF
+                    </button>
+                <form th:action="@{/admin/justificaciones}" method="get" class="d-flex align-items-center gap-1">
+                    <input type="hidden" name="desde" th:value="${desde}">
+                    <input type="hidden" name="hasta" th:value="${hasta}">
+                    <input type="hidden" name="q" th:value="${q}">
+                    <span style="font-size:0.72rem; color:#8a97a3;">Mostrar</span>
+                    <select name="limite" class="form-select form-select-sm" style="font-size:0.76rem; width:auto;"
+                            onchange="this.form.submit()" title="Cuántos registros se muestran">
+                        <option value="5" th:selected="${limite == 5}">5</option>
+                        <option value="10" th:selected="${limite == 10}">10</option>
+                        <option value="20" th:selected="${limite == 20}">20</option>
+                        <option value="50" th:selected="${limite == 50}">50</option>
+                        <option value="0" th:selected="${limite == 0}">Todos</option>
+                    </select>
+                </form>
+                </div>
+            </div>
+
+            <table class="tabla-dark">
+                <thead>
+                <tr>
+                    <th>N°</th>
+
+                    <th>
+                        <a class="link-plain" style="color:#fff;"
+                           th:href="@{/admin/justificaciones(desde=${desde}, hasta=${hasta}, q=${q}, limite=${limite}, orden=${orden == 'RECIENTES' ? 'ANTIGUOS' : 'RECIENTES'})}"
+                           th:title="${orden == 'RECIENTES'} ? 'Más recientes primero (clic para invertir)' : 'Más antiguas primero (clic para invertir)'">
+                            Fecha <i th:class="${orden == 'RECIENTES'} ? 'fa-solid fa-arrow-down' : 'fa-solid fa-arrow-up'"></i>
+                        </a>
+                    </th>
+                    <th>Residente</th><th>Código</th>
+                    <th title="Preceptor que registró la justificación">Preceptor</th><th>Acciones</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="a, it : ${justificaciones}" th:with="estado=${estadoPorAusencia.get(a.idAusencia)}">
+                    <td th:text="${it.count}">1</td>
+                    <td style="font-size:0.8rem;">
+
+                        <span th:if="${a.fechaInicio.equals(a.fechaFin)}"
+                              th:text="${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')}">05/05/2026</span>
+                        <span th:if="${!a.fechaInicio.equals(a.fechaFin)}">
+                            <span th:text="${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')}">05/05</span> –
+                            <span th:text="${#temporals.format(a.fechaFin, 'dd/MM/yyyy')}">11/05</span>
+                        </span>
+                    </td>
+                    <td th:text="${a.residente.apellido} + ', ' + ${a.residente.nombre}">Mamani, Juan</td>
+                    <td th:text="${a.residente.codigoAcceso}">U-2024-10542</td>
+                    <td style="font-size:0.78rem;" th:text="${a.usuario != null} ? ${a.usuario.nombreCompleto} : '—'">Preceptor Ríos</td>
+                    <td class="text-nowrap">
+
+                        <button type="button" class="btn btn-primary btn-sm" style="font-size:0.7rem;"
+                                onclick="verJustificacion(this)" title="Ver la información completa de esta justificación"
+                                th:attr="data-residente=${a.residente.nombreCompleto},
+                                         data-codigo=${a.residente.codigoAcceso},
+                                         data-residencia=${a.residente.pabellon} ?: '—',
+                                         data-fechas=${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')} + ' al ' + ${#temporals.format(a.fechaFin, 'dd/MM/yyyy')},
+                                         data-motivo=${a.motivo},
+                                         data-preceptor=${a.usuario != null} ? ${a.usuario.nombreCompleto} : '—',
+                                         data-turnos=${turnosPorAusencia.get(a.idAusencia)},
+                                         data-dia1=${dia1PorAusencia.get(a.idAusencia)},
+                                         data-diafin=${diaFinPorAusencia.get(a.idAusencia)}">
+                            <i class="fa-solid fa-eye"></i> Ver detalles
+                        </button>
+
+                        <form th:if="${estado == 'FUTURA'}"
+                              th:action="@{'/admin/justificaciones/' + ${a.idAusencia} + '/eliminar'}" method="post"
+                              style="margin:0; display:inline;"
+                              data-titulo="Eliminar justificación"
+                              data-confirmar="Esta justificación aún no empieza: se eliminará por completo y el residente no figurará como justificado."
+                              data-boton="Sí, eliminar">
+                            <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;"
+                                    title="Eliminar esta justificación (aún no empieza)">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </form>
+
+                        <form th:if="${estado == 'EN_CURSO'}"
+                              th:action="@{'/admin/justificaciones/' + ${a.idAusencia} + '/cancelar'}" method="post"
+                              style="margin:0; display:inline;"
+                              data-titulo="Cancelar justificación en curso"
+                              data-confirmar="Cierre anticipado: los turnos que ya pasaron justificados se conservan en el historial, y la justificación terminará en este momento (los turnos futuros dejan de estar justificados)."
+                              data-boton="Sí, cancelar desde ahora">
+                            <button class="btn btn-sm" style="font-size:0.7rem; background:#f39c12; color:#fff;"
+                                    title="Cancelar desde ahora (lo ya transcurrido se conserva)">
+                                <i class="fa-solid fa-scissors me-1"></i>Cancelar
+                            </button>
+                        </form>
+
+                        <span th:if="${estado == 'PASADA'}" class="badge-estado bg-ausente"
+                              title="Ya transcurrió por completo: su historial se conserva">Histórica</span>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(justificaciones)}">
+                    <td colspan="6" class="text-center text-muted py-3">
+                        No hay justificaciones registradas en este período.
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="text-end mt-2" style="font-size:0.74rem; color:#8a97a3;">
+                Mostrando <strong th:text="${#lists.size(justificaciones)}">20</strong>
+                de <strong th:text="${totalJustificaciones}">45</strong> justificaciones
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalJustif" class="modal-sistema" style="display:none;">
+    <div class="modal-caja">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="modal-titulo mb-0">
+                <i class="fa-solid fa-calendar-check" style="color:#f39c12;"></i>
+                Detalle de la justificación
+            </div>
+            <button type="button" class="btn btn-light border btn-sm" style="font-size:0.72rem;"
+                    onclick="document.getElementById('modalJustif').style.display='none'" title="Cerrar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div style="font-size:0.84rem; color:#5d6d7b;">
+            <div class="mb-1"><strong>Residente:</strong> <span id="jResidente"></span> (<span id="jCodigo"></span>)</div>
+            <div class="mb-1"><strong>Residencia de Género:</strong> <span id="jResidencia"></span></div>
+            <div class="mb-1"><strong>Período:</strong> <span id="jFechas"></span></div>
+            <div class="mb-1"><strong>Turnos a los que aplica:</strong> <span id="jTurnos"></span></div>
+
+            <div class="mb-1 p-2 rounded" style="background:#fef9e7; border:1px solid #f7dc6f;">
+                <div><strong>Primer día:</strong> <span id="jDia1"></span></div>
+                <div><strong>Último día:</strong> <span id="jDiaFin"></span></div>
+                <div style="font-size:0.7rem; color:#9a7d0a;">Los días intermedios siempre justifican las tres comidas.</div>
+            </div>
+            <div class="mb-1"><strong>Registrado por:</strong> <span id="jPreceptor"></span></div>
+
+            <div class="lbl mt-2 mb-1"><i class="fa-solid fa-quote-left me-1"></i>Motivo / Justificación</div>
+            <div class="p-2 rounded" style="background:#f7f9fb; border:1px solid #e3e9ee; white-space:pre-wrap;"
+                 id="jMotivo">Motivo</div>
+        </div>
+        <div class="modal-botones mt-3">
+            <button type="button" class="btn btn-light border btn-sm-flat"
+                    onclick="document.getElementById('modalJustif').style.display='none'">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    function verJustificacion(btn) {
+        const d = btn.dataset;
+        document.getElementById('jResidente').textContent = d.residente;
+        document.getElementById('jCodigo').textContent = d.codigo;
+        document.getElementById('jResidencia').textContent = d.residencia;
+        document.getElementById('jFechas').textContent = d.fechas;
+        document.getElementById('jTurnos').textContent = d.turnos;
+        document.getElementById('jDia1').textContent = d.dia1;
+        document.getElementById('jDiaFin').textContent = d.diafin;
+        document.getElementById('jPreceptor').textContent = d.preceptor;
+        document.getElementById('jMotivo').textContent = d.motivo;
+        const modal = document.getElementById('modalJustif');
+        modal.style.display = 'flex';
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.getElementById('modalJustif').style.display = 'none';
+    });
+</script>
+
+</body>
+</html>

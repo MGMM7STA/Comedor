@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Preceptor: Eventos Especiales')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('eventos')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Preceptor — Eventos Especiales</span>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="card-panel mb-3" th:if="${!#lists.isEmpty(eventosAprobados)}">
+            <div class="mb-2">
+                <h6 class="fw-bold mb-0" style="color:#2c3e50;">
+                    <i class="fa-solid fa-clipboard-check me-1" style="color:#27ae60;"></i>Eventos aprobados — Pase de Lista
+                </h6>
+                <div style="font-size:0.74rem; color:#8a97a3;">
+                    Pulsa "Pasar lista" en el evento y marca quién recibió su ración.
+                </div>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-4" th:each="e : ${eventosAprobados}">
+                    <div class="border rounded p-2 h-100 d-flex flex-column justify-content-between"
+                         style="background:#f7f9fb;">
+                        <div>
+                            <strong style="font-size:0.85rem; color:#2c3e50;">
+                                <i class="fa-solid fa-medal me-1" style="color:#e67e22;"></i>
+                                <span th:text="${e.nombre}">Excursión</span>
+                            </strong>
+                            <div style="font-size:0.72rem; color:#8a97a3;">
+                                <span th:text="${#temporals.format(e.fechaEvento, 'dd/MM/yyyy')}">15/06</span> ·
+                                Ración adicional
+                            </div>
+                        </div>
+
+                        <a th:href="@{/preceptor/pase-lista(evento=${e.idEvento})}"
+                           class="btn btn-navy btn-sm-flat mt-2 w-100"
+                           th:title="'Pasar lista de ' + ${e.nombre}">
+                            <i class="fa-solid fa-clipboard-check me-1"></i>Pasar lista
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form th:action="@{/preceptor/eventos/enviar}" method="post" id="formEvento"
+              data-titulo="¿Enviar el evento al administrador?"
+              data-confirmar="El evento se enviará para su aprobación con los residentes incluidos que dejaste en la lista. Podrás eliminarlo mientras siga pendiente."
+              data-boton="Sí, enviar"
+              data-estilo="exito">
+            <div class="row g-3">
+
+                <div class="col-md-5">
+                    <div class="card-panel">
+                        <span class="titulo-seccion">Crear Evento</span>
+
+                        <div class="lbl">Nombre del evento</div>
+                        <input type="text" name="nombre" class="form-control mb-3" placeholder="Ej. Excursión Lago Titicaca" required maxlength="300">
+
+                        <div class="lbl">Fecha del evento</div>
+                        <input type="date" name="fechaEvento" class="form-control mb-3" th:value="${hoy}" th:min="${hoy}" required
+                               title="Los eventos se programan de hoy en adelante">
+
+                        <div class="lbl">Excluir residentes (opc.)</div>
+                        <input type="text" id="excluirInput" class="form-control mb-2" placeholder="Código de residente..." list="listaCodigos">
+                        <datalist id="listaCodigos">
+                            <option th:each="r : ${residentes}" th:value="${r.codigoAcceso}" th:text="${r.nombreCompleto}"></option>
+                        </datalist>
+                        <div id="chipsExcluidos" class="d-flex gap-1 flex-wrap mb-2"></div>
+                        <input type="hidden" name="excluidos" id="excluidosHidden">
+
+                        <div class="p-2 rounded mb-3" style="background:#fef9e7; border:1px solid #f7dc6f; font-size:0.76rem; color:#9a7d0a;">
+                            <i class="fa-solid fa-circle-info me-1"></i>
+                            El evento prepara <strong>raciones adicionales</strong>, independientes de las comidas
+                            habituales (el residente recibe ambas). No justifica faltas: la entrega se
+                            controla con el <strong>pase de lista</strong>.
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary btn-sm-flat" onclick="vistaPrevia()">
+                                <i class="fa-solid fa-eye me-1"></i>Vista previa
+                            </button>
+                            <button type="submit" class="btn btn-navy btn-sm-flat">
+                                <i class="fa-solid fa-paper-plane me-1"></i>Enviar Admin
+                            </button>
+                        </div>
+
+                    </div>
+
+                    <div class="card-panel mt-3">
+                        <span class="titulo-seccion">Eventos Enviados</span>
+                        <div th:each="e : ${misEventos}" class="d-flex justify-content-between align-items-center border-bottom py-2" style="font-size:0.8rem;">
+                            <div>
+                                <strong th:text="${e.nombre}">Excursión</strong>
+                                <div style="font-size:0.72rem; color:#8a97a3;">
+                                    <span th:text="${#temporals.format(e.fechaEvento, 'dd/MM/yyyy')}">15/06</span> ·
+                                    Ración adicional
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-1">
+
+                                <span class="badge-estado" th:if="${e.fechaEvento != null && e.fechaEvento.isBefore(hoy) && e.estado != 'RECHAZADO'}"
+                                      style="background:#d6dbdf; color:#5d6d7b;" title="La fecha del evento ya pasó">REALIZADO</span>
+                                <span class="badge-estado"
+                                      th:classappend="${e.estado == 'PENDIENTE'} ? 'bg-pendiente' : (${e.estado == 'APROBADO'} ? 'bg-permitido' : 'bg-denegado')"
+                                      th:text="${e.estado}">PENDIENTE</span>
+                                <a th:href="@{/preceptor/eventos(detalle=${e.idEvento})}" class="btn btn-primary btn-sm"
+                                   style="font-size:0.66rem; padding:2px 8px;" title="Ver detalles del evento">
+                                    <i class="fa-solid fa-eye"></i> Ver
+                                </a>
+                                <form th:if="${e.estado != 'APROBADO'}" th:action="@{'/preceptor/eventos/' + ${e.idEvento} + '/eliminar'}"
+                                      method="post" style="margin:0;"
+                                      th:attr="data-titulo='Eliminar evento: ' + ${e.nombre},
+                                               data-confirmar='El evento se eliminará y no se puede deshacer.',
+                                               data-boton='Sí, eliminar'">
+                                    <button class="btn btn-outline-danger btn-sm" style="font-size:0.66rem; padding:2px 6px;"
+                                            title="Eliminar evento">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        <div th:if="${#lists.isEmpty(misEventos)}" class="text-muted text-center py-2" style="font-size:0.78rem;">
+                            Aún no has enviado eventos.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-7">
+                    <div class="card-panel">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold mb-0" style="color:#2c3e50;">Residentes Participantes</h6>
+                            <span class="badge-estado bg-permitido">Activos: <span th:text="${activos}">95</span></span>
+                        </div>
+                        <table class="tabla-dark">
+                            <thead>
+                            <tr><th>Código</th><th>Foto</th><th>Nombre</th><th>Carrera</th><th>N°</th><th>Acción</th></tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="r : ${residentes}" th:id="'res_' + ${r.codigoAcceso}">
+                                <td th:text="${r.codigoAcceso}">U-2024-10542</td>
+                                <td>
+                                    <div style="width:26px; height:26px; border-radius:50%; background:#e8edf1; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                                        <img th:if="${r.fotoUrl != null}" th:src="${r.fotoUrl}" style="width:100%; height:100%; object-fit:cover;" alt="">
+                                        <i th:if="${r.fotoUrl == null}" class="fa-solid fa-user" style="color:#aab7c4; font-size:0.7rem;"></i>
+                                    </div>
+                                </td>
+                                <td th:text="${r.apellido} + ', ' + ${r.nombre}">Mamani Quispe, Juan C.</td>
+                                <td th:text="${r.carrera}">Sistemas</td>
+                                <td th:text="${r.cuarto}">14</td>
+                                <td>
+
+                                    <button type="button" class="btn btn-danger btn-sm" style="font-size:0.7rem; min-width:64px;"
+                                            th:id="'btn_' + ${r.codigoAcceso}"
+                                            th:attr="onclick='alternarExclusion(\'' + ${r.codigoAcceso} + '\')'">Excluir</button>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<div class="modal-sistema" th:if="${eventoDetalle != null}" style="display:flex;"
+     onclick="if (event.target === this) window.location.href='/preceptor/eventos'">
+    <div class="modal-caja modal-ancha">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="modal-titulo mb-0">
+                <i class="fa-solid fa-medal" style="color:#e67e22;"></i>
+                <span th:text="${eventoDetalle.nombre}">Excursión Lago Titicaca</span>
+            </div>
+            <a href="/preceptor/eventos" class="btn btn-light border btn-sm" style="font-size:0.72rem;" title="Cerrar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+            </a>
+        </div>
+
+        <div class="mb-2">
+            <span class="badge-estado"
+                  th:classappend="${eventoDetalle.estado == 'PENDIENTE'} ? 'bg-pendiente' : (${eventoDetalle.estado == 'APROBADO'} ? 'bg-permitido' : 'bg-denegado')"
+                  th:text="${eventoDetalle.estado}">APROBADO</span>
+
+            <span class="badge-estado" th:if="${esPasado && eventoDetalle.estado != 'RECHAZADO'}" style="background:#d6dbdf; color:#5d6d7b;"
+                  title="La fecha del evento ya pasó">REALIZADO</span>
+        </div>
+
+        <div style="font-size:0.84rem; color:#5d6d7b;" class="mb-2">
+            <div><i class="fa-solid fa-calendar me-2"></i>Fecha: <strong th:text="${#temporals.format(eventoDetalle.fechaEvento, 'dd/MM/yyyy')}">03/07/2026</strong></div>
+            <div><i class="fa-solid fa-utensils me-2"></i>Ración <strong>adicional</strong> (independiente de las comidas habituales)</div>
+            <div><i class="fa-solid fa-user-tie me-2"></i>Enviado por: <span th:text="${eventoDetalle.usuario != null} ? ${eventoDetalle.usuario.nombreCompleto} : '—'">Preceptor Ríos</span></div>
+            <div><i class="fa-solid fa-users me-2"></i>Participantes de tu preceptoría: <strong th:text="${#lists.size(participantesLista)}">32</strong>
+
+                <th:block th:if="${eventoDetalle.estado != 'RECHAZADO'}">
+                    · Recibieron su ración: <strong style="color:#27ae60;" th:text="${recibidos}">28</strong>
+                    <span th:if="${!conPaseLista}" class="badge-estado bg-pendiente ms-1">Aún sin pase de lista</span>
+                </th:block>
+            </div>
+        </div>
+
+        <div th:if="${eventoDetalle.estado == 'RECHAZADO'}" class="p-2 rounded mb-2"
+             style="background:#fdedec; border:1px solid #f5b7b1; font-size:0.78rem; color:#943126;">
+            <i class="fa-solid fa-ban me-1"></i>
+            Este evento fue <strong>rechazado</strong> por el administrador: no se prepararon raciones
+            ni hubo pase de lista. Abajo puedes ver quiénes estaban incluidos.
+        </div>
+
+        <div th:if="${!#lists.isEmpty(excluidosInfo)}" class="p-2 rounded mb-2" style="background:#fdedec; border:1px solid #f5b7b1;">
+            <div class="lbl mb-1">Excluidos (no reciben ración)</div>
+            <span th:each="ex : ${excluidosInfo}" class="badge-estado bg-denegado me-1"
+                  th:text="${ex['nombre']} + ' (' + ${ex['codigo']} + ')'">Juan (U-...)</span>
+        </div>
+
+        <div style="max-height:260px; overflow-y:auto;" class="mb-2"
+             th:with="conRacion=${eventoDetalle.estado != 'RECHAZADO'}">
+            <table class="tabla-dark">
+                <thead>
+                <tr><th>Código</th><th>Nombre</th><th class="text-center" th:if="${conRacion}">¿Recibió su ración?</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="r : ${participantesLista}">
+                    <td th:text="${r.codigoAcceso}">U-2024-10542</td>
+                    <td th:text="${r.apellido} + ', ' + ${r.nombre}">Mamani, Juan</td>
+                    <td class="text-center" th:if="${conRacion}">
+                        <span th:if="${entregas.get(r.idResidente) == null}" class="badge-estado bg-ausente" title="Aún no se pasa lista">—</span>
+                        <span th:if="${entregas.get(r.idResidente) != null && entregas.get(r.idResidente)}" class="badge-estado bg-permitido"><i class="fa-solid fa-check"></i> Sí</span>
+                        <span th:if="${entregas.get(r.idResidente) != null && !entregas.get(r.idResidente)}" class="badge-estado bg-denegado"><i class="fa-solid fa-xmark"></i> No</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="modal-botones">
+            <form th:action="@{'/preceptor/eventos/' + ${eventoDetalle.idEvento} + '/eliminar'}" method="post" style="margin:0; margin-right:auto;"
+                  th:attr="data-titulo='Eliminar evento: ' + ${eventoDetalle.nombre},
+                           data-confirmar='El evento se eliminará junto con su pase de lista. Esta acción no se puede deshacer.',
+                           data-boton='Sí, eliminar evento'">
+                <button class="btn btn-outline-danger btn-sm-flat"><i class="fa-solid fa-trash me-1"></i>Eliminar evento</button>
+            </form>
+            <a th:if="${eventoDetalle.estado == 'APROBADO'}" th:href="@{/preceptor/pase-lista(evento=${eventoDetalle.idEvento})}"
+               class="btn btn-success btn-sm-flat"><i class="fa-solid fa-clipboard-check me-1"></i>Pasar lista</a>
+            <a href="/preceptor/eventos" class="btn btn-light border btn-sm-flat">Cerrar</a>
+        </div>
+    </div>
+</div>
+
+<div id="modalVistaPrevia" class="modal-sistema" style="display:none;">
+    <div class="modal-caja">
+        <div class="modal-titulo">
+            <i class="fa-solid fa-eye" style="color:#2980b9;"></i>
+            Vista previa del evento
+        </div>
+        <div class="p-3 rounded" style="background:#eaf3fb; border:1px solid #aed6f1; font-size:0.84rem; color:#21618c;">
+            <div class="mb-1"><i class="fa-solid fa-medal me-2" style="color:#e67e22;"></i><strong id="vpNombre">—</strong></div>
+            <div class="mb-1"><i class="fa-solid fa-calendar me-2"></i>Fecha: <span id="vpFecha">—</span></div>
+            <div class="mb-1"><i class="fa-solid fa-utensils me-2"></i>Ración adicional (independiente de las comidas habituales)</div>
+            <div class="mb-1"><i class="fa-solid fa-users me-2"></i>Raciones a preparar: <strong id="vpRaciones">0</strong> residentes</div>
+            <div><i class="fa-solid fa-user-minus me-2"></i>Excluidos: <span id="vpExcluidos">ninguno</span></div>
+        </div>
+        <div style="font-size:0.74rem; color:#8a97a3;" class="mt-2">
+            Esto es solo una vista previa: nada se envía hasta que pulses "Enviar Admin".
+        </div>
+        <div class="modal-botones mt-3">
+            <button type="button" class="btn btn-light border btn-sm-flat" onclick="cerrarVistaPrevia()">Cerrar</button>
+            <button type="button" class="btn btn-navy btn-sm-flat"
+                    onclick="cerrarVistaPrevia(); document.getElementById('formEvento').requestSubmit();">
+                <i class="fa-solid fa-paper-plane me-1"></i>Enviar Admin
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    const excluidos = new Set();
+
+    window.hayTrabajoEnCurso = () => excluidos.size > 0
+        || document.getElementById('modalVistaPrevia').style.display === 'flex'
+        || document.querySelector('#formEvento [name="nombre"]').value.trim() !== '';
+
+    function refrescarChips() {
+        const cont = document.getElementById('chipsExcluidos');
+        cont.innerHTML = '';
+        excluidos.forEach(cod => {
+            const chip = document.createElement('span');
+            chip.className = 'badge-estado bg-ausente';
+            chip.style.cursor = 'pointer';
+            chip.innerHTML = cod + ' &times;';
+            chip.title = 'Quitar exclusión';
+            chip.onclick = () => incluir(cod);
+            cont.appendChild(chip);
+        });
+        document.getElementById('excluidosHidden').value = Array.from(excluidos).join(',');
+    }
+
+    function pintarBoton(codigo) {
+        const btn = document.getElementById('btn_' + codigo);
+        if (!btn) return;
+        const estaExcluido = excluidos.has(codigo);
+        btn.className = estaExcluido ? 'btn btn-success btn-sm' : 'btn btn-danger btn-sm';
+        btn.style.cssText = 'font-size:0.7rem; min-width:64px;';
+        btn.textContent = estaExcluido ? 'Incluir' : 'Excluir';
+        btn.title = estaExcluido ? 'Volver a incluir en el evento' : 'Este residente no recibirá ración';
+    }
+
+    function alternarExclusion(codigo) {
+        if (excluidos.has(codigo)) incluir(codigo); else excluir(codigo);
+    }
+
+    function excluir(codigo) {
+        excluidos.add(codigo);
+        const fila = document.getElementById('res_' + codigo);
+        if (fila) { fila.style.opacity = '0.4'; fila.style.textDecoration = 'line-through'; }
+        pintarBoton(codigo);
+        refrescarChips();
+    }
+
+    function incluir(codigo) {
+        excluidos.delete(codigo);
+        const fila = document.getElementById('res_' + codigo);
+        if (fila) { fila.style.opacity = ''; fila.style.textDecoration = ''; }
+        pintarBoton(codigo);
+        refrescarChips();
+    }
+
+    document.getElementById('excluirInput').addEventListener('change', function () {
+        const cod = this.value.trim();
+        if (cod && document.getElementById('res_' + cod)) {
+            excluir(cod);
+            this.value = '';
+        }
+    });
+
+    function vistaPrevia() {
+        const nombre = document.querySelector('#formEvento [name="nombre"]').value || '(sin nombre)';
+        const fecha = document.querySelector('#formEvento [name="fechaEvento"]').value || '(sin fecha)';
+        const totalFilas = document.querySelectorAll('[id^="res_"]').length;
+        document.getElementById('vpNombre').textContent = nombre;
+        document.getElementById('vpFecha').textContent = fecha;
+        document.getElementById('vpRaciones').textContent = totalFilas - excluidos.size;
+        document.getElementById('vpExcluidos').textContent = excluidos.size ? Array.from(excluidos).join(', ') : 'ninguno';
+        const modal = document.getElementById('modalVistaPrevia');
+        modal.style.display = 'flex';
+        modal.onclick = (e) => { if (e.target === modal) cerrarVistaPrevia(); };
+    }
+
+    function cerrarVistaPrevia() {
+        document.getElementById('modalVistaPrevia').style.display = 'none';
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') cerrarVistaPrevia();
+    });
+</script>
+
+</body>
+</html>

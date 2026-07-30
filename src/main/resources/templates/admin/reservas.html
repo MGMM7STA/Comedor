@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Admin: Reservas / Extras')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('reservas')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Administrador — Reservas de Ración (Extras)</span>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <div class="stat-box bg-white">
+                    <div class="stat-num" style="color:#2c3e50;" th:text="${totalReservas}">18</div>
+                    <div class="stat-lbl">Reservas del período</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box bg-white">
+                    <div class="stat-num" style="color:#e67e22;" th:text="${pendientes}">5</div>
+                    <div class="stat-lbl">Pendientes de entrega</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-panel mb-3">
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/reservas', 'desde', 'hasta', '&estado=' + ${estado} + '&limite=' + ${limite} + '&orden=' + ${orden})}"></div>
+
+            <form th:action="@{/admin/reservas}" method="get" class="d-flex gap-2 align-items-end flex-wrap" data-navegacion>
+                <input type="hidden" name="desde" th:value="${desde}">
+                <input type="hidden" name="hasta" th:value="${hasta}">
+                <input type="hidden" name="orden" th:value="${orden}">
+                <input type="hidden" name="limite" th:value="${limite}">
+                <div>
+                    <div class="lbl">Estado</div>
+                    <select name="estado" class="form-select" style="font-size:0.85rem;" title="Filtrar por estado de la reserva">
+                        <option value="TODOS" th:selected="${estado == 'TODOS'}">Todas</option>
+                        <option value="PENDIENTE" th:selected="${estado == 'PENDIENTE'}">Pendientes</option>
+                        <option value="ATENDIDA" th:selected="${estado == 'ATENDIDA'}">Entregadas</option>
+                    </select>
+                </div>
+                <div style="min-width:220px;">
+                    <div class="lbl">Buscar residente</div>
+                    <input type="text" name="q" class="form-control" th:value="${q}"
+                           placeholder="Código o nombre del residente" title="Filtra las reservas por residente">
+                </div>
+                <button type="submit" class="btn btn-navy btn-sm-flat" title="Aplicar los filtros">
+                    <i class="fa-solid fa-magnifying-glass me-1"></i>Consultar
+                </button>
+                <a href="/admin/reservas" class="btn btn-light border btn-sm-flat" title="Quitar los filtros aplicados">
+                    <i class="fa-solid fa-eraser me-1"></i>Limpiar
+                </a>
+            </form>
+        </div>
+
+        <div class="card-panel">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <span class="titulo-seccion mb-0">Raciones reservadas</span>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+
+                    <button type="button" class="btn btn-success btn-sm no-print btn-exportar-rango" style="font-size:0.72rem;"
+                            data-titulo="Exportar reservas a Excel" data-ruta="/admin/reservas/exportar"
+                            th:attr="data-extra='&q=' + (${q} ?: '') + '&estado=' + ${estado} + '&limite=' + ${limite} + '&orden=' + ${orden}"
+                            title="Elige un rango de fechas y descarga el Excel">
+                        <i class="fa-solid fa-file-excel me-1"></i>Excel
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm no-print btn-exportar-rango" style="font-size:0.72rem;"
+                            data-titulo="Exportar reservas a PDF" data-ruta="/admin/reservas" data-imprimir="1"
+                            th:attr="data-extra='&q=' + (${q} ?: '') + '&estado=' + ${estado} + '&limite=' + ${limite} + '&orden=' + ${orden}"
+                            title="Elige un rango de fechas e imprime o guarda en PDF">
+                        <i class="fa-solid fa-file-pdf me-1"></i>PDF
+                    </button>
+                <form th:action="@{/admin/reservas}" method="get" class="d-flex align-items-center gap-1">
+                    <input type="hidden" name="desde" th:value="${desde}">
+                    <input type="hidden" name="hasta" th:value="${hasta}">
+                    <input type="hidden" name="q" th:value="${q}">
+                    <input type="hidden" name="estado" th:value="${estado}">
+                    <span style="font-size:0.72rem; color:#8a97a3;">Mostrar</span>
+                    <select name="limite" class="form-select form-select-sm" style="font-size:0.76rem; width:auto;"
+                            onchange="this.form.submit()" title="Cuántos registros se muestran">
+                        <option value="5" th:selected="${limite == 5}">5</option>
+                        <option value="10" th:selected="${limite == 10}">10</option>
+                        <option value="20" th:selected="${limite == 20}">20</option>
+                        <option value="50" th:selected="${limite == 50}">50</option>
+                        <option value="0" th:selected="${limite == 0}">Todos</option>
+                    </select>
+                </form>
+                </div>
+            </div>
+
+            <table class="tabla-dark">
+                <thead>
+                <tr>
+                    <th>N°</th>
+
+                    <th>
+                        <a class="link-plain" style="color:#fff;"
+                           th:href="@{/admin/reservas(desde=${desde}, hasta=${hasta}, q=${q}, estado=${estado}, limite=${limite}, orden=${orden == 'RECIENTES' ? 'ANTIGUOS' : 'RECIENTES'})}"
+                           th:title="${orden == 'RECIENTES'} ? 'Más recientes primero (clic para invertir)' : 'Más antiguas primero (clic para invertir)'">
+                            Fecha <i th:class="${orden == 'RECIENTES'} ? 'fa-solid fa-arrow-down' : 'fa-solid fa-arrow-up'"></i>
+                        </a>
+                    </th>
+                    <th>Residente</th><th>Código</th>
+                    <th title="A quién le entregó físicamente la ración el cajero">Entregado a</th>
+                    <th>Estado</th><th>Acciones</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="s, it : ${reservas}">
+                    <td th:text="${it.count}">1</td>
+                    <td th:text="${#temporals.format(s.fecha, 'dd/MM/yyyy')}">02/07/2026</td>
+                    <td th:text="${s.residente.apellido} + ', ' + ${s.residente.nombre}">Mamani, Juan</td>
+                    <td th:text="${s.residente.codigoAcceso}">U-2024-10542</td>
+
+                    <td style="font-size:0.78rem;" th:text="${s.entregadoATexto}">Residente titular</td>
+                    <td>
+                        <span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
+                              th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Pendiente</span>
+                    </td>
+                    <td class="text-nowrap">
+
+                        <button type="button" class="btn btn-primary btn-sm" style="font-size:0.7rem;"
+                                onclick="verReserva(this)" title="Ver la información completa de esta reserva"
+                                th:attr="data-residente=${s.residente.nombreCompleto},
+                                         data-codigo=${s.residente.codigoAcceso},
+                                         data-fecha=${#temporals.format(s.fecha, 'dd/MM/yyyy')},
+                                         data-turno=${#strings.capitalize(#strings.toLowerCase(s.tipoComida))},
+                                         data-motivo=${s.motivo},
+                                         data-preceptor=${s.usuario != null} ? ${s.usuario.nombreCompleto} : '—',
+                                         data-programada=${s.horaRecojo} ?: '—',
+                                         data-real=${s.fechaHoraEntrega != null} ? ${#temporals.format(s.fechaHoraEntrega, 'HH:mm')} : 'Aún no recogida',
+                                         data-entregado=${s.entregadoATexto}">
+                            <i class="fa-solid fa-eye"></i> Ver detalles
+                        </button>
+
+                        <form th:if="${puedeCancelar.get(s.idSolicitud)}"
+                              th:action="@{'/admin/reservas/' + ${s.idSolicitud} + '/cancelar'}" method="post"
+                              style="margin:0; display:inline;"
+                              data-titulo="Cancelar reserva"
+                              data-confirmar="La reserva pendiente se eliminará y el cajero ya no podrá entregarla."
+                              data-boton="Sí, cancelar reserva">
+                            <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;"
+                                    title="Cancelar esta reserva pendiente">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(reservas)}">
+                    <td colspan="7" class="text-center text-muted py-3">
+                        No hay reservas registradas en este período.
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="text-end mt-2" style="font-size:0.74rem; color:#8a97a3;">
+                Mostrando <strong th:text="${#lists.size(reservas)}">20</strong>
+                de <strong th:text="${totalReservas}">45</strong> reservas
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalReserva" class="modal-sistema" style="display:none;">
+    <div class="modal-caja">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="modal-titulo mb-0">
+                <i class="fa-solid fa-utensils" style="color:#e67e22;"></i>
+                Detalle de la reserva
+            </div>
+            <button type="button" class="btn btn-light border btn-sm" style="font-size:0.72rem;"
+                    onclick="document.getElementById('modalReserva').style.display='none'" title="Cerrar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div style="font-size:0.84rem; color:#5d6d7b;">
+            <div class="mb-1"><strong>Residente:</strong> <span id="rResidente"></span> (<span id="rCodigo"></span>)</div>
+            <div class="mb-1"><strong>Fecha y turno:</strong> <span id="rFecha"></span> · <span id="rTurno"></span></div>
+            <div class="mb-1"><strong>Reservó:</strong> <span id="rPreceptor"></span></div>
+            <div class="mb-1"><strong>Hora programada de recojo:</strong> <span id="rProgramada"></span></div>
+            <div class="mb-1"><strong>Hora real en que vino:</strong> <span id="rReal"></span></div>
+            <div class="mb-1"><strong>Entregado a:</strong> <span id="rEntregado"></span></div>
+
+            <div class="lbl mt-2 mb-1"><i class="fa-solid fa-quote-left me-1"></i>Motivo de la reserva</div>
+            <div class="p-2 rounded" style="background:#f7f9fb; border:1px solid #e3e9ee; white-space:pre-wrap;"
+                 id="rMotivo">Motivo</div>
+        </div>
+        <div class="modal-botones mt-3">
+            <button type="button" class="btn btn-light border btn-sm-flat"
+                    onclick="document.getElementById('modalReserva').style.display='none'">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    function verReserva(btn) {
+        const d = btn.dataset;
+        document.getElementById('rResidente').textContent = d.residente;
+        document.getElementById('rCodigo').textContent = d.codigo;
+        document.getElementById('rFecha').textContent = d.fecha;
+        document.getElementById('rTurno').textContent = d.turno;
+        document.getElementById('rPreceptor').textContent = d.preceptor;
+        document.getElementById('rProgramada').textContent = d.programada;
+        document.getElementById('rReal').textContent = d.real;
+        document.getElementById('rEntregado').textContent = d.entregado;
+        document.getElementById('rMotivo').textContent = d.motivo;
+        const modal = document.getElementById('modalReserva');
+        modal.style.display = 'flex';
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.getElementById('modalReserva').style.display = 'none';
+    });
+</script>
+
+</body>
+</html>

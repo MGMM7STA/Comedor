@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Admin: Editar Punto de Acceso')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('puntos')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Administrador — Gestión de Puntos de Acceso</span>
+    </div>
+
+    <div class="contenido">
+        <div style="font-size:0.8rem; color:#8a97a3;" class="mb-3">
+            <a href="/admin/puntos" class="link-plain" style="color:#8a97a3;">Puntos de Acceso</a> ›
+            <strong style="color:#2c3e50;" th:text="${punto.idPunto != null} ? 'Editar: ' + ${punto.nombre} : 'Nuevo punto'">Editar: Entrada A</strong>
+        </div>
+
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="row g-3">
+
+            <div class="col-md-8">
+                <div class="card-panel">
+                    <h6 class="fw-bold mb-3" style="color:#2c3e50;">Configuración del Punto</h6>
+
+                    <form th:action="@{/admin/puntos/guardar}" method="post">
+                        <input type="hidden" name="idPunto" th:value="${punto.idPunto}">
+
+                        <div class="lbl">Nombre del punto</div>
+                        <input type="text" name="nombre" class="form-control mb-3" th:value="${punto.nombre}"
+                               placeholder="Ej. Entrada A – Comedor Norte" required maxlength="150">
+
+                        <div class="lbl">Ubicación</div>
+                        <input type="text" name="ubicacion" class="form-control mb-3" th:value="${punto.ubicacion}"
+                               placeholder="Ej. Comedor Principal, Planta Baja" maxlength="200">
+
+                        <div class="lbl">Operador responsable</div>
+                        <div style="font-size:0.75rem; color:#8a97a3;" class="mb-1">Buscar por nombre o código:</div>
+                        <select name="idCajero" class="form-select mb-3" style="font-size:0.87rem;">
+                            <option value="">— Sin asignar —</option>
+                            <option th:each="c : ${cajeros}" th:value="${c.idUsuario}"
+                                    th:selected="${punto.cajero != null && punto.cajero.idUsuario == c.idUsuario}"
+                                    th:text="${c.nombreCompleto} + ' (' + ${c.correo} + ')'
+                                             + (${asignaciones.containsKey(c.idUsuario) && (punto.cajero == null || punto.cajero.idUsuario != c.idUsuario)}
+                                                ? ' — ya asignado a ' + ${asignaciones.get(c.idUsuario)} : '')">Carlos Mamani (cajero01)</option>
+                        </select>
+                        <div style="font-size:0.72rem; color:#8a97a3;" class="mb-3 mt-n2">
+                            <i class="fa-solid fa-circle-info me-1"></i>Un cajero solo puede operar un punto a la vez.
+                        </div>
+
+                        <div class="p-2 rounded mb-3" style="background:#eaf3fb; border:1px solid #aed6f1; font-size:0.74rem; color:#21618c;">
+                            <i class="fa-regular fa-clock me-1"></i>Los horarios de esta entrada
+                            se configuran en el módulo <strong>"Programar"</strong> (agenda semanal).
+                        </div>
+
+                        <div class="lbl">Estado manual del punto</div>
+                        <div class="btn-group mb-3" role="group" id="zonaManual">
+                            <input type="radio" class="btn-check" name="activo" id="estadoActivo" value="true" th:checked="${punto.activo}">
+                            <label class="btn btn-outline-dark btn-sm" for="estadoActivo">● Abierto</label>
+                            <input type="radio" class="btn-check" name="activo" id="estadoInactivo" value="false" th:checked="${punto.activo == null || !punto.activo}">
+                            <label class="btn btn-outline-secondary btn-sm" for="estadoInactivo">● Cerrado</label>
+                        </div>
+
+                        <div th:if="${punto.idPunto != null}">
+                            <div class="lbl">Notas internas (opcional)</div>
+                            <textarea name="notas" class="form-control mb-3" rows="3" maxlength="250"
+                                      placeholder="Apuntes internos sobre este punto" th:text="${punto.notas}"></textarea>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-navy btn-sm-flat px-4">Guardar Cambios</button>
+                            <a href="/admin/puntos" class="btn btn-light btn-sm-flat border px-4">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card-panel">
+                    <h6 class="fw-bold mb-3" style="color:#2c3e50;">Estado Actual</h6>
+
+                    <div style="font-size:0.78rem; color:#8a97a3;">Cajero asignado:</div>
+                    <div style="font-size:0.85rem; font-weight:600;" class="mb-2"
+                         th:text="${punto.cajero != null} ? ${punto.cajero.nombreCompleto} : 'Sin asignar'">Carlos Mamani</div>
+
+                    <div style="font-size:0.78rem; color:#8a97a3;">Código usuario:</div>
+                    <div style="font-size:0.85rem;" class="mb-2"
+                         th:text="${punto.cajero != null} ? ${punto.cajero.codigoUsuario} : '—'">cajero01</div>
+
+                    <div style="font-size:0.78rem; color:#8a97a3;">Estado:</div>
+                    <div class="mb-2" style="font-size:0.85rem; font-weight:700;"
+                         th:style="${punto.operativo} ? 'color:#27ae60;' : 'color:#8a97a3;'"
+                         th:text="${punto.operativo} ? 'Operativo (' + (${punto.modo == 'HORARIO'} ? 'por horario' : 'manual') + ')' : 'Cerrado'">Operativo</div>
+
+                    <div style="font-size:0.78rem; color:#8a97a3;">Turno actual:</div>
+                    <div style="font-size:0.85rem;" class="mb-2"
+                         th:text="${turnoActivo != null} ? ${turnoActivo.tipo} : 'Sin turno activo'">Desayuno</div>
+
+                    <hr>
+                    <h6 class="fw-bold mb-2" style="color:#2c3e50; font-size:0.85rem;">Historial de cambios</h6>
+                    <div style="font-size:0.76rem; color:#8a97a3;">
+                        Los cambios de configuración se aplican de inmediato en el punto de atención.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

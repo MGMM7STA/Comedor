@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Admin: Eventos Especiales')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('eventos')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>Administrador — Eventos Especiales</span>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div class="card-panel mb-3">
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/eventos', 'desde', 'hasta', '')}"></div>
+        </div>
+
+        <div class="card-panel">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <span class="titulo-seccion mb-0">Eventos Recibidos</span>
+
+                <form th:action="@{/admin/eventos}" method="get" class="d-flex gap-1">
+                    <input type="hidden" name="desde" th:value="${desde}">
+                    <input type="hidden" name="hasta" th:value="${hasta}">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white">
+                            <i class="fa-solid fa-magnifying-glass" style="font-size:0.75rem; color:#8a97a3;"></i>
+                        </span>
+                        <input type="text" name="q" class="form-control" th:value="${q}"
+                               placeholder="Buscar evento por nombre"
+                               title="Filtra la lista de eventos por su nombre">
+                    </div>
+                    <button class="btn btn-light border btn-sm" title="Buscar eventos">Buscar</button>
+                    <a th:if="${q != null && !#strings.isEmpty(q)}" href="/admin/eventos"
+                       class="btn btn-light border btn-sm" title="Quitar el filtro de búsqueda">
+                        <i class="fa-solid fa-eraser"></i>
+                    </a>
+                </form>
+
+                <div class="d-flex gap-2 no-print">
+                    <button type="button" class="btn btn-success btn-sm btn-exportar-rango" style="font-size:0.72rem;"
+                            data-titulo="Exportar eventos a Excel" data-ruta="/admin/eventos/exportar"
+                            th:attr="data-extra='&q=' + (${q} ?: '')"
+                            title="Elige un rango de fechas y descarga el Excel">
+                        <i class="fa-solid fa-file-excel me-1"></i>Excel
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm btn-exportar-rango" style="font-size:0.72rem;"
+                            data-titulo="Exportar eventos a PDF" data-ruta="/admin/eventos" data-imprimir="1"
+                            th:attr="data-extra='&q=' + (${q} ?: '')"
+                            title="Elige un rango de fechas e imprime o guarda en PDF">
+                        <i class="fa-solid fa-file-pdf me-1"></i>PDF
+                    </button>
+                </div>
+            </div>
+
+            <table class="tabla-dark" style="table-layout:fixed;">
+                <thead>
+                <tr>
+                    <th style="width:5%;">N°</th>
+                    <th style="width:11%;">Fecha</th>
+                    <th style="width:28%;">Evento</th>
+                    <th style="width:16%;">Enviado por</th>
+                    <th style="width:10%;" class="text-center" title="Residentes que recibirán ración">Participantes</th>
+                    <th style="width:9%;" class="text-center" title="Residentes excluidos del evento">Excluidos</th>
+                    <th style="width:12%;">Estado</th>
+                    <th style="width:9%;">Acciones</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="e, it : ${eventos}">
+                    <td th:text="${it.count}">1</td>
+                    <td th:text="${#temporals.format(e.fechaEvento, 'dd/MM/yyyy')}">15/06/2026</td>
+                    <td>
+                        <strong style="font-size:0.84rem; color:#2c3e50;">
+                            <i class="fa-solid fa-medal me-1" style="color:#e67e22;"></i>
+                            <span th:text="${e.nombre}">Excursión Lago Titicaca</span>
+                        </strong>
+                    </td>
+                    <td style="font-size:0.78rem;"
+                        th:text="${e.usuario != null} ? ${e.usuario.nombreCompleto} : '—'">Preceptor Ríos</td>
+                    <td class="text-center">
+                        <span class="badge-estado bg-permitido"
+                              th:text="${participantesPorEvento.get(e.idEvento)}">32</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge-estado" th:classappend="${excluidosPorEvento.get(e.idEvento) > 0} ? 'bg-denegado' : 'bg-ausente'"
+                              th:text="${excluidosPorEvento.get(e.idEvento)}">2</span>
+                    </td>
+                    <td>
+
+                        <span class="badge-estado me-1" th:if="${e.fechaEvento != null && e.fechaEvento.isBefore(hoy) && e.estado != 'RECHAZADO'}"
+                              style="background:#d6dbdf; color:#5d6d7b;" title="La fecha del evento ya pasó">REALIZADO</span>
+                        <span class="badge-estado"
+                              th:classappend="${e.estado == 'PENDIENTE'} ? 'bg-pendiente' : (${e.estado == 'APROBADO'} ? 'bg-permitido' : 'bg-denegado')"
+                              th:text="${e.estado == 'PENDIENTE'} ? 'Pendiente' : (${e.estado == 'APROBADO'} ? 'Aprobado' : 'Rechazado')">Pendiente</span>
+                    </td>
+                    <td>
+
+                        <a th:href="@{'/admin/eventos/' + ${e.idEvento}}" class="btn btn-primary btn-sm"
+                           style="font-size:0.7rem;" title="Ver toda la información de este evento">
+                            <i class="fa-solid fa-eye"></i> Ver detalles
+                        </a>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(eventos)}">
+                    <td colspan="8" class="text-center text-muted py-4">
+                        No hay eventos enviados por los preceptores.
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal-sistema" th:if="${seleccionado != null}" style="display:flex;"
+     onclick="if (event.target === this) window.location.href='/admin/eventos'">
+
+    <div class="modal-caja modal-gigante">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="modal-titulo mb-0">
+                <i class="fa-solid fa-medal" style="color:#e67e22;"></i>
+                <span th:text="${seleccionado.nombre}">Excursión Lago Titicaca</span>
+            </div>
+            <a href="/admin/eventos" class="btn btn-light border btn-sm" style="font-size:0.72rem;" title="Cerrar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+            </a>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <div>
+                <span class="badge-estado" th:if="${esPasado && seleccionado.estado != 'RECHAZADO'}"
+                      style="background:#d6dbdf; color:#5d6d7b;" title="La fecha del evento ya pasó">REALIZADO</span>
+                <span class="badge-estado"
+                      th:classappend="${seleccionado.estado == 'PENDIENTE'} ? 'bg-pendiente' : (${seleccionado.estado == 'APROBADO'} ? 'bg-permitido' : 'bg-denegado')"
+                      th:text="${seleccionado.estado}">PENDIENTE</span>
+            </div>
+            <div class="d-flex gap-2">
+                <form th:if="${seleccionado.estado == 'PENDIENTE'}"
+                      th:action="@{'/admin/eventos/' + ${seleccionado.idEvento} + '/aprobar'}" method="post" style="margin:0;"
+                      data-estilo="exito"
+                      th:attr="data-titulo='Aprobar evento: ' + ${seleccionado.nombre},
+                               data-confirmar='Se prepararán raciones aparte para sus participantes (no justifica faltas).',
+                               data-boton='Sí, aprobar'">
+                    <button class="btn btn-success btn-sm-flat" title="Aprobar este evento">
+                        <i class="fa-solid fa-check me-1"></i>Aprobar
+                    </button>
+                </form>
+                <form th:if="${seleccionado.estado == 'PENDIENTE'}"
+                      th:action="@{'/admin/eventos/' + ${seleccionado.idEvento} + '/rechazar'}" method="post" style="margin:0;"
+                      th:attr="data-titulo='Rechazar evento: ' + ${seleccionado.nombre},
+                               data-confirmar='No se prepararán raciones para este evento.',
+                               data-boton='Sí, rechazar'">
+                    <button class="btn btn-danger btn-sm-flat" title="Rechazar este evento">
+                        <i class="fa-solid fa-xmark me-1"></i>Rechazar
+                    </button>
+                </form>
+                <form th:action="@{'/admin/eventos/' + ${seleccionado.idEvento} + '/eliminar'}" method="post" style="margin:0;"
+                      th:attr="data-titulo='Eliminar evento: ' + ${seleccionado.nombre},
+                               data-confirmar='También se borrará su pase de lista. Esta acción no se puede deshacer.',
+                               data-boton='Sí, eliminar evento'">
+                    <button class="btn btn-outline-danger btn-sm-flat" title="Eliminar evento y su pase de lista">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="datos-grid mb-2">
+            <div class="dato">
+                <i class="fa-solid fa-user-tie"></i>
+                <div>
+                    <span class="dato-lbl">Enviado por</span>
+                    <span class="dato-val" th:text="${seleccionado.usuario != null} ? ${seleccionado.usuario.nombreCompleto} : '—'">Preceptor Ríos</span>
+                </div>
+            </div>
+            <div class="dato">
+                <i class="fa-regular fa-calendar"></i>
+                <div>
+                    <span class="dato-lbl">Fechas</span>
+                    <span class="dato-val">
+                        Enviado <span th:text="${#temporals.format(seleccionado.fechaEnvio, 'dd/MM')}">01/06</span> ·
+                        Evento <span th:text="${#temporals.format(seleccionado.fechaEvento, 'dd/MM/yyyy')}">15/06/2026</span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="dato">
+                <i class="fa-solid fa-utensils"></i>
+                <div>
+                    <span class="dato-lbl">Tipo de ración</span>
+                    <span class="dato-val">Adicional (independiente del comedor)</span>
+                </div>
+            </div>
+            <div class="dato">
+                <i class="fa-solid fa-users"></i>
+                <div>
+                    <span class="dato-lbl">Raciones</span>
+                    <span class="dato-val">
+                        <span th:text="${#lists.size(participantes)}">32</span> participantes
+                        <span th:if="${seleccionado.estado == 'APROBADO' && esPasado}">
+                            · <strong style="color:#27ae60;" th:text="${recibidos}">28</strong> entregadas
+                        </span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="dato" th:if="${seleccionado.revisor != null}">
+                <i class="fa-solid fa-user-check"></i>
+                <div>
+                    <span class="dato-lbl">Revisado por</span>
+                    <span class="dato-val" th:text="${seleccionado.revisor.nombreCompleto}">Admin General</span>
+                </div>
+            </div>
+            <div class="dato" th:if="${seleccionado.estado == 'APROBADO' && !esPasado}">
+                <i class="fa-regular fa-hourglass-half"></i>
+                <div>
+                    <span class="dato-lbl">Días restantes</span>
+                    <span class="dato-val"
+                          th:text="${T(java.time.temporal.ChronoUnit).DAYS.between(hoy, seleccionado.fechaEvento)} + ' día(s)'">3 día(s)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-2 rounded mb-2" th:if="${seleccionado.estado == 'RECHAZADO'}"
+             style="background:#fdedec; border:1px solid #f5b7b1; font-size:0.78rem; color:#943126;">
+            <i class="fa-solid fa-ban me-1"></i>Evento <strong>rechazado</strong>: no se preparan raciones.
+        </div>
+        <div class="p-2 rounded mb-2" th:if="${seleccionado.estado == 'PENDIENTE'}"
+             style="background:#fef9e7; border:1px solid #f7dc6f; font-size:0.78rem; color:#9a7d0a;">
+            <i class="fa-solid fa-circle-info me-1"></i>
+            Si lo apruebas, se preparan <strong th:text="${#lists.size(participantes)}">32</strong> raciones
+            adicionales, independientes de las comidas habituales del comedor.
+        </div>
+
+        <div th:if="${!#lists.isEmpty(exclusionesPendientes)}" class="p-2 rounded mb-2"
+             style="background:#fdf6ec; border:1px solid #f5cba7;">
+            <div class="lbl mb-1" style="color:#b9770e;">
+                <i class="fa-solid fa-user-minus me-1"></i>Solicitudes de exclusión pendientes
+            </div>
+            <div th:each="ex : ${exclusionesPendientes}"
+                 class="d-flex justify-content-between align-items-center gap-2 py-1 border-bottom" style="font-size:0.78rem;">
+                <span style="color:#7d6608;">
+                    <strong th:text="${ex.refCodigo}">U-2024-10542</strong> —
+                    <span th:text="${ex.descripcion}">motivo</span>
+                    <span style="font-size:0.68rem; color:#b9a06a;"
+                          th:text="'(' + (${ex.usuario != null} ? ${ex.usuario.nombreCompleto} : '—') + ')'">(Preceptor)</span>
+                </span>
+                <form th:action="@{'/admin/peticiones/' + ${ex.idIncidencia} + '/excluir'}" method="post" style="margin:0;">
+                    <button class="btn btn-danger btn-sm" style="font-size:0.68rem; white-space:nowrap;"
+                            title="Excluye al residente del evento y marca la solicitud como atendida">
+                        <i class="fa-solid fa-user-minus me-1"></i>Excluir ahora
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="lbl mb-1">Participantes (<span th:text="${#lists.size(participantes)}">32</span>)</div>
+        <div style="max-height:250px; overflow-y:auto;" class="mb-2">
+            <table class="tabla-dark">
+                <thead>
+                <tr><th>N°</th><th>Código</th><th>Nombre</th><th>Carrera</th>
+                    <th th:if="${seleccionado.estado != 'RECHAZADO' && !esPasado}">Acción</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="r, it : ${participantes}">
+                    <td th:text="${it.count}">1</td>
+                    <td th:text="${r.codigoAcceso}">U2022001</td>
+                    <td th:text="${r.apellido} + ', ' + ${r.nombre}">Flores Torres, María E.</td>
+                    <td th:text="${r.carrera}">Ingeniería</td>
+                    <td th:if="${seleccionado.estado != 'RECHAZADO' && !esPasado}">
+                        <form th:action="@{'/admin/eventos/' + ${seleccionado.idEvento} + '/excluir'}" method="post" style="margin:0;">
+                            <input type="hidden" name="codigo" th:value="${r.codigoAcceso}">
+                            <button class="btn btn-danger btn-sm" style="font-size:0.68rem;"
+                                    title="Este residente no irá a recoger su ración">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div th:if="${!#lists.isEmpty(excluidosInfo)}" class="p-2 rounded mb-2"
+             style="background:#fdedec; border:1px solid #f5b7b1;">
+            <div class="lbl mb-1" th:text="'Excluidos (' + ${#lists.size(excluidosInfo)} + ')'
+                     + (${esPasado} ? ' — no recibieron ración' : ' — clic en ✕ para reincluir')">Excluidos</div>
+            <th:block th:if="${!esPasado}">
+                <form th:each="ex : ${excluidosInfo}"
+                      th:action="@{'/admin/eventos/' + ${seleccionado.idEvento} + '/incluir'}"
+                      method="post" style="display:inline-block; margin:2px;">
+                    <input type="hidden" name="codigo" th:value="${ex['codigo']}">
+                    <button class="badge-estado bg-denegado border-0" style="cursor:pointer;"
+                            th:title="'Volver a incluir a ' + ${ex['nombre']}">
+                        <span th:text="${ex['nombre']} + ' (' + ${ex['codigo']} + ')'">Juan (U-...)</span> ✕
+                    </button>
+                </form>
+            </th:block>
+            <th:block th:if="${esPasado}">
+                <span th:each="ex : ${excluidosInfo}" class="badge-estado bg-denegado me-1"
+                      th:text="${ex['nombre']} + ' (' + ${ex['codigo']} + ')'">Juan (U-...)</span>
+            </th:block>
+        </div>
+
+        <div class="modal-botones">
+            <a href="/admin/eventos" class="btn btn-light border btn-sm-flat">Cerrar</a>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

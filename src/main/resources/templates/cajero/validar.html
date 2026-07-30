@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Cajero: Validar Acceso')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('validar')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <div>
+            Cajero — Validación de Acceso al Comedor
+            <div class="sub" style="color:#f1c40f;">
+                <span th:if="${sinPunto}" style="color:#e74c3c;">● SIN PUNTO ASIGNADO</span>
+                <span th:if="${!sinPunto && puntoCerrado}" style="color:#e74c3c;">
+                    ● PUNTO CERRADO<span th:if="${punto != null}">: <span th:text="${punto.nombre}">Entrada A</span></span>
+                </span>
+                <span th:if="${!sinPunto && !puntoCerrado && turnoActivo != null}">
+                    ● TURNO <span th:text="${turnoActivo.tipo}">ALMUERZO</span>
+                    <span th:if="${punto != null}"> · <span th:text="${punto.nombre}">Entrada A</span></span>
+                </span>
+                <span th:if="${!sinPunto && !puntoCerrado && turnoActivo == null}" style="color:#e74c3c;">● SIN TURNO ACTIVO</span>
+            </div>
+        </div>
+        <div th:if="${turnoActivo != null}" style="font-size:0.78rem; color:#aebfce; text-align:right;">
+            <i class="fa-solid fa-utensils me-1"></i>Raciones servidas:
+            <strong style="color:#58d68d;" th:text="${racionesServidas}">3</strong>
+            · Por servir: <strong style="color:#f1c40f;" th:text="${racionesPorServir}">3</strong>
+        </div>
+    </div>
+
+    <div class="contenido">
+        <div th:replace="~{fragments/base :: flash}"></div>
+
+        <div th:if="${deshacer}" class="mb-3 no-print">
+            <form th:action="@{/cajero/deshacer}" method="post" style="display:inline;">
+                <button class="btn btn-outline-secondary btn-sm-flat">
+                    <i class="fa-solid fa-rotate-left me-1"></i>Deshacer última acción
+                </button>
+            </form>
+            <span style="font-size:0.74rem; color:#8a97a3;" class="ms-2">¿Te equivocaste? Puedes revertir el registro (máx. 10 min).</span>
+        </div>
+
+        <div th:if="${!#lists.isEmpty(apuntes)}" class="card-panel mb-3 py-2" style="background:#fdf6ec; border-color:#f5cba7;">
+            <div th:each="a, it : ${apuntes}" th:if="${it.index < 3}" style="font-size:0.8rem; color:#9a7d0a;">
+                <i class="fa-solid fa-bullhorn me-2"></i><span th:text="${a.texto}">Aviso del admin</span>
+                <span style="font-size:0.68rem; color:#b9a06a;" th:text="'(' + ${#temporals.format(a.fechaHora, 'dd/MM')} + ')'">(02/07)</span>
+            </div>
+        </div>
+
+        <div class="card-panel mb-3 text-center py-4" th:if="${sinPunto}"
+             style="background:#fdedec; border:2px solid #e74c3c;">
+            <h4 class="fw-bold mb-2" style="color:#c0392b;">
+                <i class="fa-solid fa-location-pin-lock me-2"></i>SIN PUNTO DE ACCESO ASIGNADO
+            </h4>
+            <div style="font-size:0.9rem; color:#943126;">
+                No tienes un punto de atención asignado, por lo que no puedes registrar ingresos.
+                Pide al administrador que te asigne uno en <em>Puntos de Acceso → Editar configuración</em>.
+            </div>
+            <div style="font-size:0.78rem; color:#b03a2e;" class="mt-2">
+                Esta pantalla se actualizará sola cuando te asignen un punto.
+            </div>
+        </div>
+
+        <div class="card-panel mb-3 text-center py-4" th:if="${!sinPunto && puntoCerrado}"
+             style="background:#fdedec; border:2px solid #e74c3c;">
+            <h4 class="fw-bold mb-2" style="color:#c0392b;">
+                <i class="fa-solid fa-lock me-2"></i>PUNTO DE ACCESO CERRADO
+            </h4>
+            <div style="font-size:0.9rem; color:#943126;">
+                Tu punto <strong th:if="${punto != null}" th:text="'(' + ${punto.nombre} + ')'">(Entrada A)</strong>
+                está cerrado (manual o fuera de horario). No puedes registrar ingresos hasta que se reabra.
+            </div>
+            <div style="font-size:0.78rem; color:#b03a2e;" class="mt-2">
+                Esta pantalla se actualizará sola cuando el punto vuelva a estar activo.
+            </div>
+        </div>
+
+        <div class="card-panel mb-3">
+            <form th:action="@{/cajero/buscar}" method="post" class="d-flex gap-2" id="formBuscar">
+                <input type="text" name="codigo" id="buscadorCodigo" class="form-control form-control-lg" style="font-size:1rem;"
+                       placeholder="Escribe, escanea el QR o pasa el código de barras del carnet" th:value="${codigo}"
+                       autofocus required autocomplete="off"
+                       title="El lector envía el código y la búsqueda se ejecuta sola al recibir Enter">
+                <button type="submit" class="btn btn-navy px-4" title="Buscar al residente por su código">
+                    <i class="fa-solid fa-magnifying-glass me-1"></i>Buscar
+                </button>
+            </form>
+            <div style="font-size:0.7rem; color:#8a97a3;" class="mt-1">
+                <i class="fa-solid fa-qrcode me-1"></i>Compatible con lector de QR / código de barras: al recibir el código se busca solo.
+            </div>
+
+            <div th:if="${sinPunto || puntoCerrado || turnoActivo == null}" class="mt-2 p-2 rounded"
+                 style="background:#fef9e7; border:1px solid #f7dc6f; font-size:0.76rem; color:#9a7d0a;">
+                <i class="fa-solid fa-circle-info me-1"></i>
+                Modo <strong>solo consulta</strong>: sin punto o turno abierto puedes buscar residentes,
+                pero no registrar ingresos. La entrega de raciones reservadas sí sigue habilitada.
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3" th:if="${resultado != null}">
+
+            <div class="col-12" th:if="${resultado.tipo == 'NO_ENCONTRADO' || resultado.tipo == 'SIN_TURNO'}">
+                <div class="card-panel" style="border-left:5px solid #e74c3c;">
+                    <strong style="color:#c0392b;"><i class="fa-solid fa-circle-exclamation me-2"></i>
+                        <span th:text="${resultado.tipo == 'NO_ENCONTRADO'} ? 'Residente no encontrado' : 'Sin turno activo'">Residente no encontrado</span>
+                    </strong>
+                    <div style="font-size:0.85rem; color:#5d6d7b;" class="mt-1" th:text="${resultado.motivo}"></div>
+                </div>
+            </div>
+
+            <div class="col-md-7" th:if="${resultado.residente != null}">
+                <div class="card-panel h-100" style="position:relative;">
+                    <a href="/cajero/validar" class="btn btn-light border btn-sm no-print"
+                       style="position:absolute; top:8px; right:8px; font-size:0.7rem;" title="Cerrar y buscar otro código">
+                        <i class="fa-solid fa-xmark"></i>
+                    </a>
+                    <div class="d-flex gap-3 flex-wrap">
+
+                        <div style="width:340px; height:340px; background:#e8edf1; border-radius:12px; border:3px solid #d5dde4; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;">
+                            <img th:if="${resultado.residente.fotoUrl != null}" th:src="${resultado.residente.fotoUrl}"
+                                 style="width:100%; height:100%; object-fit:cover;" alt="Foto">
+                            <i th:if="${resultado.residente.fotoUrl == null}" class="fa-solid fa-user fa-5x" style="color:#aab7c4;"></i>
+                        </div>
+                        <div class="flex-fill" style="min-width:280px;">
+                            <h5 class="fw-bold mb-2" style="color:#2c3e50;" th:text="${resultado.residente.nombreCompleto}">Juan Carlos Mamani Quispe</h5>
+
+                            <div class="datos-grid">
+                                <div class="dato">
+                                    <i class="fa-solid fa-id-badge"></i>
+                                    <div>
+                                        <span class="dato-lbl">Código</span>
+                                        <span class="dato-val" th:text="${resultado.residente.codigoAcceso}">U-2024-10542</span>
+                                    </div>
+                                </div>
+                                <div class="dato">
+                                    <i class="fa-solid fa-graduation-cap"></i>
+                                    <div>
+                                        <span class="dato-lbl">Carrera</span>
+                                        <span class="dato-val" th:text="${resultado.residente.carrera} ?: '—'">Ing. de Sistemas</span>
+                                    </div>
+                                </div>
+                                <div class="dato">
+                                    <i class="fa-regular fa-address-card"></i>
+                                    <div>
+                                        <span class="dato-lbl">DNI</span>
+                                        <span class="dato-val" th:text="${resultado.residente.dni} ?: '—'">74123456</span>
+                                    </div>
+                                </div>
+                                <div class="dato">
+                                    <i class="fa-solid fa-building-user"></i>
+                                    <div>
+                                        <span class="dato-lbl">Residencia de Género</span>
+                                        <span class="dato-val" th:text="${resultado.residente.pabellon} ?: '—'">Varones</span>
+                                    </div>
+                                </div>
+                                <div class="dato">
+                                    <i class="fa-solid fa-door-closed"></i>
+                                    <div>
+                                        <span class="dato-lbl">Cuarto</span>
+                                        <span class="dato-val" th:text="${resultado.residente.cuarto} ?: '—'">14</span>
+                                    </div>
+                                </div>
+                                <div class="dato">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <div>
+                                        <span class="dato-lbl">Estado</span>
+                                        <span class="dato-val">
+                                            <span class="badge-estado" th:classappend="${resultado.residente.estado == 'ACTIVO'} ? 'bg-permitido' : 'bg-denegado'"
+                                                  th:text="${resultado.residente.estado}">ACTIVO</span>
+                                            <span class="badge-estado" th:classappend="${resultado.residente.deuda != null && resultado.residente.deuda} ? 'bg-denegado' : 'bg-permitido'"
+                                                  th:text="${resultado.residente.deuda != null && resultado.residente.deuda} ? 'Con deuda' : 'Pago al día'">Pago al día</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="lbl mt-2">Consumo del día</div>
+                            <div class="d-flex gap-2">
+                                <span th:each="c : ${resultado.consumoDia}" class="badge-estado"
+                                      th:classappend="${c.value} ? 'bg-permitido' : 'bg-ausente'">
+                                    <i th:if="${c.value}" class="fa-solid fa-check me-1"></i>
+                                    <span th:text="${#strings.capitalize(#strings.toLowerCase(c.key))}">Desayuno</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div th:if="${resultado.advertencia != null}" class="mt-3 p-2 rounded"
+                         style="background:#fef9e7; border:1px solid #f7dc6f; font-size:0.8rem; color:#9a7d0a;">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i><span th:text="${resultado.advertencia}"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-5"
+                 th:with="reservaMismoTurno=${resultado.reservaEntregada != null && turnoActivo != null
+                                             && resultado.reservaEntregada.tipoComida == turnoActivo.tipo}"
+                 th:if="${resultado.residente != null && resultado.puedeDecidir
+                          && (soloConsulta == null || !soloConsulta
+                              || resultado.tipo == 'RESERVA' || resultado.tipo == 'RESERVA_ENTREGADA')}">
+
+                <div th:if="${resultado.racionEspecial}" class="card-panel mb-2"
+                     style="background:#fdf6ec; border:2px solid #e67e22;">
+                    <h6 class="fw-bold text-center mb-1" style="color:#b9770e;">
+                        <i class="fa-solid fa-bowl-food me-1"></i>RACIÓN ESPECIAL
+                    </h6>
+                    <div class="text-center" style="font-size:0.8rem; color:#b9770e;">
+                        Preceptoría asignó una <strong>ración especial</strong> a este residente para
+                        <span th:text="${turnoActivo != null} ? ${#strings.toLowerCase(turnoActivo.tipo)} : 'este turno'">almuerzo</span>.
+                        Entrégale la ración que corresponde.
+                    </div>
+                </div>
+
+                <div th:if="${resultado.tipo == 'OK'}" class="card-panel mb-2" style="background:#eafaf1; border:2px solid #27ae60;">
+                    <h6 class="fw-bold text-center mb-2" style="color:#1e8449;">
+                        <i class="fa-solid fa-list-check me-1"></i>VERIFICACIÓN DEL SISTEMA
+                    </h6>
+                    <div th:each="ch : ${resultado.checks}" style="font-size:0.82rem; color:#1e8449;">
+                        <i class="fa-solid fa-check me-2"></i><span th:text="${ch}">Primera entrada del turno</span>
+                    </div>
+                </div>
+
+                <div th:if="${resultado.tipo == 'ADVERTENCIA'}" class="card-panel mb-2" style="background:#fdedec; border:2px solid #e74c3c;">
+                    <h6 class="fw-bold text-center mb-2" style="color:#c0392b;">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i>ALERTA DEL SISTEMA
+                    </h6>
+                    <div style="font-size:0.82rem; color:#c0392b;" th:text="${resultado.motivo}">Ya registró ingreso hoy.</div>
+
+                    <div th:if="${resultado.marcacionPrevia != null}" class="mt-2 p-2 rounded" style="background:#fff; border:1px solid #f5b7b1;">
+                        <div class="lbl mb-1">Registro anterior de este turno</div>
+                        <div style="font-size:0.78rem; color:#5d6d7b;">
+                            <i class="fa-solid fa-clock me-1"></i><span th:text="${#temporals.format(resultado.marcacionPrevia.fechaHora, 'HH:mm')}">12:04</span> ·
+                            <span th:text="${resultado.marcacionPrevia.estado}">PERMITIDO</span> ·
+                            <span th:text="${resultado.marcacionPrevia.punto != null} ? ${resultado.marcacionPrevia.punto.nombre} : '—'">Entrada A</span> ·
+                            Cajero: <span th:text="${resultado.marcacionPrevia.usuario != null} ? ${resultado.marcacionPrevia.usuario.nombreCompleto} : '—'">Carlos</span>
+                        </div>
+                        <div style="font-size:0.74rem; color:#9a7d0a;" class="mt-1">
+                            <i class="fa-solid fa-circle-info me-1"></i>Para <strong>Permitir</strong> de nuevo debes justificar abajo.
+                            El registro anterior no se elimina: llegará como <strong>⚠ ración alterada</strong>
+                            a la bandeja de Incidencias del administrador (no aparece en los reportes).
+                        </div>
+                    </div>
+                </div>
+
+                <div th:if="${resultado.reservaExtra != null && resultado.tipo != 'RESERVA'}" class="card-panel mb-2"
+                     style="background:#eaf3fb; border:2px solid #2980b9;">
+                    <h6 class="fw-bold text-center mb-1" style="color:#21618c;">
+                        <i class="fa-solid fa-utensils me-1"></i>TIENE RACIÓN RESERVADA
+                    </h6>
+                    <div style="font-size:0.78rem; color:#21618c;" class="text-center mb-2">
+                        Reserva de <strong th:text="${#strings.toLowerCase(resultado.reservaExtra.tipoComida)}">almuerzo</strong>
+                        <span th:if="${turnoActivo != null && resultado.reservaExtra.tipoComida != turnoActivo.tipo}"
+                              class="badge-estado bg-justificado">⚠ es de OTRO turno, no del actual</span>
+                        <span th:if="${resultado.reservaExtra.horaRecojo != null}">
+                            · recojo aprox. <span th:text="${resultado.reservaExtra.horaRecojo}">14:30</span></span>
+                        · <span th:text="${resultado.reservaExtra.motivo}">motivo</span>
+                    </div>
+
+                    <form th:action="@{/cajero/entregar-reserva}" method="post" class="d-grid">
+                        <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
+                        <div class="d-flex gap-2 mb-2">
+                            <input type="radio" class="btn-check" name="entregadoA" value="RESIDENTE" id="exRes" checked>
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="exRes"
+                                   title="La ración la recoge el propio residente">
+                                <i class="fa-solid fa-user me-1"></i>Entregar al residente
+                            </label>
+                            <input type="radio" class="btn-check" name="entregadoA" value="PRECEPTOR" id="exPrec">
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="exPrec"
+                                   title="La ración la recoge el preceptor a cargo">
+                                <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor
+                            </label>
+                        </div>
+                        <button class="btnPrincipal btn btn-lg fw-bold" style="background:#2980b9; color:#fff;"
+                                title="Registrar la entrega de esta ración reservada">
+                            <i class="fa-solid fa-check me-2"></i>Entregar reserva
+                        </button>
+                    </form>
+
+                    <form th:if="${grupoEscaneado != null}" th:action="@{/cajero/entregar-reserva-masiva}"
+                          method="post" class="d-grid mt-2"
+                          th:attr="data-titulo='Entregar el grupo ' + ${grupoEscaneado},
+                                   data-confirmar='Este residente pertenece a una RESERVA MASIVA: las ' + ${grupoCantidad} + ' raciones pendientes del grupo quedarán entregadas de una sola vez.',
+                                   data-estilo='exito',
+                                   data-boton='Sí, entregar todo el grupo'">
+                        <input type="hidden" name="grupo" th:value="${grupoEscaneado}">
+                        <button class="btn fw-bold" style="background:#16a085; color:#fff;"
+                                th:title="'Entregar de un clic las ' + ${grupoCantidad} + ' raciones del grupo'">
+                            <i class="fa-solid fa-people-carry-box me-1"></i>Entregar masivamente
+                            (<span th:text="${grupoCantidad}">5</span> raciones)
+                        </button>
+                    </form>
+
+                    <div class="d-flex gap-2 mt-2">
+                        <a href="/cajero/validar" class="btn btn-danger flex-fill" style="font-size:0.82rem;"
+                           title="No entregar: no se registra nada y la reserva sigue pendiente">
+                            <i class="fa-solid fa-ban me-1"></i>No entregar reserva
+                        </a>
+                        <a href="/cajero/validar" class="btn btn-light border flex-fill" style="font-size:0.82rem;"
+                           title="Cerrar la ficha sin registrar nada">
+                            <i class="fa-solid fa-xmark me-1"></i>Cancelar
+                        </a>
+                    </div>
+                </div>
+
+                <div th:if="${resultado.reservaEntregada != null}" class="card-panel mb-2"
+                     style="background:#fdedec; border:2px solid #e74c3c;">
+                    <h6 class="fw-bold text-center mb-2" style="color:#c0392b;">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i>RESERVA YA ENTREGADA
+                    </h6>
+                    <div style="font-size:0.84rem; color:#c0392b;" class="text-center mb-1">
+                        Reserva ya entregada al
+                        <strong th:text="${resultado.reservaEntregada.entregadoA == 'PRECEPTOR'} ? 'preceptor' : 'residente'">residente</strong>
+                        <span th:if="${resultado.reservaEntregada.fechaHoraEntrega != null}"
+                              th:text="'a las ' + ${#temporals.format(resultado.reservaEntregada.fechaHoraEntrega, 'HH:mm')}">a las 12:40</span>
+                        (<span th:text="${#strings.toLowerCase(resultado.reservaEntregada.tipoComida)}">almuerzo</span>).
+                    </div>
+                    <div style="font-size:0.74rem; color:#943126;" class="mb-2">
+                        Posible suplantación: verifica la identidad con la foto. Si vuelves a entregar,
+                        la entrega anterior quedará <strong>NO VÁLIDA</strong> (sale de los reportes y
+                        llega al administrador como "Reserva alterada").
+                    </div>
+                    <form th:action="@{/cajero/entregar-reserva-alterada}" method="post" class="d-grid">
+                        <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
+                        <div class="lbl mb-1">Justificación (mínimo 5 caracteres)</div>
+                        <textarea name="justificacion" id="justificacionReserva" class="form-control mb-2" rows="2" required
+                                  placeholder="Explica por qué se vuelve a entregar (ej. el primero fue un suplantador)" maxlength="300"></textarea>
+                        <div class="d-flex gap-2 mb-2">
+                            <input type="radio" class="btn-check" name="entregadoA" value="RESIDENTE" id="ovRes" checked>
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="ovRes"
+                                   title="La nueva ración la recoge el propio residente">
+                                <i class="fa-solid fa-user me-1"></i>Entregar al residente
+                            </label>
+                            <input type="radio" class="btn-check" name="entregadoA" value="PRECEPTOR" id="ovPrec">
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="ovPrec"
+                                   title="La nueva ración la recoge el preceptor a cargo">
+                                <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor
+                            </label>
+                        </div>
+
+                        <button id="btnEntregarReserva" class="btn btn-lg fw-bold" disabled
+                                style="background:#2980b9; color:#fff;"
+                                title="Escribe la justificación para desbloquear este botón">
+                            <i class="fa-solid fa-lock me-2" id="candadoReserva"></i>Entregar reserva
+                        </button>
+                    </form>
+
+                    <div class="d-flex gap-2 mt-2">
+                        <a href="/cajero/validar" class="btn btn-danger flex-fill" style="font-size:0.82rem;"
+                           title="No volver a entregar: no se registra nada">
+                            <i class="fa-solid fa-ban me-1"></i>Denegar reserva
+                        </a>
+                        <a href="/cajero/validar" class="btn btn-light border flex-fill" style="font-size:0.82rem;"
+                           title="Cerrar la ficha sin hacer nada">
+                            <i class="fa-solid fa-xmark me-1"></i>Cancelar
+                        </a>
+                    </div>
+                </div>
+
+                <div th:if="${resultado.tipo == 'JUSTIFICADO'}" class="card-panel mb-2" style="background:#fef5e7; border:2px solid #f39c12;">
+                    <h6 class="fw-bold text-center mb-2" style="color:#ca7f0e;">
+                        <i class="fa-solid fa-bolt me-1"></i>JUSTIFICADO
+                    </h6>
+                    <div style="font-size:0.82rem; color:#9a7d0a;">
+                        <div><i class="fa-solid fa-clipboard me-2"></i>Motivo: <span th:text="${resultado.justificacion.motivo}">Excursión académica</span></div>
+                        <div><i class="fa-solid fa-calendar me-2"></i>Período: <span th:text="${resultado.justificacion.periodo}">15/06 – 17/06</span></div>
+                        <div><i class="fa-solid fa-user-tie me-2"></i>Autoriza: <span th:text="${resultado.justificacion.autorizadoPor}">Preceptor Ríos</span></div>
+                        <div><i class="fa-solid fa-circle-info me-2"></i>No se registra falta</div>
+                    </div>
+                </div>
+
+                <div th:if="${resultado.tipo == 'RESERVA'}" class="card-panel mb-2" style="background:#eaf3fb; border:2px solid #2980b9;">
+                    <h6 class="fw-bold text-center mb-2" style="color:#21618c;">
+                        <i class="fa-solid fa-utensils me-1"></i>RACIÓN RESERVADA
+                    </h6>
+                    <div th:each="ch : ${resultado.checks}" style="font-size:0.82rem; color:#21618c;">
+                        <i class="fa-solid fa-check me-2"></i><span th:text="${ch}">Llegada tardía autorizada</span>
+                    </div>
+
+                    <form th:action="@{/cajero/entregar-reserva}" method="post" class="d-grid mt-3">
+                        <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
+                        <div class="d-flex gap-2 mb-2">
+                            <input type="radio" class="btn-check" name="entregadoA" value="RESIDENTE" id="rvRes" checked>
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="rvRes"
+                                   title="La ración la recoge el propio residente">
+                                <i class="fa-solid fa-user me-1"></i>Entregar al residente
+                            </label>
+                            <input type="radio" class="btn-check" name="entregadoA" value="PRECEPTOR" id="rvPrec">
+                            <label class="btn btn-outline-dark btn-sm flex-fill" for="rvPrec"
+                                   title="La ración la recoge el preceptor a cargo">
+                                <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor
+                            </label>
+                        </div>
+                        <button class="btnPrincipal btn btn-lg fw-bold" style="background:#2980b9; color:#fff;"
+                                title="Registrar la entrega de esta ración reservada">
+                            <i class="fa-solid fa-check me-2"></i>Entregar reserva
+                        </button>
+                    </form>
+
+                    <form th:if="${grupoEscaneado != null}" th:action="@{/cajero/entregar-reserva-masiva}"
+                          method="post" class="d-grid mt-2"
+                          th:attr="data-titulo='Entregar el grupo ' + ${grupoEscaneado},
+                                   data-confirmar='Este residente pertenece a una RESERVA MASIVA: las ' + ${grupoCantidad} + ' raciones pendientes del grupo quedarán entregadas de una sola vez.',
+                                   data-estilo='exito',
+                                   data-boton='Sí, entregar todo el grupo'">
+                        <input type="hidden" name="grupo" th:value="${grupoEscaneado}">
+                        <button class="btn fw-bold" style="background:#16a085; color:#fff;"
+                                th:title="'Entregar de un clic las ' + ${grupoCantidad} + ' raciones del grupo'">
+                            <i class="fa-solid fa-people-carry-box me-1"></i>Entregar masivamente
+                            (<span th:text="${grupoCantidad}">5</span> raciones)
+                        </button>
+                    </form>
+
+                    <div class="d-flex gap-2 mt-2">
+                        <a href="/cajero/validar" class="btn btn-danger flex-fill" style="font-size:0.82rem;"
+                           title="No entregar: no se registra nada y la reserva sigue pendiente">
+                            <i class="fa-solid fa-ban me-1"></i>No entregar reserva
+                        </a>
+                        <a href="/cajero/validar" class="btn btn-light border flex-fill" style="font-size:0.82rem;"
+                           title="Cerrar la ficha sin registrar nada">
+                            <i class="fa-solid fa-xmark me-1"></i>Cancelar
+                        </a>
+                    </div>
+                </div>
+
+                <div th:if="${resultado.tipo == 'JUSTIFICADO' && resultado.reservaExtra == null}">
+                    <form th:action="@{/cajero/confirmar}" method="post" class="d-grid">
+                        <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
+                        <input type="hidden" name="decision" value="JUSTIFICADO">
+                        <button class="btnPrincipal btn btn-lg fw-bold" style="background:#f39c12; color:#fff;">
+                            <i class="fa-solid fa-check me-2"></i>Registrar Justificado
+                        </button>
+                    </form>
+                </div>
+
+                <form th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.marcacionPrevia != null && resultado.reservaExtra == null && !reservaMismoTurno}"
+                      th:action="@{/cajero/confirmar}" method="post" class="mb-2" id="formDoble">
+                    <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
+                    <input type="hidden" name="decision" value="PERMITIDO">
+                    <textarea name="justificacionDoble" id="justificacionDoble" class="form-control mb-2" rows="2" required
+                              placeholder="Justifica por qué entra de nuevo (ej. el registro anterior fue de un suplantador)" maxlength="300"></textarea>
+                    <button id="btnPermitirDoble" class="btn btn-success btn-lg fw-bold w-100" disabled
+                            title="Escribe la justificación para desbloquear este botón">
+                        <i class="fa-solid fa-lock me-2" id="candadoDoble"></i>Permitir (requiere justificación)
+                    </button>
+                </form>
+                <div th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.marcacionPrevia != null && resultado.reservaExtra == null && !reservaMismoTurno}" class="d-grid">
+                    <form th:action="@{/cajero/confirmar}" method="post" class="d-grid"
+                          th:attr="data-titulo='Denegar ingreso a ' + ${resultado.residente.nombreCompleto},
+                                   data-confirmar='Se registrará el ingreso como DENEGADO en este turno.',
+                                   data-boton='Sí, denegar'">
+                        <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
+                        <input type="hidden" name="decision" value="DENEGADO">
+                        <button class="btn btn-danger fw-bold"><i class="fa-solid fa-ban me-2"></i>Denegar</button>
+                    </form>
+                </div>
+
+                <div th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.tipo != 'RESERVA'
+                             && resultado.tipo != 'RESERVA_ENTREGADA' && resultado.marcacionPrevia == null
+                             && resultado.reservaExtra == null && !reservaMismoTurno}"
+                     class="d-flex gap-2">
+                    <form th:action="@{/cajero/confirmar}" method="post" class="d-grid flex-fill">
+                        <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
+                        <input type="hidden" name="decision" value="PERMITIDO">
+                        <button class="btnPrincipal btn btn-success btn-lg fw-bold"
+                                title="Registrar el ingreso como permitido">
+                            <i class="fa-solid fa-check me-2"></i>Permitir
+                        </button>
+                    </form>
+                    <form th:action="@{/cajero/confirmar}" method="post" class="d-grid flex-fill"
+                          th:attr="data-titulo='Denegar ingreso a ' + ${resultado.residente.nombreCompleto},
+                                   data-confirmar='Se registrará el ingreso como DENEGADO en este turno.',
+                                   data-boton='Sí, denegar'">
+                        <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
+                        <input type="hidden" name="decision" value="DENEGADO">
+                        <button class="btn btn-danger btn-lg fw-bold" title="Registrar el ingreso como denegado">
+                            <i class="fa-solid fa-ban me-2"></i>Denegar
+                        </button>
+                    </form>
+                </div>
+
+                <a th:if="${resultado.tipo != 'RESERVA' && resultado.tipo != 'RESERVA_ENTREGADA' && resultado.reservaExtra == null && !reservaMismoTurno}" href="/cajero/validar"
+                   class="btn btn-light border w-100 mt-2" style="font-size:0.8rem;"
+                   title="Cerrar la ficha sin registrar nada">
+                    <i class="fa-solid fa-xmark me-1"></i>Cerrar sin registrar
+                </a>
+                <div class="text-center mt-2" style="font-size:0.72rem; color:#8a97a3;"
+                     th:if="${resultado.tipo != 'RESERVA' && resultado.tipo != 'RESERVA_ENTREGADA' && resultado.reservaExtra == null && !reservaMismoTurno}">
+                    La decisión final es del cajero. El sistema solo informa.
+                </div>
+            </div>
+        </div>
+
+        <div class="card-panel">
+            <h6 class="fw-bold mb-2" style="color:#2c3e50;"><i class="fa-regular fa-clipboard me-1"></i>Reportar Incidencia</h6>
+            <form th:action="@{/cajero/incidencia}" method="post" class="d-flex gap-2 align-items-start">
+                <textarea name="descripcion" class="form-control" rows="2" placeholder="Describa la incidencia..." required maxlength="300"></textarea>
+                <div class="d-flex flex-column gap-2">
+                    <button type="submit" class="btn btn-navy btn-sm-flat px-3">Enviar</button>
+                    <button type="reset" class="btn btn-light btn-sm-flat border px-3">Limpiar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    function iniciarCajero() {
+
+        const btn = document.querySelector('.btnPrincipal');
+        const buscador = document.getElementById('buscadorCodigo');
+        const justif = document.getElementById('justificacionDoble');
+
+        const justifReserva = document.getElementById('justificacionReserva');
+        if (justifReserva) {
+            const btnReserva = document.getElementById('btnEntregarReserva');
+            const candadoR = document.getElementById('candadoReserva');
+            const evaluarReserva = () => {
+                const listo = justifReserva.value.trim().length >= 5;
+                btnReserva.disabled = !listo;
+                if (candadoR) candadoR.className = listo ? 'fa-solid fa-check me-2' : 'fa-solid fa-lock me-2';
+            };
+            justifReserva.addEventListener('input', evaluarReserva);
+            evaluarReserva();
+            justifReserva.focus();
+        }
+
+        if (justif) {
+            const btnDoble = document.getElementById('btnPermitirDoble');
+            const candado = document.getElementById('candadoDoble');
+            const evaluar = () => {
+                const listo = justif.value.trim().length >= 5;
+                btnDoble.disabled = !listo;
+                if (candado) candado.className = listo ? 'fa-solid fa-check me-2' : 'fa-solid fa-lock me-2';
+            };
+            justif.addEventListener('input', evaluar);
+            evaluar();
+            justif.focus();
+        } else if (btn) {
+            btn.focus();
+        } else if (buscador) {
+            buscador.focus();
+            buscador.select();
+        }
+    }
+    iniciarCajero();
+
+    window.alRefrescar = iniciarCajero;
+
+    document.addEventListener('keydown', e => {
+        const buscador = document.getElementById('buscadorCodigo');
+        if (e.key === 'Escape' && buscador) {
+            buscador.value = '';
+            buscador.focus();
+        }
+
+        if (buscador && document.activeElement !== buscador
+            && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey
+            && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+            buscador.focus();
+        }
+
+        if (e.key === 'Enter' && buscador && document.activeElement === buscador) {
+            const form = document.getElementById('formBuscar');
+            if (form && buscador.value.trim().length > 0) {
+                e.preventDefault();
+                form.submit();
+            }
+        }
+    });
+</script>
+
+</body>
+</html>

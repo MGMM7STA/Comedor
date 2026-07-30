@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/base :: head('Detalle de Movimientos')}"></head>
+<body>
+
+<div th:replace="~{fragments/base :: sidebar('movimientos')}"></div>
+
+<div id="main">
+    <div class="page-header">
+        <span>
+            Detalle de Movimientos
+            <span th:if="${residenciaFija != null}" class="sub"
+                  th:text="'Residencia de Género: ' + ${residenciaFija}">Residencia de Género: Varones</span>
+        </span>
+    </div>
+
+    <div class="contenido">
+
+        <div class="card-panel mb-3">
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/movimientos', 'desde', 'hasta', '&limite=' + ${limite} + '&orden=' + ${orden})}"></div>
+
+            <form th:action="@{/movimientos}" method="get" class="d-flex gap-2 align-items-end flex-wrap" data-navegacion>
+                <input type="hidden" name="desde" th:value="${desde}">
+                <input type="hidden" name="hasta" th:value="${hasta}">
+                <input type="hidden" name="limite" th:value="${limite}">
+                <input type="hidden" name="orden" th:value="${orden}">
+                <div style="min-width:230px;">
+                    <div class="lbl">Buscar por código</div>
+                    <input type="text" name="codigo" class="form-control" th:value="${codigo}"
+                           placeholder="Código o nombre del residente"
+                           title="Escribe el código del residente y presiona Enter">
+                </div>
+                <button type="submit" class="btn btn-navy btn-sm-flat" title="Aplicar la búsqueda">
+                    <i class="fa-solid fa-magnifying-glass me-1"></i>Consultar
+                </button>
+                <a href="/movimientos" class="btn btn-light border btn-sm-flat" title="Quitar los filtros y volver al día de hoy">
+                    <i class="fa-solid fa-eraser me-1"></i>Limpiar
+                </a>
+            </form>
+        </div>
+
+        <div class="card-panel">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <span class="titulo-seccion mb-0">Actividad consolidada por día</span>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+
+                    <button type="button" class="btn btn-success btn-sm no-print btn-exportar-rango" style="font-size:0.72rem;"
+                            data-titulo="Exportar movimientos a Excel" data-ruta="/movimientos/exportar"
+                            th:attr="data-extra='&codigo=' + (${codigo} ?: '') + '&orden=' + ${orden}"
+                            title="Elige un rango de fechas y descarga el Excel">
+                        <i class="fa-solid fa-file-excel me-1"></i>Excel
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm no-print btn-exportar-rango" style="font-size:0.72rem;"
+                            data-titulo="Exportar movimientos a PDF" data-ruta="/movimientos" data-imprimir="1"
+                            th:attr="data-extra='&codigo=' + (${codigo} ?: '') + '&limite=' + ${limite} + '&orden=' + ${orden}"
+                            title="Elige un rango de fechas e imprime o guarda en PDF">
+                        <i class="fa-solid fa-file-pdf me-1"></i>PDF
+                    </button>
+
+                <form th:action="@{/movimientos}" method="get" class="d-flex align-items-center gap-1">
+                    <input type="hidden" name="desde" th:value="${desde}">
+                    <input type="hidden" name="hasta" th:value="${hasta}">
+                    <input type="hidden" name="codigo" th:value="${codigo}">
+                    <span style="font-size:0.72rem; color:#8a97a3;">Mostrar</span>
+                    <select name="limite" class="form-select form-select-sm" style="font-size:0.76rem; width:auto;"
+                            onchange="this.form.submit()" title="Cuántos registros se muestran en la tabla">
+                        <option value="5" th:selected="${limite == 5}">5</option>
+                        <option value="10" th:selected="${limite == 10}">10</option>
+                        <option value="15" th:selected="${limite == 15}">15</option>
+                        <option value="20" th:selected="${limite == 20}">20</option>
+                        <option value="25" th:selected="${limite == 25}">25</option>
+                        <option value="50" th:selected="${limite == 50}">50</option>
+                        <option value="0" th:selected="${limite == 0}">Todos</option>
+                    </select>
+                </form>
+                </div>
+            </div>
+
+            <table class="tabla-dark">
+                <thead>
+                <tr>
+                    <th>N°</th>
+
+                    <th>
+                        <a class="link-plain" style="color:#fff;"
+                           th:href="@{/movimientos(desde=${desde}, hasta=${hasta}, codigo=${codigo}, limite=${limite}, orden=${orden == 'RECIENTES' ? 'ANTIGUOS' : 'RECIENTES'})}"
+                           th:title="${orden == 'RECIENTES'} ? 'Más recientes primero (clic para invertir)' : 'Más antiguos primero (clic para invertir)'">
+                            Fecha <i th:class="${orden == 'RECIENTES'} ? 'fa-solid fa-arrow-down' : 'fa-solid fa-arrow-up'"></i>
+                        </a>
+                    </th>
+                    <th>Día</th><th>Residente</th><th>Código</th>
+                    <th class="text-center" title="Desayuno">Desayuno</th>
+                    <th class="text-center" title="Almuerzo">Almuerzo</th>
+                    <th class="text-center" title="Cena">Cena</th>
+                    <th>Observaciones</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="f, it : ${filas}">
+                    <td th:text="${it.count}">1</td>
+                    <td th:text="${#temporals.format(f.fecha, 'dd/MM/yyyy')}">17/07/2026</td>
+                    <td th:text="${f.dia}">Viernes</td>
+                    <td th:text="${f.nombre}">Mamani, Juan</td>
+                    <td th:text="${f.codigo}">U-2024-10542</td>
+
+                    <td class="text-center" th:each="estado : ${ {f.desayuno, f.almuerzo, f.cena} }">
+                        <span th:if="${estado == 'SI'}" style="color:#27ae60; font-size:1rem;"
+                              title="Turno consumido"><i class="fa-solid fa-circle-check"></i></span>
+                        <span th:if="${estado == 'JUST'}" class="badge-estado bg-justificado"
+                              title="Ausencia justificada por preceptoría">Justif.</span>
+                        <span th:if="${estado == 'NO'}" style="color:#e74c3c; font-size:1rem;"
+                              title="No asistió a este turno"><i class="fa-solid fa-circle-xmark"></i></span>
+                        <span th:if="${estado == 'PEND' or estado == ''}" style="color:#b8c2cb; font-weight:700;"
+                              title="Este turno todavía no ocurre">—</span>
+                    </td>
+                    <td style="font-size:0.76rem; color:#8a97a3;">
+
+                        <span th:if="${f.observacion == null || f.observacion == '' }">—</span>
+                        <span th:if="${f.observacion != null && f.observacion != '' && !#strings.contains(f.observacion, ' · ')}"
+                              th:text="${f.observacion}">Justificado</span>
+                        <button th:if="${f.observacion != null && #strings.contains(f.observacion, ' · ')}"
+                                type="button" class="btn btn-primary btn-sm" style="font-size:0.66rem; padding:2px 8px;"
+                                onclick="verObservaciones(this)"
+                                title="Ese día pasaron varias cosas: clic para ver el desglose por turno"
+                                th:attr="data-residente=${f.nombre}, data-fecha=${#temporals.format(f.fecha, 'dd/MM/yyyy')},
+                                         data-observaciones=${f.observacion}">
+                            <i class="fa-solid fa-eye"></i> Ver detalles
+                        </button>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(filas)}">
+                    <td colspan="9" class="text-center text-muted py-3">
+                        No hay movimientos en el rango consultado.
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+                <div style="font-size:0.74rem; color:#8a97a3;">
+                    <i class="fa-solid fa-circle-check" style="color:#27ae60;"></i> Consumió ·
+                    <i class="fa-solid fa-circle-xmark" style="color:#e74c3c;"></i> No asistió ·
+                    <span style="color:#b8c2cb; font-weight:700;">—</span> Aún no ocurre
+                </div>
+                <div style="font-size:0.74rem; color:#8a97a3;">
+                    Mostrando <strong th:text="${#lists.size(filas)}">20</strong>
+                    de <strong th:text="${totalFilas}">140</strong> registros
+                    <span th:if="${limite > 0 && totalFilas > limite}"
+                          th:text="'· página ' + (${pag} + 1)">· página 1</span>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-center gap-2 mt-2 no-print" th:if="${hayAnterior || hayMas}">
+                <a th:if="${hayAnterior}" class="btn btn-light border btn-sm-flat"
+                   th:href="@{/movimientos(desde=${desde}, hasta=${hasta}, codigo=${codigo}, limite=${limite}, orden=${orden}, pag=${pag - 1})}"
+                   title="Página anterior">
+                    <i class="fa-solid fa-chevron-left me-1"></i>Anterior
+                </a>
+                <span class="btn btn-light border btn-sm-flat disabled" th:text="'Página ' + (${pag} + 1)">Página 1</span>
+                <a th:if="${hayMas}" class="btn btn-navy btn-sm-flat"
+                   th:href="@{/movimientos(desde=${desde}, hasta=${hasta}, codigo=${codigo}, limite=${limite}, orden=${orden}, pag=${pag + 1})}"
+                   title="Página siguiente">
+                    Siguiente<i class="fa-solid fa-chevron-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="modalObs" class="modal-sistema" style="display:none;">
+    <div class="modal-caja">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="modal-titulo mb-0">
+                <i class="fa-solid fa-list-ul" style="color:#2980b9;"></i>
+                Qué pasó ese día
+            </div>
+            <button type="button" class="btn btn-light border btn-sm" style="font-size:0.72rem;"
+                    onclick="document.getElementById('modalObs').style.display='none'" title="Cerrar (Esc)">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div style="font-size:0.82rem; color:#5d6d7b;" class="mb-2">
+            <strong id="obsResidente">Residente</strong> · <span id="obsFecha">17/07/2026</span>
+        </div>
+
+        <ul id="obsLista" style="font-size:0.82rem; color:#5d6d7b; padding-left:20px; margin:0;"></ul>
+        <div class="modal-botones mt-3">
+            <button type="button" class="btn btn-light border btn-sm-flat"
+                    onclick="document.getElementById('modalObs').style.display='none'">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    function verObservaciones(btn) {
+        const d = btn.dataset;
+        document.getElementById('obsResidente').textContent = d.residente;
+        document.getElementById('obsFecha').textContent = d.fecha;
+        const lista = document.getElementById('obsLista');
+        lista.innerHTML = '';
+        d.observaciones.split(' · ').forEach(txt => {
+            const li = document.createElement('li');
+            li.className = 'py-1';
+            li.textContent = txt;
+            lista.appendChild(li);
+        });
+        const modal = document.getElementById('modalObs');
+        modal.style.display = 'flex';
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.getElementById('modalObs').style.display = 'none';
+    });
+</script>
+
+</body>
+</html>
