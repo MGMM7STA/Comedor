@@ -381,20 +381,17 @@ public class PreceptorController {
         r.setDeuda(deuda);
 
         if (r.getFechaIngreso() == null) {
-            LocalDate ahora = LocalDate.now();
-            if (ahora.getMonthValue() >= 7) {
-                r.setFechaIngreso(LocalDate.of(ahora.getYear(), 7, 1));
-                r.setFechaFinEstancia(LocalDate.of(ahora.getYear(), 12, 31));
-            } else {
-                r.setFechaIngreso(LocalDate.of(ahora.getYear(), 1, 1));
-                r.setFechaFinEstancia(LocalDate.of(ahora.getYear(), 6, 30));
-            }
+            LocalDate hoy = LocalDate.now();
+            r.setFechaIngreso(hoy);
+            r.setFechaFinEstancia(hoy.getMonthValue() >= 7
+                    ? LocalDate.of(hoy.getYear(), 12, 31)
+                    : LocalDate.of(hoy.getYear(), 6, 30));
         }
         if (r.getTokenAcceso() == null) r.setTokenAcceso(java.util.UUID.randomUUID().toString());
         if (r.getPreceptor() == null) r.setPreceptor(quienRegistra);
 
         try {
-            String url = imagenService.guardar(foto);
+            String url = imagenService.guardar(foto, r);
             if (url != null) r.setFotoUrl(url);
         } catch (IOException | IllegalArgumentException e) {
             flash.addFlashAttribute("error", "No se pudo guardar la foto: " + e.getMessage());

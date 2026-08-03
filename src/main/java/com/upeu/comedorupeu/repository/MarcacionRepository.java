@@ -31,6 +31,8 @@ public interface MarcacionRepository extends JpaRepository<Marcacion, Long> {
 
     Optional<Marcacion> findFirstByUsuarioIdUsuarioOrderByFechaHoraDesc(Long idUsuario);
 
+    Optional<Marcacion> findFirstByResidenteIdResidenteOrderByFechaHoraAsc(Long idResidente);
+
     Optional<Marcacion> findFirstByResidenteIdResidenteAndTurnoIdTurnoAndEstadoOrderByFechaHoraDesc(
             Long idResidente, Long idTurno, String estado);
 }

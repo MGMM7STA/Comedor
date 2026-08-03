@@ -14,7 +14,7 @@
         <div th:replace="~{fragments/base :: flash}"></div>
 
         <div class="card-panel mb-3">
-            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/justificaciones', 'desde', 'hasta', '&orden=' + ${orden} + '&limite=' + ${limite})}"></div>
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/justificaciones', 'desde', 'hasta', '&orden=' + ${orden} + '&limite=' + ${limite} + '&semestre=' + (${semestre} ?: ''))}"></div>
 
             <form th:action="@{/admin/justificaciones}" method="get" class="d-flex gap-2 align-items-end flex-wrap" data-navegacion>
                 <input type="hidden" name="desde" th:value="${desde}">

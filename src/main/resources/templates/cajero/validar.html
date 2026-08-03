@@ -79,8 +79,7 @@
             <form th:action="@{/cajero/buscar}" method="post" class="d-flex gap-2" id="formBuscar">
                 <input type="text" name="codigo" id="buscadorCodigo" class="form-control form-control-lg" style="font-size:1rem;"
                        placeholder="Escribe, escanea el QR o pasa el código de barras del carnet" th:value="${codigo}"
-                       autofocus required autocomplete="off"
-                       title="El lector envía el código y la búsqueda se ejecuta sola al recibir Enter">
+                       autofocus required autocomplete="off">
                 <button type="submit" class="btn btn-navy px-4" title="Buscar al residente por su código">
                     <i class="fa-solid fa-magnifying-glass me-1"></i>Buscar
                 </button>
@@ -193,7 +192,9 @@
 
             <div class="col-md-5"
                  th:with="reservaMismoTurno=${resultado.reservaEntregada != null && turnoActivo != null
-                                             && resultado.reservaEntregada.tipoComida == turnoActivo.tipo}"
+                                             && resultado.reservaEntregada.tipoComida == turnoActivo.tipo},
+                          reservaExtraMismoTurno=${resultado.reservaExtra != null && turnoActivo != null
+                                             && resultado.reservaExtra.tipoComida == turnoActivo.tipo}"
                  th:if="${resultado.residente != null && resultado.puedeDecidir
                           && (soloConsulta == null || !soloConsulta
                               || resultado.tipo == 'RESERVA' || resultado.tipo == 'RESERVA_ENTREGADA')}">
@@ -421,7 +422,7 @@
                     </div>
                 </div>
 
-                <div th:if="${resultado.tipo == 'JUSTIFICADO' && resultado.reservaExtra == null}">
+                <div th:if="${resultado.tipo == 'JUSTIFICADO' && !reservaExtraMismoTurno}">
                     <form th:action="@{/cajero/confirmar}" method="post" class="d-grid">
                         <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
                         <input type="hidden" name="decision" value="JUSTIFICADO">
@@ -431,7 +432,7 @@
                     </form>
                 </div>
 
-                <form th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.marcacionPrevia != null && resultado.reservaExtra == null && !reservaMismoTurno}"
+                <form th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.marcacionPrevia != null && !reservaExtraMismoTurno && !reservaMismoTurno}"
                       th:action="@{/cajero/confirmar}" method="post" class="mb-2" id="formDoble">
                     <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
                     <input type="hidden" name="decision" value="PERMITIDO">
@@ -442,7 +443,7 @@
                         <i class="fa-solid fa-lock me-2" id="candadoDoble"></i>Permitir (requiere justificación)
                     </button>
                 </form>
-                <div th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.marcacionPrevia != null && resultado.reservaExtra == null && !reservaMismoTurno}" class="d-grid">
+                <div th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.marcacionPrevia != null && !reservaExtraMismoTurno && !reservaMismoTurno}" class="d-grid">
                     <form th:action="@{/cajero/confirmar}" method="post" class="d-grid"
                           th:attr="data-titulo='Denegar ingreso a ' + ${resultado.residente.nombreCompleto},
                                    data-confirmar='Se registrará el ingreso como DENEGADO en este turno.',
@@ -455,7 +456,7 @@
 
                 <div th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.tipo != 'RESERVA'
                              && resultado.tipo != 'RESERVA_ENTREGADA' && resultado.marcacionPrevia == null
-                             && resultado.reservaExtra == null && !reservaMismoTurno}"
+                             && !reservaExtraMismoTurno && !reservaMismoTurno}"
                      class="d-flex gap-2">
                     <form th:action="@{/cajero/confirmar}" method="post" class="d-grid flex-fill">
                         <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
@@ -477,13 +478,13 @@
                     </form>
                 </div>
 
-                <a th:if="${resultado.tipo != 'RESERVA' && resultado.tipo != 'RESERVA_ENTREGADA' && resultado.reservaExtra == null && !reservaMismoTurno}" href="/cajero/validar"
+                <a th:if="${resultado.tipo != 'RESERVA' && resultado.tipo != 'RESERVA_ENTREGADA' && !reservaExtraMismoTurno && !reservaMismoTurno}" href="/cajero/validar"
                    class="btn btn-light border w-100 mt-2" style="font-size:0.8rem;"
                    title="Cerrar la ficha sin registrar nada">
                     <i class="fa-solid fa-xmark me-1"></i>Cerrar sin registrar
                 </a>
                 <div class="text-center mt-2" style="font-size:0.72rem; color:#8a97a3;"
-                     th:if="${resultado.tipo != 'RESERVA' && resultado.tipo != 'RESERVA_ENTREGADA' && resultado.reservaExtra == null && !reservaMismoTurno}">
+                     th:if="${resultado.tipo != 'RESERVA' && resultado.tipo != 'RESERVA_ENTREGADA' && !reservaExtraMismoTurno && !reservaMismoTurno}">
                     La decisión final es del cajero. El sistema solo informa.
                 </div>
             </div>

@@ -29,7 +29,7 @@
         </div>
 
         <div class="card-panel mb-3">
-            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/reservas', 'desde', 'hasta', '&estado=' + ${estado} + '&limite=' + ${limite} + '&orden=' + ${orden})}"></div>
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/reservas', 'desde', 'hasta', '&estado=' + ${estado} + '&limite=' + ${limite} + '&orden=' + ${orden} + '&semestre=' + (${semestre} ?: ''))}"></div>
 
             <form th:action="@{/admin/reservas}" method="get" class="d-flex gap-2 align-items-end flex-wrap" data-navegacion>
                 <input type="hidden" name="desde" th:value="${desde}">

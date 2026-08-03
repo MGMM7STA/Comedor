@@ -135,6 +135,14 @@
             cursor: pointer; transition: all 0.18s; display: inline-flex; align-items: center; gap: 6px;
         }
         .tab-seccion:hover { border-color: #aab7c4; color: #2c3e50; }
+        .punto-pendiente {
+            display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+            background: #e67e22; vertical-align: middle;
+            box-shadow: 0 0 0 2px rgba(230, 126, 34, 0.22);
+        }
+        .tab-seccion.activa .punto-pendiente {
+            background: #f5b041; box-shadow: 0 0 0 2px rgba(245, 176, 65, 0.35);
+        }
         .tab-seccion.activa {
             background: #2c3e50; color: #fff; border-color: #2c3e50;
             box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.18), 0 0 14px rgba(88, 214, 141, 0.55);
@@ -595,6 +603,38 @@
                 + '&' + c.dataset.phasta + '=' + c.value + (c.dataset.extra || '');
         });
 
+        document.addEventListener('change', function (e) {
+            const s = e.target;
+            if (!s.classList || !s.classList.contains('selector-semestre')) return;
+            window.location.href = s.dataset.ruta + '?semestre=' + encodeURIComponent(s.value);
+        });
+
+        window.normalizarTexto = function (texto) {
+            return (texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase().replace(/\s+/g, ' ').trim();
+        };
+
+        window.buscarResidenteEnLista = function (lista, texto) {
+            const t = window.normalizarTexto(texto);
+            if (!t) return null;
+            return lista.find(x => window.normalizarTexto(x.codigo) === t)
+                || lista.find(x => window.normalizarTexto(x.nombre) === t)
+                || lista.find(x => window.normalizarTexto(x.codigo).startsWith(t))
+                || lista.find(x => window.normalizarTexto(x.nombre).includes(t))
+                || null;
+        };
+
+        window.alPresionarEnter = function (campo, accion) {
+            campo.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                setTimeout(accion, 0);
+            });
+            campo.addEventListener('input', function (e) {
+                if (e.inputType === 'insertReplacementText') setTimeout(accion, 0);
+            });
+        };
+
         window.refrescarCadena = function (grupo, pref) {
             const orden = (pref === 'p') ? ['D', 'A', 'C'] : ['C', 'A', 'D'];
             let sePuedeMarcar = true;
@@ -693,8 +733,21 @@
               antIso=${#temporals.format(nav.anterior, 'yyyy-MM-dd')},
               sigIso=${#temporals.format(nav.siguiente, 'yyyy-MM-dd')},
               hoyIso=${#temporals.format(nav.hoy, 'yyyy-MM-dd')},
-              fechaIso=${#temporals.format(nav.fecha, 'yyyy-MM-dd')}">
+              fechaIso=${#temporals.format(nav.fecha, 'yyyy-MM-dd')},
+              semIniIso=${semIni != null ? #temporals.format(semIni, 'yyyy-MM-dd') : null},
+              topeIso=${semFin != null && semFin.isBefore(nav.hoy)
+                        ? #temporals.format(semFin, 'yyyy-MM-dd')
+                        : #temporals.format(nav.hoy, 'yyyy-MM-dd')}">
     <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+        <div th:if="${semestres != null and !semestres.isEmpty()}" class="d-flex align-items-center gap-1">
+            <span class="lbl" style="margin:0;">Semestre</span>
+            <select class="form-select form-select-sm selector-semestre"
+                    style="width:105px; font-size:0.78rem;" th:attr="data-ruta=${ruta}"
+                    title="Delimita toda la búsqueda a este semestre">
+                <option th:each="s : ${semestres}" th:value="${s}" th:text="${s}"
+                        th:selected="${s == semestre}">2026-2</option>
+            </select>
+        </div>
         <a class="btn btn-light border btn-sm-flat"
            th:href="${ruta + '?' + pDesde + '=' + antIso + '&' + pHasta + '=' + antIso + extra}"
            title="Ir a la semana anterior">
@@ -716,24 +769,32 @@
             <span class="lbl" style="margin:0;">Buscar semana</span>
             <input type="date" class="form-control form-control-sm nav-semana-fecha"
                    style="width:150px; font-size:0.78rem;"
-                   th:value="${fechaIso}" th:max="${hoyIso}"
+                   th:value="${fechaIso}" th:max="${topeIso}" th:min="${semIniIso}"
                    th:attr="data-ruta=${ruta}, data-pdesde=${pDesde}, data-phasta=${pHasta}, data-extra=${extra}"
-                   title="Elige una fecha para saltar a su semana">
+                   title="Elige una fecha para saltar a su semana (limitada al semestre elegido)">
         </div>
     </div>
 
     <div class="d-flex gap-1 flex-wrap">
-        <th:block th:each="d, it : ${nav.dias}" th:with="dIso=${#temporals.format(d, 'yyyy-MM-dd')}">
-            <a th:if="${!d.isAfter(nav.hoy)}" class="tab-seccion"
+        <th:block th:each="d, it : ${nav.dias}"
+                  th:with="dIso=${#temporals.format(d, 'yyyy-MM-dd')},
+                           dentro=${!d.isAfter(nav.hoy)
+                                    and (semIni == null or (!d.isBefore(semIni) and !d.isAfter(semFin)))}">
+            <a th:if="${dentro}" class="tab-seccion"
                th:classappend="${d.equals(nav.fecha)} ? 'activa'"
                th:href="${ruta + '?' + pDesde + '=' + dIso + '&' + pHasta + '=' + dIso + extra}"
                th:title="'Ver solo el ' + ${nombresDias[it.index]} + ' ' + ${#temporals.format(d, 'dd/MM')}">
                 <span th:text="${nombresDias[it.index]}">Domingo</span>
                 <span style="font-size:0.66rem; opacity:0.75;" th:text="${#temporals.format(d, 'dd/MM')}">19/07</span>
+                <span th:if="${diasPendientes != null and diasPendientes.containsKey(dIso)}"
+                      class="punto-pendiente"
+                      th:title="${diasPendientes.get(dIso)} + ' pendiente(s) sin atender en este día'"></span>
             </a>
-            <span th:if="${d.isAfter(nav.hoy)}" class="tab-seccion"
+            <span th:unless="${dentro}" class="tab-seccion"
                   style="opacity:0.4; pointer-events:none;"
-                  th:title="'El ' + ${nombresDias[it.index]} + ' aún no ocurre'">
+                  th:title="${d.isAfter(nav.hoy)}
+                            ? 'El ' + ${nombresDias[it.index]} + ' aún no ocurre'
+                            : 'Ese día está fuera del semestre elegido'">
                 <span th:text="${nombresDias[it.index]}">Sábado</span>
                 <span style="font-size:0.66rem; opacity:0.75;" th:text="${#temporals.format(d, 'dd/MM')}">25/07</span>
             </span>

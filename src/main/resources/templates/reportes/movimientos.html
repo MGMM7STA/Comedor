@@ -17,7 +17,7 @@
     <div class="contenido">
 
         <div class="card-panel mb-3">
-            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/movimientos', 'desde', 'hasta', '&limite=' + ${limite} + '&orden=' + ${orden})}"></div>
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/movimientos', 'desde', 'hasta', '&limite=' + ${limite} + '&orden=' + ${orden} + '&semestre=' + (${semestre} ?: ''))}"></div>
 
             <form th:action="@{/movimientos}" method="get" class="d-flex gap-2 align-items-end flex-wrap" data-navegacion>
                 <input type="hidden" name="desde" th:value="${desde}">
@@ -27,8 +27,7 @@
                 <div style="min-width:230px;">
                     <div class="lbl">Buscar por código</div>
                     <input type="text" name="codigo" class="form-control" th:value="${codigo}"
-                           placeholder="Código o nombre del residente"
-                           title="Escribe el código del residente y presiona Enter">
+                           placeholder="Código o nombre del residente">
                 </div>
                 <button type="submit" class="btn btn-navy btn-sm-flat" title="Aplicar la búsqueda">
                     <i class="fa-solid fa-magnifying-glass me-1"></i>Consultar

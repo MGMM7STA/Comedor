@@ -59,6 +59,19 @@ public class ReporteController {
         this.alcanceService = alcanceService;
     }
 
+    private com.upeu.comedorupeu.services.SemestreService semestreService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setSemestreService(com.upeu.comedorupeu.services.SemestreService semestreService) {
+        this.semestreService = semestreService;
+    }
+
+    private void ponerSemestre(org.springframework.ui.Model model, String semestre) {
+        model.addAttribute("semestre", semestre);
+        model.addAttribute("semIni", semestreService.inicioDe(semestre));
+        model.addAttribute("semFin", semestreService.finDe(semestre));
+    }
+
     public ReporteController(ReporteService reporteService, ResidenteRepository residenteRepo,
                              PuntoAtencionRepository puntoRepo, ExcelService excelService,
                              UsuarioRepository usuarioRepo, SolicitudExtemporaneaRepository solicitudRepo,
@@ -112,10 +125,15 @@ public class ReporteController {
                           @RequestParam(required = false) String verHoras,
                           @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hpFecha,
                           @RequestParam(defaultValue = "TODOS") String hpTurno,
+                          @RequestParam(name = "semestre", required = false) String semestreParam,
                           Model model, Authentication auth) {
 
-        LocalDate desde = (fecha != null) ? fecha : LocalDate.now();
-        LocalDate hasta = (fechaHasta != null && !fechaHasta.isBefore(desde)) ? fechaHasta : desde;
+        String semestre = semestreService.valido(semestreParam);
+        LocalDate base = (fecha != null) ? fecha : semestreService.fechaPorDefecto(semestre);
+        LocalDate desde = semestreService.recortarInicio(semestre, base);
+        LocalDate hasta = semestreService.recortarFin(semestre,
+                (fechaHasta != null && !fechaHasta.isBefore(desde)) ? fechaHasta : desde);
+        ponerSemestre(model, semestre);
 
         model.addAttribute("nav", SemanaNav.de(desde));
         String pab = pabellonEfectivo(auth, pabellon);
@@ -209,9 +227,14 @@ public class ReporteController {
                            @RequestParam(required = false) Long jusPreceptor,
 
                            @RequestParam(defaultValue = "TODOS") String evPase,
+                           @RequestParam(name = "semestre", required = false) String semestreParam,
                            Model model, Authentication auth) {
-        LocalDate desde = (fecha != null) ? fecha : LocalDate.now();
-        LocalDate hasta = (fechaHasta != null && !fechaHasta.isBefore(desde)) ? fechaHasta : desde;
+        String semestre = semestreService.valido(semestreParam);
+        LocalDate base = (fecha != null) ? fecha : semestreService.fechaPorDefecto(semestre);
+        LocalDate desde = semestreService.recortarInicio(semestre, base);
+        LocalDate hasta = semestreService.recortarFin(semestre,
+                (fechaHasta != null && !fechaHasta.isBefore(desde)) ? fechaHasta : desde);
+        ponerSemestre(model, semestre);
 
         model.addAttribute("nav", SemanaNav.de(desde));
         String pab = pabellonEfectivo(auth, pabellon);
@@ -364,9 +387,13 @@ public class ReporteController {
                                            @RequestParam(required = false) String pabellon,
                                            @RequestParam(defaultValue = "RECIENTES") String orden,
                                            @RequestParam(defaultValue = "NORMAL") String seccion,
+                                           @RequestParam(name = "semestre", required = false) String semestreParam,
                                            Authentication auth) throws IOException {
-        LocalDate desde = (fecha != null) ? fecha : LocalDate.now();
-        LocalDate hasta = (fechaHasta != null && !fechaHasta.isBefore(desde)) ? fechaHasta : desde;
+        String semestre = semestreService.valido(semestreParam);
+        LocalDate base = (fecha != null) ? fecha : semestreService.fechaPorDefecto(semestre);
+        LocalDate desde = semestreService.recortarInicio(semestre, base);
+        LocalDate hasta = semestreService.recortarFin(semestre,
+                (fechaHasta != null && !fechaHasta.isBefore(desde)) ? fechaHasta : desde);
         String pab = pabellonEfectivo(auth, pabellon);
 
         boolean vNormal = "NORMAL".equals(seccion);
@@ -396,11 +423,14 @@ public class ReporteController {
     }
 
     @GetMapping("/exportar-masivo")
-    public ResponseEntity<byte[]> exportarMasivo(Authentication auth) throws IOException {
+    public ResponseEntity<byte[]> exportarMasivo(
+            @RequestParam(name = "semestre", required = false) String semestreParam,
+            Authentication auth) throws IOException {
         String pab = pabellonEfectivo(auth, null);
 
-        LocalDate hasta = LocalDate.now();
-        LocalDate desde = hasta.minusYears(5);
+        String semestre = semestreService.valido(semestreParam);
+        LocalDate desde = semestreService.inicioDe(semestre);
+        LocalDate hasta = semestreService.recortarFin(semestre, LocalDate.now());
 
         ReporteGeneral rep = reporteService.general(desde, hasta, "TODOS", null, pab, true, null);
 
@@ -436,9 +466,15 @@ public class ReporteController {
                              @RequestParam(required = false) String verExtras,
                              @RequestParam(required = false) String verJustificaciones,
                              @RequestParam(required = false) String verEventos,
+                             @RequestParam(name = "semestre", required = false) String semestreParam,
                              Model model, Authentication auth) {
         String pab = pabellonEfectivo(auth, null);
         Residente residente = buscarResidente(q, codigo, pab);
+
+        String semestre = semestreService.valido(semestreParam);
+        ponerSemestre(model, semestre);
+        if (desde != null) desde = semestreService.recortarInicio(semestre, desde);
+        if (hasta != null) hasta = semestreService.recortarFin(semestre, hasta);
 
         model.addAttribute("verNormal", conFiltros == null || verNormal != null);
         model.addAttribute("verExtras", conFiltros != null && verExtras != null);

@@ -32,4 +32,9 @@ public interface SolicitudExtemporaneaRepository extends JpaRepository<Solicitud
     List<SolicitudExtemporanea> findByFechaAndEstadoAndGrupoLoteNotNull(LocalDate fecha, String estado);
 
     List<SolicitudExtemporanea> findByGrupoLoteAndFechaAndEstado(String grupoLote, LocalDate fecha, String estado);
+
+    @org.springframework.data.jpa.repository.Query("SELECT s.fecha FROM SolicitudExtemporanea s "
+            + "WHERE s.estado = 'PENDIENTE' AND s.fecha >= :desde")
+    List<LocalDate> fechasPendientes(
+            @org.springframework.data.repository.query.Param("desde") LocalDate desde);
 }

@@ -364,8 +364,8 @@
 
 <script th:inline="javascript">
 
-    const comidasBloqueadas =  [] || [];
-    const fechaHoy =  '';
+    const comidasBloqueadas = /*[[${comidasBloqueadas}]]*/ [] || [];
+    const fechaHoy = /*[[${hoy != null ? #temporals.format(hoy, 'yyyy-MM-dd') : ''}]]*/ '';
 
     function bloquearComidasHoy() {
         const fecha = document.getElementById('fechaReserva');

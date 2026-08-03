@@ -31,6 +31,13 @@ public class ReservaController {
 
     private final com.upeu.comedorupeu.services.ExcelService excelService;
 
+    private com.upeu.comedorupeu.services.SemestreService semestreService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setSemestreService(com.upeu.comedorupeu.services.SemestreService semestreService) {
+        this.semestreService = semestreService;
+    }
+
     public ReservaController(SolicitudExtemporaneaRepository solicitudRepo, ResidenteRepository residenteRepo,
                              UsuarioRepository usuarioRepo, TurnoService turnoService, AlcanceService alcanceService,
                              com.upeu.comedorupeu.services.ExcelService excelService) {
@@ -125,11 +132,15 @@ public class ReservaController {
                                 @RequestParam(defaultValue = "TODOS") String estado,
                                 @RequestParam(defaultValue = "20") int limite,
                                 @RequestParam(defaultValue = "RECIENTES") String orden,
+                                @RequestParam(name = "semestre", required = false) String semestreParam,
                                 Model model, Authentication auth) {
         LocalDate hoy = LocalDate.now();
 
-        LocalDate ini = (desde != null) ? desde : hoy;
-        LocalDate fin = (hasta != null && !hasta.isBefore(ini)) ? hasta : ini;
+        String semestre = semestreService.aplicar(model, semestreParam);
+        LocalDate base = (desde != null) ? desde : semestreService.fechaPorDefecto(semestre);
+        LocalDate ini = semestreService.recortarInicio(semestre, base);
+        LocalDate fin = semestreService.recortarFin(semestre,
+                (hasta != null && !hasta.isBefore(ini)) ? hasta : ini);
 
         model.addAttribute("nav", SemanaNav.de(ini));
 

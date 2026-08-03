@@ -401,10 +401,10 @@
 <script th:inline="javascript">
 
     function confirmarExcelIndividual() {
-        const nombre =  '';
-        const dias =  0;
-        const rango =  '';
-        const url =  '#';
+        const nombre = /*[[${rep != null ? rep.residente.nombreCompleto : ''}]]*/ '';
+        const dias = /*[[${totalFilas != null ? totalFilas : 0}]]*/ 0;
+        const rango = /*[[${rep != null ? #temporals.format(desde, 'dd/MM/yyyy') + ' al ' + #temporals.format(hasta, 'dd/MM/yyyy') : ''}]]*/ '';
+        const url = /*[[${rep != null} ? @{/reportes/individual/exportar(codigo=${rep.residente.codigoAcceso}, desde=${desde}, hasta=${hasta})} : '#']]*/ '#';
         confirmarSistema({
             titulo: 'Exportar reporte a Excel',
             estilo: 'exito',

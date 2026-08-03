@@ -40,6 +40,14 @@ public class AdminController {
     private final MarcacionRepository marcacionRepo;
     private final EventoEspecialRepository eventoRepo;
     private final IncidenciaRepository incidenciaRepo;
+
+    private com.upeu.comedorupeu.services.SemestreService semestreService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setSemestreService(com.upeu.comedorupeu.services.SemestreService semestreService) {
+        this.semestreService = semestreService;
+    }
+
     private final SolicitudExtemporaneaRepository solicitudRepo;
     private final AusenciaRepository ausenciaRepo;
     private final ApunteRepository apunteRepo;
@@ -556,10 +564,14 @@ public class AdminController {
                           @RequestParam(required = false) String q,
                           @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate desde,
                           @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate hasta,
+                          @RequestParam(name = "semestre", required = false) String semestreParam,
                           Model model) {
 
-        final LocalDate desdeEf = (desde != null) ? desde : LocalDate.now();
-        final LocalDate hastaEf = (hasta != null && !hasta.isBefore(desdeEf)) ? hasta : desdeEf;
+        String semestre = semestreService.aplicar(model, semestreParam);
+        final LocalDate desdeEf = semestreService.recortarInicio(semestre,
+                (desde != null) ? desde : semestreService.fechaPorDefecto(semestre));
+        final LocalDate hastaEf = semestreService.recortarFin(semestre,
+                (hasta != null && !hasta.isBefore(desdeEf)) ? hasta : desdeEf);
         List<EventoEspecial> eventos = eventoRepo.findAllByOrderByFechaEnvioDesc().stream()
                 .filter(e -> "PENDIENTE".equals(e.getEstado())
                         || (e.getFechaEnvio() != null
@@ -737,10 +749,14 @@ public class AdminController {
                              @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate desde,
                              @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate hasta,
                              @RequestParam(defaultValue = "RECIENTES") String orden,
+                             @RequestParam(name = "semestre", required = false) String semestreParam,
                              Model model) {
 
-        final LocalDate desdeEf = (desde != null) ? desde : LocalDate.now();
-        final LocalDate hastaEf = (hasta != null && !hasta.isBefore(desdeEf)) ? hasta : desdeEf;
+        String semestre = semestreService.aplicar(model, semestreParam);
+        final LocalDate desdeEf = semestreService.recortarInicio(semestre,
+                (desde != null) ? desde : semestreService.fechaPorDefecto(semestre));
+        final LocalDate hastaEf = semestreService.recortarFin(semestre,
+                (hasta != null && !hasta.isBefore(desdeEf)) ? hasta : desdeEf);
 
         model.addAttribute("nav", SemanaNav.de(desdeEf));
         var lista = ("TODAS".equals(filtro)

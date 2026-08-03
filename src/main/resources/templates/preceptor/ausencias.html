@@ -187,11 +187,11 @@
 </div>
 
 <script th:inline="javascript">
-    const residentes =  [];
+    const residentes = /*[[${residentes.![{'id': idResidente, 'nombre': nombreCompleto, 'codigo': codigoAcceso}]}]]*/ [];
     const seleccionados = new Set();
 
-    const comidasBloqueadas =  [] || [];
-    const fechaHoy =  '';
+    const comidasBloqueadas = /*[[${comidasBloqueadas}]]*/ [] || [];
+    const fechaHoy = /*[[${hoy != null ? #temporals.format(hoy, 'yyyy-MM-dd') : ''}]]*/ '';
     const letraATurno = { 'D': 'DESAYUNO', 'A': 'ALMUERZO', 'C': 'CENA' };
 
     function aplicarBloqueoPrimerDia() {
@@ -219,13 +219,15 @@
     });
 
     function agregarResidente() {
-        const q = document.getElementById('buscador').value.trim().toLowerCase();
+        const q = document.getElementById('buscador').value.trim();
         if (!q) return;
-        const r = residentes.find(x =>
-            (x.codigo + ' — ' + x.nombre).toLowerCase() === q ||
-            x.codigo.toLowerCase() === q ||
-            x.nombre.toLowerCase().includes(q));
-        if (!r) { avisoSistema('No se encontró ese residente. Escribe el código o elige una opción de la lista desplegable.', 'Residente no encontrado'); return; }
+        const r = buscarResidenteEnLista(residentes, q)
+            || residentes.find(x => normalizarTexto(x.codigo + ' — ' + x.nombre) === normalizarTexto(q));
+        if (!r) {
+            avisoSistema('No hay ningún residente activo de tu residencia con "' + q + '". '
+                + 'Revisa el código o elige un nombre de la lista desplegable.', 'Residente no encontrado');
+            return;
+        }
         if (seleccionados.has(r.id)) { avisoSistema('Ese residente ya está en la lista de seleccionados.', 'Ya agregado'); return; }
         seleccionados.add(r.id);
 
@@ -292,9 +294,7 @@
         document.getElementById('fechaUltimo').textContent = esModoDia() ? fmt(d) : fmt(h);
     }
 
-    document.getElementById('buscador').addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); agregarResidente(); }
-    });
+    alPresionarEnter(document.getElementById('buscador'), agregarResidente);
 
     function esModoDia() { return document.getElementById('modoDia').checked; }
 

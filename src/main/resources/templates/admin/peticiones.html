@@ -52,7 +52,7 @@
                 </a>
             </div>
 
-            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/peticiones', 'desde', 'hasta', '&filtro=' + ${filtro} + '&orden=' + ${orden})}"></div>
+            <div th:replace="~{fragments/base :: nav-semana(${nav}, '/admin/peticiones', 'desde', 'hasta', '&filtro=' + ${filtro} + '&orden=' + ${orden} + '&semestre=' + (${semestre} ?: ''))}"></div>
 
             <div class="d-flex justify-content-end gap-2 mb-3 no-print">
                 <button type="button" class="btn btn-success btn-sm btn-exportar-rango" style="font-size:0.76rem;"

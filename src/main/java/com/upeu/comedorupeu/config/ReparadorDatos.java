@@ -1,0 +1,114 @@
+package com.upeu.comedorupeu.config;
+
+import com.upeu.comedorupeu.models.Marcacion;
+import com.upeu.comedorupeu.models.Residente;
+import com.upeu.comedorupeu.repository.MarcacionRepository;
+import com.upeu.comedorupeu.repository.ResidenteRepository;
+import com.upeu.comedorupeu.services.ImagenService;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Component
+@Order(2)
+public class ReparadorDatos implements CommandLineRunner {
+
+    private final ResidenteRepository residenteRepo;
+    private final MarcacionRepository marcacionRepo;
+    private final ImagenService imagenService;
+
+    public ReparadorDatos(ResidenteRepository residenteRepo, MarcacionRepository marcacionRepo,
+                          ImagenService imagenService) {
+        this.residenteRepo = residenteRepo;
+        this.marcacionRepo = marcacionRepo;
+        this.imagenService = imagenService;
+    }
+
+    @Override
+    public void run(String... args) {
+        List<Residente> todos = residenteRepo.findAll();
+        if (todos.isEmpty()) return;
+
+        sellarFechasDeRegistro(todos);
+        renombrarFotos(todos);
+    }
+
+    private void sellarFechasDeRegistro(List<Residente> todos) {
+        int sellados = 0;
+        int corregidos = 0;
+        int sinEvidencia = 0;
+
+        for (Residente r : todos) {
+            if (r.getFechaRegistro() != null) continue;
+
+            LocalDateTime evidencia = marcacionRepo
+                    .findFirstByResidenteIdResidenteOrderByFechaHoraAsc(r.getIdResidente())
+                    .map(Marcacion::getFechaHora)
+                    .orElse(null);
+
+            boolean sospechosa = pareceFechaDeSemestre(r.getFechaIngreso());
+
+            if (sospechosa && evidencia != null && evidencia.toLocalDate().isAfter(r.getFechaIngreso())) {
+                r.setFechaIngreso(evidencia.toLocalDate());
+                r.setFechaRegistro(evidencia);
+                corregidos++;
+            } else {
+                r.setFechaRegistro(r.getFechaIngreso() != null
+                        ? r.getFechaIngreso().atStartOfDay()
+                        : LocalDateTime.now());
+                if (sospechosa) sinEvidencia++;
+            }
+
+            residenteRepo.save(r);
+            sellados++;
+        }
+
+        if (sellados == 0) return;
+
+        System.out.println(">> REPARADOR: " + sellados + " residente(s) recibieron su fecha de registro.");
+        if (corregidos > 0) {
+            System.out.println(">>   " + corregidos + " tenían fecha de inicio de semestre y se corrigieron "
+                    + "con la fecha de su primera comida registrada.");
+        }
+        if (sinEvidencia > 0) {
+            System.out.println(">>   " + sinEvidencia + " siguen con fecha de inicio de semestre: nunca comieron, "
+                    + "así que no hay ningún dato para deducir cuándo se registraron. Se dejaron intactos.");
+        }
+    }
+
+    private void renombrarFotos(List<Residente> todos) {
+        int renombradas = 0;
+        int fallidas = 0;
+
+        for (Residente r : todos) {
+            if (r.getFotoUrl() == null || r.getFotoUrl().isBlank()) continue;
+            try {
+                String nueva = imagenService.corregirNombre(r);
+                if (nueva == null) continue;
+                r.setFotoUrl(nueva);
+                residenteRepo.save(r);
+                renombradas++;
+            } catch (Exception e) {
+                fallidas++;
+                System.out.println(">> REPARADOR: no se pudo renombrar la foto de "
+                        + r.getNombreCompleto() + " (" + e.getMessage() + ")");
+            }
+        }
+
+        if (renombradas > 0) {
+            System.out.println(">> REPARADOR: " + renombradas + " foto(s) renombradas con el nombre de su residente.");
+        }
+        if (fallidas > 0) {
+            System.out.println(">> REPARADOR: " + fallidas + " foto(s) no se pudieron renombrar.");
+        }
+    }
+
+    private boolean pareceFechaDeSemestre(LocalDate fecha) {
+        return fecha != null && fecha.getDayOfMonth() == 1
+                && (fecha.getMonthValue() == 1 || fecha.getMonthValue() == 7);
+    }
+}

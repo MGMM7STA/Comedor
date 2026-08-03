@@ -56,7 +56,7 @@
         <div class="card-panel mb-3 no-print">
             <div th:replace="~{fragments/base :: nav-semana(${nav}, '/reportes', 'fecha', 'fechaHasta',
                  '&seccion=' + ${seccion} + '&turno=' + ${turno} + '&limite=' + ${limite} + '&orden=' + ${orden}
-                 + '&punto=' + (${punto} ?: '') + '&pabellon=' + (${pabellon} ?: 'TODOS') + '&codigo=' + (${codigo} ?: ''))}"></div>
+                 + '&punto=' + (${punto} ?: '') + '&pabellon=' + (${pabellon} ?: 'TODOS') + '&codigo=' + (${codigo} ?: '') + '&semestre=' + (${semestre} ?: ''))}"></div>
         </div>
 
         <div class="card-panel mb-3 no-print">
@@ -453,7 +453,7 @@
     function dibujarGraficoHoras() {
         const cont = document.getElementById('graficoHoras');
         if (!cont) return;
-        const datos =  [];
+        const datos = /*[[${hpDatos != null ? hpDatos : null}]]*/ [];
         if (!datos || datos.length === 0) return;
 
         const W = 560, H = 230, margen = { izq: 38, der: 14, arr: 14, aba: 34 };

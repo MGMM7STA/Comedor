@@ -11,10 +11,16 @@ public class NotificacionesAdvice {
 
     private final EventoEspecialRepository eventoRepo;
     private final IncidenciaRepository incidenciaRepo;
+    private final com.upeu.comedorupeu.services.SemestreService semestreService;
+    private final com.upeu.comedorupeu.services.PendientesService pendientesService;
 
-    public NotificacionesAdvice(EventoEspecialRepository eventoRepo, IncidenciaRepository incidenciaRepo) {
+    public NotificacionesAdvice(EventoEspecialRepository eventoRepo, IncidenciaRepository incidenciaRepo,
+                                com.upeu.comedorupeu.services.SemestreService semestreService,
+                                com.upeu.comedorupeu.services.PendientesService pendientesService) {
         this.eventoRepo = eventoRepo;
         this.incidenciaRepo = incidenciaRepo;
+        this.semestreService = semestreService;
+        this.pendientesService = pendientesService;
     }
 
     @ModelAttribute
@@ -23,5 +29,10 @@ public class NotificacionesAdvice {
         model.addAttribute("notifPeticiones", incidenciaRepo.contarPendientes());
 
         model.addAttribute("relojServidorMs", System.currentTimeMillis());
+
+        model.addAttribute("semestres", semestreService.disponibles());
+        model.addAttribute("semestreActual", semestreService.actual());
+
+        model.addAttribute("diasPendientes", pendientesService.porDia());
     }
 }

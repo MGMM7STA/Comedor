@@ -292,6 +292,10 @@ public class ReporteService {
     private String estadoComida(Residente residente, List<Marcacion> marcaciones, LocalDate fecha,
                                 String tipo, FilaDia fila) {
 
+        if (residente.getFechaIngreso() != null && fecha.isBefore(residente.getFechaIngreso())) {
+            return "PEND";
+        }
+
         var asistio = marcaciones.stream()
                 .filter(m -> "PERMITIDO".equals(m.getEstado())
                         && vigente(m)

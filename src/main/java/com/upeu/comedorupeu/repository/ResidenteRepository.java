@@ -31,4 +31,7 @@ public interface ResidenteRepository extends JpaRepository<Residente, Long> {
             "OR LOWER(r.codigoAcceso) LIKE LOWER(CONCAT('%', :q, '%'))) " +
             "AND (:pabellon IS NULL OR r.pabellon = :pabellon) ORDER BY r.apellido")
     List<Residente> buscar(@Param("q") String q, @Param("pabellon") String pabellon);
+
+    @Query("SELECT MIN(r.fechaIngreso) FROM Residente r")
+    java.time.LocalDate primeraFechaIngreso();
 }

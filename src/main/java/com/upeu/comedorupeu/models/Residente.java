@@ -33,6 +33,13 @@ public class Residente {
 
     private java.time.LocalDate fechaIngreso;
 
+    private java.time.LocalDateTime fechaRegistro;
+
+    @PrePersist
+    public void sellarFechaDeRegistro() {
+        if (fechaRegistro == null) fechaRegistro = java.time.LocalDateTime.now();
+    }
+
     public String getSemestreTexto() {
         if (fechaIngreso == null) return "—";
         return fechaIngreso.getYear() + "-" + (fechaIngreso.getMonthValue() >= 7 ? "2" : "1");

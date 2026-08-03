@@ -59,12 +59,6 @@
                             Se aplicará el mismo motivo a todos los residentes de la lista.
                         </div>
 
-                        <div class="p-2 rounded mb-3" style="background:#eaf3fb; border:1px solid #aed6f1; font-size:0.76rem; color:#21618c;">
-                            <i class="fa-solid fa-circle-info me-1"></i>
-                            Escribe o escanea el código del residente y presiona <strong>Enter</strong>:
-                            se irá agregando a la lista de la derecha.
-                        </div>
-
                         <label class="d-flex align-items-center justify-content-between gap-2 mb-2 p-2 rounded"
                                style="cursor:pointer; background:#e8f8f5; border:1px solid #a3e4d7;"
                                title="Encendido: la lista se guarda como UN grupo (entrega masiva de un clic). Apagado: reservas individuales.">
@@ -95,8 +89,7 @@
                             </span>
 
                             <input type="text" id="buscador" class="form-control" list="listaResidentes" autofocus
-                                   placeholder="Buscar código..."
-                                   title="Escribe o escanea el código y presiona Enter para agregarlo">
+                                   placeholder="Buscar código o nombre">
                             <button type="button" class="btn btn-navy" onclick="agregar()"
                                     title="Agregar el residente escrito a la lista">
                                 <i class="fa-solid fa-plus"></i>
@@ -206,10 +199,10 @@
 
 <script th:inline="javascript">
 
-    const residentes =  [];
+    const residentes = /*[[${residentes.![{'codigo': codigoAcceso, 'nombre': nombreCompleto, 'cuarto': cuarto}]}]]*/ [];
 
-    const comidasBloqueadas =  [] || [];
-    const fechaHoy =  '';
+    const comidasBloqueadas = /*[[${comidasBloqueadas}]]*/ [] || [];
+    const fechaHoy = /*[[${hoy != null ? #temporals.format(hoy, 'yyyy-MM-dd') : ''}]]*/ '';
 
     const lista = [];
 
@@ -242,9 +235,12 @@
         const campo = document.getElementById('buscador');
         const texto = campo.value.trim();
         if (!texto) return;
-        const r = residentes.find(x => x.codigo && x.codigo.toLowerCase() === texto.toLowerCase())
-            || residentes.find(x => x.nombre && x.nombre.toLowerCase().includes(texto.toLowerCase()));
-        if (!r) { avisoSistema('No se encontró ningún residente con ese código o nombre.', 'Residente no encontrado'); return; }
+        const r = buscarResidenteEnLista(residentes, texto);
+        if (!r) {
+            avisoSistema('No hay ningún residente activo de tu residencia con "' + texto + '". '
+                + 'Revisa el código o elige un nombre de la lista desplegable.', 'Residente no encontrado');
+            return;
+        }
         if (lista.includes(r.codigo)) { avisoSistema('Ese residente ya está en la lista.', 'Ya agregado'); campo.value = ''; return; }
         lista.push(r.codigo);
         pintarLista();
@@ -315,9 +311,7 @@
     }
     document.getElementById('switchAgrupar').addEventListener('change', actualizarConfirmacionLote);
 
-    document.getElementById('buscador').addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); agregar(); }
-    });
+    alPresionarEnter(document.getElementById('buscador'), agregar);
 
     marcarTurnosBloqueados();
     pintarLista();

@@ -29,12 +29,15 @@ public class MovimientoController {
     private final AlcanceService alcanceService;
 
     private final com.upeu.comedorupeu.services.ExcelService excelService;
+    private final com.upeu.comedorupeu.services.SemestreService semestreService;
 
     public MovimientoController(ReporteService reporteService, AlcanceService alcanceService,
-                                com.upeu.comedorupeu.services.ExcelService excelService) {
+                                com.upeu.comedorupeu.services.ExcelService excelService,
+                                com.upeu.comedorupeu.services.SemestreService semestreService) {
         this.reporteService = reporteService;
         this.alcanceService = alcanceService;
         this.excelService = excelService;
+        this.semestreService = semestreService;
     }
 
     @GetMapping
@@ -44,11 +47,15 @@ public class MovimientoController {
                               @RequestParam(defaultValue = "20") int limite,
                               @RequestParam(defaultValue = "0") int pag,
                               @RequestParam(defaultValue = "RECIENTES") String orden,
+                              @RequestParam(name = "semestre", required = false) String semestreParam,
                               Model model, Authentication auth) {
         LocalDate hoy = LocalDate.now();
 
-        LocalDate ini = (desde != null) ? desde : hoy;
-        LocalDate fin = (hasta != null && !hasta.isBefore(ini)) ? hasta : ini;
+        String semestre = semestreService.aplicar(model, semestreParam);
+        LocalDate base = (desde != null) ? desde : semestreService.fechaPorDefecto(semestre);
+        LocalDate ini = semestreService.recortarInicio(semestre, base);
+        LocalDate fin = semestreService.recortarFin(semestre,
+                (hasta != null && !hasta.isBefore(ini)) ? hasta : ini);
         if (fin.isAfter(hoy)) fin = hoy;
 
         model.addAttribute("nav", SemanaNav.de(ini));

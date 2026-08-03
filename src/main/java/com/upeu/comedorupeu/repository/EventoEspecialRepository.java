@@ -15,4 +15,9 @@ public interface EventoEspecialRepository extends JpaRepository<EventoEspecial, 
     List<EventoEspecial> findByEstadoAndFechaEventoBetweenOrderByFechaEventoAsc(String estado, LocalDate desde, LocalDate hasta);
 
     long countByEstado(String estado);
+
+    @org.springframework.data.jpa.repository.Query("SELECT e.fechaEnvio FROM EventoEspecial e "
+            + "WHERE e.estado = 'PENDIENTE' AND e.fechaEnvio >= :desde")
+    List<java.time.LocalDateTime> fechasPendientes(
+            @org.springframework.data.repository.query.Param("desde") java.time.LocalDateTime desde);
 }
