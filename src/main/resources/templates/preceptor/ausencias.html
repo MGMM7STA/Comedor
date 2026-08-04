@@ -40,11 +40,13 @@
                             <div class="col-6">
                                 <div style="font-size:0.72rem; color:#8a97a3;" id="lblDesde">Desde</div>
                                 <input type="date" name="desde" id="desde" class="form-control" th:value="${hoy}" required
+                                       th:min="${hoy}"
                                        onchange="sincronizarFechas(); aplicarBloqueoPrimerDia(); actualizarResumen()">
                             </div>
                             <div class="col-6" id="zonaHasta">
                                 <div style="font-size:0.72rem; color:#8a97a3;">Hasta</div>
                                 <input type="date" name="hasta" id="hasta" class="form-control" th:value="${hoy}" required
+                                       th:min="${hoy}"
                                        onchange="actualizarResumen()" title="Último día del período de ausencia">
                             </div>
                         </div>
@@ -319,9 +321,21 @@
     }
 
     function sincronizarFechas() {
+        const desde = document.getElementById('desde');
+        const hasta = document.getElementById('hasta');
+        if (!desde.value) return;
+
         if (esModoDia()) {
-            document.getElementById('hasta').value = document.getElementById('desde').value;
+            hasta.min = desde.value;
+            hasta.value = desde.value;
+            return;
         }
+
+        const siguiente = new Date(desde.value + 'T00:00:00');
+        siguiente.setDate(siguiente.getDate() + 1);
+        const minimo = siguiente.toISOString().slice(0, 10);
+        hasta.min = minimo;
+        if (!hasta.value || hasta.value <= desde.value) hasta.value = minimo;
     }
 
     document.getElementById('formAusencia').addEventListener('submit', () => {
@@ -342,6 +356,8 @@
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') document.getElementById('modalAusencia').style.display = 'none';
     });
+
+    cambiarModo();
 </script>
 
 <div id="modalAusencia" class="modal-sistema" style="display:none;">

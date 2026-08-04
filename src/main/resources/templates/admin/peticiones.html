@@ -106,6 +106,9 @@
                     <div class="d-flex gap-1 justify-content-end mt-2">
                         <form th:if="${i.atendida == null || !i.atendida}"
                               th:action="@{'/admin/peticiones/' + ${i.idIncidencia} + '/revisar'}" method="post" style="margin:0;">
+                            <input type="hidden" name="desde" th:value="${desde}">
+                            <input type="hidden" name="hasta" th:value="${hasta}">
+                            <input type="hidden" name="filtro" th:value="${filtro}">
                             <button class="btn btn-outline-secondary btn-sm" style="font-size:0.7rem;"
                                     title="Marcar esta petición como revisada">
                                 <i class="fa-solid fa-check me-1"></i>Revisada
@@ -115,6 +118,9 @@
                               data-titulo="Eliminar petición"
                               data-confirmar="Se borrará del historial de peticiones. Esta acción no se puede deshacer."
                               data-boton="Sí, eliminar">
+                            <input type="hidden" name="desde" th:value="${desde}">
+                            <input type="hidden" name="hasta" th:value="${hasta}">
+                            <input type="hidden" name="filtro" th:value="${filtro}">
                             <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;"
                                     title="Eliminar del historial">
                                 <i class="fa-solid fa-trash"></i>

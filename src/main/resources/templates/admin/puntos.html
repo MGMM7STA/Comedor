@@ -151,7 +151,16 @@
                          th:style="${p.cajero == null} ? 'color:#b8c2cb; font-style:italic;'">Carlos Mamani</div>
 
                     <div style="font-size:0.78rem; color:#8a97a3;" class="mt-2">Horario fijo:</div>
-                    <div style="font-size:0.83rem;" th:text="${p.horarioTexto}">8:00 - 14:00</div>
+                    <div style="font-size:0.83rem;"
+                         th:style="${abiertoAMano.get(p.idPunto)} ? 'text-decoration:line-through; opacity:0.55;' : ''"
+                         th:text="${p.horarioTexto}">8:00 - 14:00</div>
+                    <div th:if="${abiertoAMano.get(p.idPunto)}" class="mt-1 p-2 rounded"
+                         style="background:#fef5e7; border:1px solid #f5cba7; font-size:0.72rem; color:#9c640c;">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                        Esta entrada se activó <strong>a mano</strong>: ahora mismo no se está usando el horario fijo.
+                        <span th:if="${tieneAgendaHoy.get(p.idPunto)}">
+                            Usa <em>Reaplicar programación</em> para devolverle el control a la agenda.</span>
+                    </div>
 
                     <div class="d-flex gap-2 mt-3 pt-2 border-top">
                         <a th:href="@{'/admin/puntos/' + ${p.idPunto} + '/editar'}" class="btn btn-navy btn-sm-flat flex-fill"
@@ -164,8 +173,25 @@
         </div>
 
         <div class="card-panel">
-            <div class="lbl mb-2">
-                Turno activo: <span th:text="${turnoActivo != null} ? ${turnoActivo.tipo} : 'NINGUNO'">DESAYUNO</span>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <div class="lbl mb-0">
+                    Turno activo: <span th:text="${turnoActivo != null} ? ${turnoActivo.tipo} : 'NINGUNO'">DESAYUNO</span>
+                </div>
+                <form th:action="@{/admin/puntos}" method="get" class="d-flex align-items-center gap-1">
+                    <span style="font-size:0.72rem; color:#8a97a3;">Ver cifras de</span>
+                    <select name="turnoPanel" class="form-select form-select-sm" style="width:auto; font-size:0.76rem;"
+                            onchange="this.form.submit()"
+                            title="Puede haber varios turnos abiertos: elige de cuál ver las cifras">
+                        <option value="TODOS" th:selected="${turnoPanel == 'TODOS'}">Todo el día</option>
+                        <option value="DESAYUNO" th:selected="${turnoPanel == 'DESAYUNO'}">Desayuno</option>
+                        <option value="ALMUERZO" th:selected="${turnoPanel == 'ALMUERZO'}">Almuerzo</option>
+                        <option value="CENA" th:selected="${turnoPanel == 'CENA'}">Cena</option>
+                    </select>
+                </form>
+            </div>
+            <div th:if="${turnoPanel == 'TODOS'}" style="font-size:0.72rem; color:#8a97a3;" class="mb-2">
+                Todo el día: <span th:text="${residentesActivos}">22</span> residentes activos × 3 comidas =
+                <strong th:text="${habilitados}">66</strong> raciones posibles.
             </div>
             <div class="row g-3">
                 <div class="col-md-3">

@@ -29,7 +29,7 @@ public class ExcelService {
     private static final String[] CABECERAS = {
             "Nombres", "Apellidos", "DNI", "Codigo", "Carrera", "Cuarto", "Celular",
             "Resp. Financiero", "Relacion", "DNI Resp.", "Telefono Resp.",
-            "Inicio estancia (AAAA-MM-DD)", "Fin estancia (AAAA-MM-DD)", "Estado", "Estado de Pago"
+            "Estado", "Estado de Pago"
     };
 
     private static final String[] ESTADOS = {"ACTIVO", "INACTIVO"};
@@ -61,6 +61,7 @@ public class ExcelService {
 
         try (Workbook wb = new XSSFWorkbook(archivo.getInputStream())) {
             Sheet hoja = wb.getSheetAt(0);
+            int[] cols = columnasDeEstado(hoja, fmt);
             for (Row fila : hoja) {
                 if (fila.getRowNum() == 0) continue;
 
@@ -101,11 +102,18 @@ public class ExcelService {
                 r.setCuarto(celda(fmt, fila, 5));
                 r.setCelular(celda(fmt, fila, 6));
 
-                r.setFechaIngreso(fechaDeCelda(fmt, fila, 11, java.time.LocalDate.now()));
-                r.setFechaFinEstancia(fechaDeCelda(fmt, fila, 12, null));
-                r.setEstado("INACTIVO".equalsIgnoreCase(celda(fmt, fila, 13)) ? "INACTIVO" : "ACTIVO");
+                java.time.LocalDate ingreso = java.time.LocalDate.now();
+                r.setFechaIngreso(ingreso);
 
-                r.setDeuda(celda(fmt, fila, 14).toLowerCase().contains("deuda"));
+                java.time.LocalDate finSemestre = ingreso.getMonthValue() >= 7
+                        ? java.time.LocalDate.of(ingreso.getYear(), 12, 31)
+                        : java.time.LocalDate.of(ingreso.getYear(), 6, 30);
+                r.setFechaFinEstancia(cols[2] >= 0
+                        ? fechaDeCelda(fmt, fila, cols[2], finSemestre)
+                        : finSemestre);
+                r.setEstado("INACTIVO".equalsIgnoreCase(celda(fmt, fila, cols[0])) ? "INACTIVO" : "ACTIVO");
+
+                r.setDeuda(celda(fmt, fila, cols[1]).toLowerCase().contains("deuda"));
                 r.setTokenAcceso(java.util.UUID.randomUUID().toString());
                 r.setPreceptor(preceptor);
 
@@ -187,41 +195,36 @@ public class ExcelService {
 
             DataValidation dvEstado = ayuda.createValidation(
                     ayuda.createExplicitListConstraint(ESTADOS),
-                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 13, 13));
+                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 11, 11));
             dvEstado.setShowErrorBox(true);
             hoja.addValidationData(dvEstado);
 
             DataValidation dvPago = ayuda.createValidation(
                     ayuda.createExplicitListConstraint(ESTADOS_PAGO),
-                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 14, 14));
+                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 12, 12));
             dvPago.setShowErrorBox(true);
             hoja.addValidationData(dvPago);
-
-            CellStyle estiloFecha = wb.createCellStyle();
-            estiloFecha.setDataFormat(wb.createDataFormat().getFormat("yyyy-mm-dd"));
-            hoja.setDefaultColumnStyle(11, estiloFecha);
-            hoja.setDefaultColumnStyle(12, estiloFecha);
-
-            DataValidation dvFechaIni = ayuda.createValidation(
-                    ayuda.createDateConstraint(DataValidationConstraint.OperatorType.BETWEEN,
-                            "DATE(2000,1,1)", "DATE(2100,12,31)", "yyyy-mm-dd"),
-                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 11, 11));
-            dvFechaIni.setShowErrorBox(true);
-            dvFechaIni.createErrorBox("Fecha inválida", "Escribe o escoge una fecha con formato AAAA-MM-DD.");
-            hoja.addValidationData(dvFechaIni);
-            DataValidation dvFechaFin = ayuda.createValidation(
-                    ayuda.createDateConstraint(DataValidationConstraint.OperatorType.BETWEEN,
-                            "DATE(2000,1,1)", "DATE(2100,12,31)", "yyyy-mm-dd"),
-                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 12, 12));
-            dvFechaFin.setShowErrorBox(true);
-            dvFechaFin.createErrorBox("Fecha inválida", "Escribe o escoge una fecha con formato AAAA-MM-DD.");
-            hoja.addValidationData(dvFechaFin);
 
             wb.setSheetHidden(wb.getSheetIndex(listas), true);
 
             wb.write(out);
             return out.toByteArray();
         }
+    }
+
+    private int[] columnasDeEstado(Sheet hoja, DataFormatter fmt) {
+        Row cabecera = hoja.getRow(0);
+        if (cabecera != null) {
+            int estado = -1, pago = -1, fin = -1;
+            for (int i = 0; i < 20; i++) {
+                String texto = celda(fmt, cabecera, i).trim().toLowerCase();
+                if (texto.startsWith("estado de pago")) pago = i;
+                else if (texto.equals("estado")) estado = i;
+                else if (texto.startsWith("fin estancia")) fin = i;
+            }
+            if (estado >= 0 && pago >= 0) return new int[]{estado, pago, fin};
+        }
+        return new int[]{11, 12, -1};
     }
 
     private java.time.LocalDate fechaDeCelda(DataFormatter fmt, Row fila, int i, java.time.LocalDate porDefecto) {

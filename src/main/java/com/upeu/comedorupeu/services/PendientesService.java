@@ -27,21 +27,32 @@ public class PendientesService {
         this.eventoRepo = eventoRepo;
     }
 
-    public Map<String, Integer> porDia() {
-        LocalDate desdeFecha = LocalDate.now().minusMonths(MESES_ATRAS);
-        LocalDateTime desdeHora = desdeFecha.atStartOfDay();
+    public Map<String, Integer> incidencias() {
         Map<String, Integer> mapa = new HashMap<>();
-
-        for (LocalDateTime f : incidenciaRepo.fechasPendientes(desdeHora)) {
-            if (f != null) sumar(mapa, f.toLocalDate());
-        }
-        for (LocalDate f : solicitudRepo.fechasPendientes(desdeFecha)) {
-            if (f != null) sumar(mapa, f);
-        }
-        for (LocalDateTime f : eventoRepo.fechasPendientes(desdeHora)) {
+        for (LocalDateTime f : incidenciaRepo.fechasPendientes(desde().atStartOfDay())) {
             if (f != null) sumar(mapa, f.toLocalDate());
         }
         return mapa;
+    }
+
+    public Map<String, Integer> reservas() {
+        Map<String, Integer> mapa = new HashMap<>();
+        for (LocalDate f : solicitudRepo.fechasPendientes(desde())) {
+            if (f != null) sumar(mapa, f);
+        }
+        return mapa;
+    }
+
+    public Map<String, Integer> eventos() {
+        Map<String, Integer> mapa = new HashMap<>();
+        for (LocalDateTime f : eventoRepo.fechasPendientes(desde().atStartOfDay())) {
+            if (f != null) sumar(mapa, f.toLocalDate());
+        }
+        return mapa;
+    }
+
+    private LocalDate desde() {
+        return LocalDate.now().minusMonths(MESES_ATRAS);
     }
 
     private void sumar(Map<String, Integer> mapa, LocalDate fecha) {

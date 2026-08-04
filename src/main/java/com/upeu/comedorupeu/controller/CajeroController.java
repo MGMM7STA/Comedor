@@ -74,8 +74,8 @@ public class CajeroController {
     @GetMapping("/validar")
     public String validar(@RequestParam(required = false) String codigo, Model model, Authentication auth) {
         Usuario cajero = usuarioActual(auth);
-        var turnoActivo = turnoService.turnoActivo().orElse(null);
         PuntoAtencion punto = puntoDelCajero(cajero);
+        var turnoActivo = turnoService.turnoActivoDe(punto).orElse(null);
         boolean sinPunto = (punto == null);
         boolean cerrado = puntoCerrado(cajero);
         boolean bloqueado = sinPunto || cerrado;
@@ -97,7 +97,7 @@ public class CajeroController {
         }
 
         if (codigo != null && !codigo.isBlank()) {
-            var resultado = validacionService.validar(codigo);
+            var resultado = validacionService.validar(codigo, punto);
             model.addAttribute("resultado", resultado);
 
             model.addAttribute("soloConsulta", bloqueado);
@@ -347,9 +347,14 @@ public class CajeroController {
             flash.addFlashAttribute("error", "Tu punto de acceso está cerrado por el administrador. No puedes registrar ingresos.");
             return "redirect:/cajero/validar";
         }
-        ValidacionResultado res = validacionService.validar(codigo);
+        ValidacionResultado res = validacionService.validar(codigo, puntoDelCajero(actual));
         if (!res.isPuedeDecidir()) {
             flash.addFlashAttribute("error", "No se puede registrar: " + res.getMotivo());
+            return "redirect:/cajero/validar";
+        }
+        if (res.getResidente() != null && !"ACTIVO".equals(res.getResidente().getEstado())) {
+            flash.addFlashAttribute("error", "El residente " + res.getResidente().getNombreCompleto()
+                    + " está INACTIVO: no puede registrar ingresos al comedor.");
             return "redirect:/cajero/validar";
         }
 

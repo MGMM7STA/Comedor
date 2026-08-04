@@ -33,6 +33,8 @@ public class NotificacionesAdvice {
         model.addAttribute("semestres", semestreService.disponibles());
         model.addAttribute("semestreActual", semestreService.actual());
 
-        model.addAttribute("diasPendientes", pendientesService.porDia());
+        model.addAttribute("diasIncidencias", pendientesService.incidencias());
+        model.addAttribute("diasReservas", pendientesService.reservas());
+        model.addAttribute("diasEventos", pendientesService.eventos());
     }
 }

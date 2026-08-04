@@ -230,6 +230,8 @@
         @media print {
             #sidebar, .page-header, .no-print { display: none !important; }
             #main { margin-left: 0; }
+            a[href]:after, a[href]::after,
+            abbr[title]:after, abbr[title]::after { content: "" !important; }
         }
     </style>
 </head>
@@ -737,7 +739,10 @@
               semIniIso=${semIni != null ? #temporals.format(semIni, 'yyyy-MM-dd') : null},
               topeIso=${semFin != null && semFin.isBefore(nav.hoy)
                         ? #temporals.format(semFin, 'yyyy-MM-dd')
-                        : #temporals.format(nav.hoy, 'yyyy-MM-dd')}">
+                        : #temporals.format(nav.hoy, 'yyyy-MM-dd')},
+              pendientesDeEstaPantalla=${ruta == '/admin/peticiones' ? diasIncidencias
+                        : (ruta == '/admin/reservas' ? diasReservas
+                        : (ruta == '/admin/eventos' ? diasEventos : null))}">
     <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
         <div th:if="${semestres != null and !semestres.isEmpty()}" class="d-flex align-items-center gap-1">
             <span class="lbl" style="margin:0;">Semestre</span>
@@ -786,9 +791,10 @@
                th:title="'Ver solo el ' + ${nombresDias[it.index]} + ' ' + ${#temporals.format(d, 'dd/MM')}">
                 <span th:text="${nombresDias[it.index]}">Domingo</span>
                 <span style="font-size:0.66rem; opacity:0.75;" th:text="${#temporals.format(d, 'dd/MM')}">19/07</span>
-                <span th:if="${diasPendientes != null and diasPendientes.containsKey(dIso)}"
+                <span th:if="${pendientesDeEstaPantalla != null
+                              and pendientesDeEstaPantalla.containsKey(dIso)}"
                       class="punto-pendiente"
-                      th:title="${diasPendientes.get(dIso)} + ' pendiente(s) sin atender en este día'"></span>
+                      th:title="${pendientesDeEstaPantalla.get(dIso)} + ' pendiente(s) sin atender en este día'"></span>
             </a>
             <span th:unless="${dentro}" class="tab-seccion"
                   style="opacity:0.4; pointer-events:none;"

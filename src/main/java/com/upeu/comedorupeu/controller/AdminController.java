@@ -101,9 +101,12 @@ public class AdminController {
     }
 
     @GetMapping("/puntos")
-    public String puntos(Model model) {
+    public String puntos(@RequestParam(name = "turnoPanel", defaultValue = "TODOS") String turnoPanel,
+                         Model model) {
         List<Turno> turnos = turnoService.turnosDeHoy();
         Optional<Turno> activo = turnoService.turnoActivo();
+
+        final String panel = TurnoService.TIPOS.contains(turnoPanel) ? turnoPanel : "TODOS";
 
         java.time.DayOfWeek diaHoy = LocalDate.now().getDayOfWeek();
         LocalTime ahora = LocalTime.now();
@@ -113,6 +116,8 @@ public class AdminController {
         Map<Long, Boolean> necesitaTurno = new HashMap<>();
 
         Map<Long, Boolean> reprogPendiente = new HashMap<>();
+        Map<Long, Boolean> abiertoAMano = new HashMap<>();
+        Map<Long, Boolean> tieneAgendaHoy = new HashMap<>();
         for (PuntoAtencion p : puntoRepo.vigentes()) {
 
             var celdasHoy = programacionRepo.findByObjetivoAndPuntoIdPuntoAndDiaSemana(
@@ -123,15 +128,12 @@ public class AdminController {
                 if (c.cubre(diaHoy, ahora)) { celdaCubre = c; break; }
             }
             necesitaTurno.put(p.getIdPunto(), celdaCubre == null);
+            abiertoAMano.put(p.getIdPunto(), p.isOperativo() && p.getTurnoManual() != null);
+            tieneAgendaHoy.put(p.getIdPunto(), !celdasHoy.isEmpty());
 
             boolean pendiente = false;
             if (p.isOperativo() && p.getTurnoManual() != null) {
-                var celdaSuTurno = celdasHoy.stream()
-                        .filter(c -> p.getTurnoManual().equals(c.getTipoTurno()))
-                        .findFirst().orElse(null);
-                pendiente = celdaSuTurno != null
-                        && (!java.util.Objects.equals(celdaSuTurno.getHoraInicio(), p.getHoraInicio())
-                            || !java.util.Objects.equals(celdaSuTurno.getHoraFin(), p.getHoraFin()));
+                pendiente = !celdasHoy.isEmpty();
             } else if (p.isOperativo() && celdaCubre != null) {
 
                 pendiente = !java.util.Objects.equals(celdaCubre.getHoraInicio(), p.getHoraInicio())
@@ -149,35 +151,37 @@ public class AdminController {
                         "horario", celdaCubre.getHoraInicio() + " a " + celdaCubre.getHoraFin(),
                         "cajero", p.getCajero() != null ? p.getCajero().getNombreCompleto() : "Sin asignar"));
             } else if (p.getTurnoManual() != null && vistaTurnos.containsKey(p.getTurnoManual())) {
-
-                var celdaSuTurno = celdasHoy.stream()
-                        .filter(c -> p.getTurnoManual().equals(c.getTipoTurno()))
-                        .findFirst().orElse(null);
-                LocalTime finMostrar = (celdaSuTurno != null && celdaSuTurno.getHoraFin() != null)
-                        ? celdaSuTurno.getHoraFin() : p.getHoraFin();
                 vistaTurnos.get(p.getTurnoManual()).add(Map.of(
                         "nombre", p.getNombre(),
-                        "horario", "--:-- a " + (finMostrar != null ? finMostrar.toString() : "--:--"),
+                        "horario", "activado manualmente",
                         "cajero", p.getCajero() != null ? p.getCajero().getNombreCompleto() : "Sin asignar"));
             }
         }
         model.addAttribute("vistaTurnos", vistaTurnos);
         model.addAttribute("necesitaTurno", necesitaTurno);
         model.addAttribute("reprogPendiente", reprogPendiente);
+        model.addAttribute("abiertoAMano", abiertoAMano);
+        model.addAttribute("tieneAgendaHoy", tieneAgendaHoy);
         model.addAttribute("hayActividad", vistaTurnos.values().stream().anyMatch(l -> !l.isEmpty()));
 
         long turnosActivos = vistaTurnos.values().stream().filter(l -> !l.isEmpty()).count();
         String colTurnos = turnosActivos <= 1 ? "col-md-8" : (turnosActivos == 2 ? "col-md-6" : "col-md-4");
         model.addAttribute("colTurnos", colTurnos);
 
-        long habilitados = residenteRepo.countByEstado("ACTIVO");
+        boolean panelTodos = "TODOS".equals(panel);
+        List<Turno> turnosPanel = panelTodos ? turnos
+                : turnos.stream().filter(t -> t.getTipo().equals(panel)).toList();
+
+        long residentesActivos = residenteRepo.countByEstado("ACTIVO");
+        long habilitados = residentesActivos * (panelTodos ? TurnoService.TIPOS.size() : 1);
         long atendidos = 0, bloqueados = 0;
-        if (activo.isPresent()) {
-            Long idTurno = activo.get().getIdTurno();
-            atendidos = marcacionRepo.countByTurnoIdTurnoAndEstado(idTurno, "PERMITIDO")
-                    + marcacionRepo.countByTurnoIdTurnoAndEstado(idTurno, "JUSTIFICADO");
-            bloqueados = marcacionRepo.countByTurnoIdTurnoAndEstado(idTurno, "DENEGADO");
+        for (Turno t : turnosPanel) {
+            atendidos += marcacionRepo.countByTurnoIdTurnoAndEstado(t.getIdTurno(), "PERMITIDO")
+                    + marcacionRepo.countByTurnoIdTurnoAndEstado(t.getIdTurno(), "JUSTIFICADO");
+            bloqueados += marcacionRepo.countByTurnoIdTurnoAndEstado(t.getIdTurno(), "DENEGADO");
         }
+        model.addAttribute("turnoPanel", panel);
+        model.addAttribute("residentesActivos", residentesActivos);
 
         model.addAttribute("turnos", turnos);
         model.addAttribute("turnoActivo", activo.orElse(null));
@@ -862,20 +866,35 @@ public class AdminController {
         return idEvento != null ? "redirect:/admin/eventos/" + idEvento : "redirect:/admin/eventos";
     }
 
+    private String volverAPeticiones(String desde, String hasta, String filtro) {
+        StringBuilder url = new StringBuilder("redirect:/admin/peticiones?filtro=")
+                .append(filtro == null || filtro.isBlank() ? "TODAS" : filtro);
+        if (desde != null && !desde.isBlank()) url.append("&desde=").append(desde);
+        if (hasta != null && !hasta.isBlank()) url.append("&hasta=").append(hasta);
+        return url.toString();
+    }
+
     @PostMapping("/peticiones/{id}/revisar")
-    public String revisarPeticion(@PathVariable Long id) {
+    public String revisarPeticion(@PathVariable Long id,
+                                  @RequestParam(required = false) String desde,
+                                  @RequestParam(required = false) String hasta,
+                                  @RequestParam(required = false) String filtro) {
         incidenciaRepo.findById(id).ifPresent(i -> {
             i.setAtendida(true);
             incidenciaRepo.save(i);
         });
-        return "redirect:/admin/peticiones";
+        return volverAPeticiones(desde, hasta, filtro);
     }
 
     @PostMapping("/peticiones/{id}/eliminar")
-    public String eliminarPeticion(@PathVariable Long id, RedirectAttributes flash) {
+    public String eliminarPeticion(@PathVariable Long id,
+                                   @RequestParam(required = false) String desde,
+                                   @RequestParam(required = false) String hasta,
+                                   @RequestParam(required = false) String filtro,
+                                   RedirectAttributes flash) {
         incidenciaRepo.deleteById(id);
         flash.addFlashAttribute("ok", "Incidencia eliminada.");
-        return "redirect:/admin/peticiones";
+        return volverAPeticiones(desde, hasta, filtro);
     }
 
     private String generarClave() {

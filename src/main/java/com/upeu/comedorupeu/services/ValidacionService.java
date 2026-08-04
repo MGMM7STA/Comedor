@@ -48,7 +48,11 @@ public class ValidacionService {
     }
 
     public ValidacionResultado validar(String codigo) {
-        ValidacionResultado res = evaluar(codigo);
+        return validar(codigo, null);
+    }
+
+    public ValidacionResultado validar(String codigo, com.upeu.comedorupeu.models.PuntoAtencion punto) {
+        ValidacionResultado res = evaluar(codigo, punto);
         if (res.getResidente() != null && res.getTurnoActivo() != null) {
             racionEspecialRepo.findFirstByRacionEspecialResidenteIdResidenteAndFechaAndTipoComida(
                             res.getResidente().getIdResidente(), LocalDate.now(), res.getTurnoActivo().getTipo())
@@ -57,7 +61,7 @@ public class ValidacionService {
         return res;
     }
 
-    private ValidacionResultado evaluar(String codigo) {
+    private ValidacionResultado evaluar(String codigo, com.upeu.comedorupeu.models.PuntoAtencion punto) {
         ValidacionResultado res = new ValidacionResultado();
 
         Optional<Residente> opt = residenteRepo.findByCodigoAcceso(codigo == null ? "" : codigo.trim());
@@ -70,7 +74,7 @@ public class ValidacionService {
         res.setResidente(residente);
         cargarConsumoDia(res, residente);
 
-        Optional<Turno> turnoOpt = turnoService.turnoActivo();
+        Optional<Turno> turnoOpt = turnoService.turnoActivoDe(punto);
         if (turnoOpt.isEmpty()) {
 
             if (buscarReserva(res, residente)) return res;

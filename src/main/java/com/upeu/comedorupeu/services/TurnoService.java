@@ -30,6 +30,51 @@ public class TurnoService {
         this.programacionRepo = programacionRepo;
     }
 
+    private com.upeu.comedorupeu.repository.MarcacionRepository marcacionRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setMarcacionRepo(com.upeu.comedorupeu.repository.MarcacionRepository marcacionRepo) {
+        this.marcacionRepo = marcacionRepo;
+    }
+
+    public Optional<Turno> turnoActivoDe(com.upeu.comedorupeu.models.PuntoAtencion punto) {
+        if (punto == null || !punto.isOperativo()) return turnoActivo();
+
+        String elegido = punto.getTurnoManual();
+        if (elegido != null && !elegido.isBlank()) {
+            Optional<Turno> propio = turnosDeHoy().stream()
+                    .filter(t -> elegido.equals(t.getTipo()))
+                    .filter(t -> "ACTIVO".equals(t.getEstado()) || estaAtendiendo(t))
+                    .findFirst();
+            if (propio.isPresent()) return propio;
+        }
+
+        String porAgenda = turnoDeLaAgendaDe(punto);
+        if (porAgenda != null) {
+            Optional<Turno> propio = turnosDeHoy().stream()
+                    .filter(t -> porAgenda.equals(t.getTipo()))
+                    .filter(t -> "ACTIVO".equals(t.getEstado()) || estaAtendiendo(t))
+                    .findFirst();
+            if (propio.isPresent()) return propio;
+        }
+
+        return turnoActivo();
+    }
+
+    private String turnoDeLaAgendaDe(com.upeu.comedorupeu.models.PuntoAtencion punto) {
+        int hoyDia = LocalDate.now().getDayOfWeek().getValue();
+        java.time.LocalTime ahora = java.time.LocalTime.now();
+        for (var celda : programacionRepo.findByObjetivoAndPuntoIdPuntoAndDiaSemana(
+                "TURNO_PUNTO", punto.getIdPunto(), hoyDia)) {
+            if (Boolean.FALSE.equals(celda.getActivo())) continue;
+            java.time.LocalTime ini = celda.getHoraInicio();
+            if (ini == null) continue;
+            java.time.LocalTime fin = (celda.getHoraFin() != null) ? celda.getHoraFin() : java.time.LocalTime.MAX;
+            if (!ahora.isBefore(ini) && !ahora.isAfter(fin)) return celda.getTipoTurno();
+        }
+        return null;
+    }
+
     public Optional<java.time.LocalTime[]> ventanaDe(String tipo) {
         int hoyDia = LocalDate.now().getDayOfWeek().getValue();
         var celda = programacionRepo
@@ -104,16 +149,7 @@ public class TurnoService {
             boolean agendaGobierna = limite != null
                     && (turno.getUltimaAccionManual() == null
                         || turno.getUltimaAccionManual().isBefore(limite));
-            if (agendaGobierna) {
-                if (!dentro) return false;
-
-                boolean otroManualPosterior = turnosDeHoy().stream()
-                        .anyMatch(t -> !t.getTipo().equals(turno.getTipo())
-                                && "ACTIVO".equals(t.getEstado())
-                                && t.getUltimaAccionManual() != null
-                                && !t.getUltimaAccionManual().isBefore(LocalDate.now().atTime(ini)));
-                return !otroManualPosterior;
-            }
+            if (agendaGobierna) return dentro;
         }
 
         return "ACTIVO".equals(turno.getEstado());
@@ -141,13 +177,6 @@ public class TurnoService {
 
         turno.setUltimaAccionManual(null);
         if (dentro) {
-
-            for (Turno otro : turnoRepo.findByFecha(LocalDate.now())) {
-                if (!otro.getIdTurno().equals(turno.getIdTurno()) && "ACTIVO".equals(otro.getEstado())) {
-                    otro.setEstado("CERRADO");
-                    turnoRepo.save(otro);
-                }
-            }
             turno.setEstado("ACTIVO");
         } else if ("ACTIVO".equals(turno.getEstado())) {
 
@@ -205,36 +234,41 @@ public class TurnoService {
 
     public boolean turnoYaOcurrio(String tipo, LocalDate fecha) {
         LocalDate hoy = LocalDate.now();
-        if (fecha.isBefore(hoy)) return true;
         if (fecha.isAfter(hoy)) return false;
 
-        Optional<Turno> turnoHoy = turnoRepo.findByFechaAndTipo(hoy, tipo);
-        if (turnoHoy.isPresent() && "CERRADO".equals(turnoHoy.get().getEstado())
-                && !estaAtendiendo(turnoHoy.get())) return true;
+        Optional<Turno> turno = turnoRepo.findByFechaAndTipo(fecha, tipo);
+        if (turno.isEmpty() || "DESACTIVADO".equals(turno.get().getEstado())) return false;
+        if (!tuvoActividad(turno.get())) return false;
+
+        if (fecha.isBefore(hoy)) return true;
+
+        if (estaAtendiendo(turno.get())) return false;
+        if ("CERRADO".equals(turno.get().getEstado())) return true;
 
         int idx = TIPOS.indexOf(tipo);
         for (int i = idx + 1; i < TIPOS.size(); i++) {
             Optional<Turno> posterior = turnoRepo.findByFechaAndTipo(hoy, TIPOS.get(i));
-            if (posterior.isPresent() && (estaAtendiendo(posterior.get())
-                    || "CERRADO".equals(posterior.get().getEstado()))) return true;
+            if (posterior.isEmpty()) continue;
+            boolean atendiendo = estaAtendiendo(posterior.get());
+            boolean cerradoConGente = "CERRADO".equals(posterior.get().getEstado())
+                    && tuvoActividad(posterior.get());
+            if (atendiendo || cerradoConGente) return true;
         }
 
         return false;
+    }
+
+    public boolean tuvoActividad(Turno turno) {
+        if (turno == null || turno.getIdTurno() == null) return false;
+        if (marcacionRepo == null) return true;
+        return marcacionRepo.countByTurnoIdTurno(turno.getIdTurno()) > 0;
     }
 
     @Transactional
     public void cambiarEstado(Long idTurno, String accion, Usuario usuario) {
         Turno turno = turnoRepo.findById(idTurno).orElseThrow();
         switch (accion) {
-            case "activar" -> {
-                for (Turno t : turnoRepo.findByFecha(turno.getFecha())) {
-                    if (!t.getIdTurno().equals(idTurno) && "ACTIVO".equals(t.getEstado())) {
-                        t.setEstado("CERRADO");
-                        turnoRepo.save(t);
-                    }
-                }
-                turno.setEstado("ACTIVO");
-            }
+            case "activar" -> turno.setEstado("ACTIVO");
             case "cerrar" -> turno.setEstado("CERRADO");
         }
         turno.setUsuario(usuario);

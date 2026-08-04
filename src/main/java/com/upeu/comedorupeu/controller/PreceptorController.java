@@ -123,11 +123,20 @@ public class PreceptorController {
         return "preceptor/residente_form";
     }
 
+    private boolean fueraDeSuResidencia(Residente r, Authentication auth) {
+        if (r == null) return true;
+        Usuario u = usuarioActual(auth);
+        if (u == null) return true;
+        if (!"PRECEPTOR".equals(u.getRol()) || u.getPabellon() == null) return false;
+        return r.getPabellon() != null && !u.getPabellon().equals(r.getPabellon());
+    }
+
     @GetMapping("/residentes/{id}/editar")
     public String editarResidente(@PathVariable Long id, Model model, Authentication auth) {
 
         Residente residente = residenteRepo.findById(id).orElse(null);
         if (residente == null) return "redirect:/preceptor/residentes";
+        if (fueraDeSuResidencia(residente, auth)) return "redirect:/preceptor/residentes";
         model.addAttribute("residente", residente);
         model.addAttribute("pabellonAuto", usuarioActual(auth).getPabellon());
         model.addAttribute("facultades", carrerasService.facultades());
@@ -135,9 +144,13 @@ public class PreceptorController {
     }
 
     @PostMapping("/residentes/{id}/eliminar")
-    public String eliminarResidente(@PathVariable Long id, RedirectAttributes flash) {
+    public String eliminarResidente(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
         Residente r = residenteRepo.findById(id).orElse(null);
         if (r == null) return "redirect:/preceptor/residentes";
+        if (fueraDeSuResidencia(r, auth)) {
+            flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
+            return "redirect:/preceptor/residentes";
+        }
         try {
             residenteRepo.delete(r);
             residenteRepo.flush();
@@ -154,10 +167,11 @@ public class PreceptorController {
 
                                @RequestParam(required = false) LocalDate fDesde,
                                @RequestParam(required = false) LocalDate fHasta,
-                               Model model) {
+                               Model model, Authentication auth) {
 
         Residente r = residenteRepo.findById(id).orElse(null);
         if (r == null) return "redirect:/preceptor/residentes";
+        if (fueraDeSuResidencia(r, auth)) return "redirect:/preceptor/residentes";
         model.addAttribute("residente", r);
 
         var ausencias = ausenciaRepo.findByResidenteIdResidenteOrderByFechaInicioDesc(id).stream()
@@ -232,6 +246,10 @@ public class PreceptorController {
         Residente r = residenteRepo.findById(id).orElse(null);
         if (r == null) {
             flash.addFlashAttribute("error", "El residente ya no existe.");
+            return "redirect:/preceptor/residentes";
+        }
+        if (fueraDeSuResidencia(r, auth)) {
+            flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
             return "redirect:/preceptor/residentes";
         }
         SolicitudExtemporanea s = new SolicitudExtemporanea();
@@ -346,6 +364,11 @@ public class PreceptorController {
                                    RedirectAttributes flash) {
         Residente r = (idResidente != null) ? residenteRepo.findById(idResidente).orElse(new Residente()) : new Residente();
 
+        if (idResidente != null && fueraDeSuResidencia(r, auth)) {
+            flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
+            return "redirect:/preceptor/residentes";
+        }
+
         if (!codigoAcceso.equals(r.getCodigoAcceso()) && residenteRepo.existsByCodigoAcceso(codigoAcceso)) {
             String dueno = residenteRepo.findByCodigoAcceso(codigoAcceso.trim())
                     .map(Residente::getNombreCompleto).orElse("otro residente");
@@ -444,12 +467,22 @@ public class PreceptorController {
             flash.addFlashAttribute("error", "El rango de fechas no es válido.");
             return "redirect:/preceptor/ausencias";
         }
+        if (desde.isBefore(LocalDate.now())) {
+            flash.addFlashAttribute("error", "No se puede justificar un día que ya pasó. "
+                    + "La justificación se registra antes de la ausencia, no después.");
+            return "redirect:/preceptor/ausencias";
+        }
+        if (desde.equals(LocalDate.now()) && turnoService.comidasBloqueadasHoy().size() == 3) {
+            flash.addFlashAttribute("error", "Los tres turnos de hoy ya cerraron: "
+                    + "no queda ninguna comida por justificar. Elige a partir de mañana.");
+            return "redirect:/preceptor/ausencias";
+        }
         Usuario preceptor = usuarioActual(auth);
         int registrados = 0;
 
         for (Long idRes : ids) {
             Residente r = residenteRepo.findById(idRes).orElse(null);
-            if (r == null) continue;
+            if (r == null || fueraDeSuResidencia(r, auth)) continue;
 
             Ausencia ausencia = new Ausencia();
             ausencia.setResidente(r);
@@ -486,8 +519,13 @@ public class PreceptorController {
             ausenciaRepo.save(ausencia);
             registrados++;
         }
-        flash.addFlashAttribute("ok", "Ausencia registrada para " + registrados + " residente(s) del "
-                + desde + " al " + hasta + ".");
+        if (registrados == 0) {
+            flash.addFlashAttribute("error", "No se registró ninguna ausencia: "
+                    + "revisa que los residentes seleccionados pertenezcan a tu residencia de género.");
+        } else {
+            flash.addFlashAttribute("ok", "Ausencia registrada para " + registrados + " residente(s) del "
+                    + desde + " al " + hasta + ".");
+        }
         return "redirect:/preceptor/ausencias";
     }
 
@@ -500,6 +538,10 @@ public class PreceptorController {
                                         RedirectAttributes flash) {
         Residente r = residenteRepo.findById(id).orElse(null);
         if (r == null) return "redirect:/preceptor/residentes";
+        if (fueraDeSuResidencia(r, auth)) {
+            flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
+            return "redirect:/preceptor/residentes";
+        }
         if (hasta.isBefore(desde)) {
             flash.addFlashAttribute("error", "El rango de fechas no es válido.");
             return "redirect:/preceptor/residentes/" + id;

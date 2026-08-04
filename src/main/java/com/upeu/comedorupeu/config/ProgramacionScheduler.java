@@ -94,13 +94,6 @@ public class ProgramacionScheduler {
             if (turno.getUltimaAccionManual() != null && !turno.getUltimaAccionManual().isBefore(limite)) continue;
 
             if (dentro && !"ACTIVO".equals(turno.getEstado())) {
-
-                for (Turno otro : turnoRepo.findByFecha(LocalDate.now())) {
-                    if (!otro.getIdTurno().equals(turno.getIdTurno()) && "ACTIVO".equals(otro.getEstado())) {
-                        otro.setEstado("CERRADO");
-                        turnoRepo.save(otro);
-                    }
-                }
                 turno.setEstado("ACTIVO");
                 turnoRepo.save(turno);
                 cambio = true;
