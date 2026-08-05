@@ -31,7 +31,9 @@ public class AlcanceTotal implements AlcanceDatos {
 
     @Override
     public List<Residente> residentesActivos() {
-        return residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO");
+        return residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO").stream()
+                .filter(AlcanceDatos::yaEnVigencia)
+                .toList();
     }
 
     @Override

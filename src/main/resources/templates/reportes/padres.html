@@ -123,7 +123,7 @@
                 <span th:text="${#temporals.format(s.fecha, 'dd/MM/yyyy')}">02/07</span> —
                 Ración reservada de <span th:text="${#strings.toLowerCase(s.tipoComida)}">almuerzo</span> ·
                 <span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-justificado' : 'bg-permitido'"
-                      th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente de recojo' : 'Entregada'">Entregada</span>
+                      th:text="${s.estadoTexto}">Entregada</span>
             </div>
             <div th:each="en : ${entregasResidente}" style="font-size:0.8rem; color:#b9770e;" class="border-bottom py-1">
                 <i class="fa-solid fa-medal me-1"></i>

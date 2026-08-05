@@ -111,6 +111,14 @@ public class ProgramacionScheduler {
         boolean cambio = false;
         for (PuntoAtencion punto : puntoRepo.vigentes()) {
 
+            if (punto.isOperativo() && turnoService.selloEsDeOtroDia(punto.getUltimaAccionManual())) {
+                punto.setActivo(false);
+                punto.setTurnoManual(null);
+                puntoRepo.save(punto);
+                cambio = true;
+                continue;
+            }
+
             List<ProgramacionHorario> celdas = programacionRepo
                     .findByObjetivoAndPuntoIdPuntoAndDiaSemana("TURNO_PUNTO", punto.getIdPunto(), hoyDia)
                     .stream()

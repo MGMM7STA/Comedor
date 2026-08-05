@@ -100,6 +100,20 @@ public class AdminController {
         return usuarioRepo.findByCorreo(auth.getName());
     }
 
+    private String textoAgendaDelDia(List<com.upeu.comedorupeu.models.ProgramacionHorario> celdasHoy) {
+        List<String> partes = new java.util.ArrayList<>();
+        for (String tipoT : TurnoService.TIPOS) {
+            for (var c : celdasHoy) {
+                if (!tipoT.equals(c.getTipoTurno())) continue;
+                if (c.getHoraInicio() == null && c.getHoraFin() == null) continue;
+                String ini = c.getHoraInicio() == null ? "--:--" : c.getHoraInicio().toString();
+                String fin = c.getHoraFin() == null ? "--:--" : c.getHoraFin().toString();
+                partes.add(tipoT.charAt(0) + tipoT.substring(1).toLowerCase() + " " + ini + " - " + fin);
+            }
+        }
+        return partes.isEmpty() ? "Sin horario" : String.join(" · ", partes);
+    }
+
     @GetMapping("/puntos")
     public String puntos(@RequestParam(name = "turnoPanel", defaultValue = "TODOS") String turnoPanel,
                          Model model) {
@@ -118,6 +132,7 @@ public class AdminController {
         Map<Long, Boolean> reprogPendiente = new HashMap<>();
         Map<Long, Boolean> abiertoAMano = new HashMap<>();
         Map<Long, Boolean> tieneAgendaHoy = new HashMap<>();
+        Map<Long, String> horarioDelDia = new HashMap<>();
         for (PuntoAtencion p : puntoRepo.vigentes()) {
 
             var celdasHoy = programacionRepo.findByObjetivoAndPuntoIdPuntoAndDiaSemana(
@@ -127,9 +142,10 @@ public class AdminController {
             for (var c : celdasHoy) {
                 if (c.cubre(diaHoy, ahora)) { celdaCubre = c; break; }
             }
-            necesitaTurno.put(p.getIdPunto(), celdaCubre == null);
+            necesitaTurno.put(p.getIdPunto(), true);
             abiertoAMano.put(p.getIdPunto(), p.isOperativo() && p.getTurnoManual() != null);
             tieneAgendaHoy.put(p.getIdPunto(), !celdasHoy.isEmpty());
+            horarioDelDia.put(p.getIdPunto(), textoAgendaDelDia(celdasHoy));
 
             boolean pendiente = false;
             if (p.isOperativo() && p.getTurnoManual() != null) {
@@ -162,6 +178,7 @@ public class AdminController {
         model.addAttribute("reprogPendiente", reprogPendiente);
         model.addAttribute("abiertoAMano", abiertoAMano);
         model.addAttribute("tieneAgendaHoy", tieneAgendaHoy);
+        model.addAttribute("horarioDelDia", horarioDelDia);
         model.addAttribute("hayActividad", vistaTurnos.values().stream().anyMatch(l -> !l.isEmpty()));
 
         long turnosActivos = vistaTurnos.values().stream().filter(l -> !l.isEmpty()).count();
@@ -173,7 +190,8 @@ public class AdminController {
                 : turnos.stream().filter(t -> t.getTipo().equals(panel)).toList();
 
         long residentesActivos = residenteRepo.countByEstado("ACTIVO");
-        long habilitados = residentesActivos * (panelTodos ? TurnoService.TIPOS.size() : 1);
+        long habilitados = residentesActivos;
+        long racionesPosibles = residentesActivos * (panelTodos ? TurnoService.TIPOS.size() : 1);
         long atendidos = 0, bloqueados = 0;
         for (Turno t : turnosPanel) {
             atendidos += marcacionRepo.countByTurnoIdTurnoAndEstado(t.getIdTurno(), "PERMITIDO")
@@ -188,8 +206,9 @@ public class AdminController {
 
         model.addAttribute("puntos", puntoRepo.vigentes());
         model.addAttribute("habilitados", habilitados);
+        model.addAttribute("racionesPosibles", racionesPosibles);
         model.addAttribute("atendidos", atendidos);
-        model.addAttribute("pendientes", Math.max(0, habilitados - atendidos));
+        model.addAttribute("pendientes", Math.max(0, racionesPosibles - atendidos));
         model.addAttribute("bloqueados", bloqueados);
         model.addAttribute("avisos", apunteRepo.findTop10ByTipoOrderByFechaHoraDesc("AVISO"));
         model.addAttribute("avisosPrec", apunteRepo.findTop10ByTipoOrderByFechaHoraDesc("PRECEPTOR"));
@@ -197,7 +216,7 @@ public class AdminController {
 
         model.addAttribute("racionesServidas", atendidos);
         model.addAttribute("racionesReservadas", solicitudRepo.countByFechaAndEstado(LocalDate.now(), "PENDIENTE"));
-        model.addAttribute("racionesPorServir", Math.max(0, habilitados - atendidos));
+        model.addAttribute("racionesPorServir", Math.max(0, racionesPosibles - atendidos));
 
         var eventosHoy = eventoRepo.findByEstadoAndFechaEvento("APROBADO", LocalDate.now());
         if (!eventosHoy.isEmpty()) {
@@ -220,17 +239,19 @@ public class AdminController {
             p.setActivo(!estabaOperativo);
             if (!estabaOperativo) {
 
-                if (turnoManual != null && !turnoManual.isBlank()) {
-                    p.setTurnoManual(turnoManual);
-                    turnoService.turnosDeHoy().stream()
-                            .filter(t -> t.getTipo().equals(turnoManual))
-                            .findFirst()
-                            .ifPresent(t -> {
-                                if (!"ACTIVO".equals(t.getEstado())) {
-                                    turnoService.cambiarEstado(t.getIdTurno(), "activar", usuarioActual(auth));
-                                }
-                            });
+                if (turnoManual == null || turnoManual.isBlank()) {
+                    p.setActivo(false);
+                    return;
                 }
+                p.setTurnoManual(turnoManual);
+                turnoService.turnosDeHoy().stream()
+                        .filter(t -> t.getTipo().equals(turnoManual))
+                        .findFirst()
+                        .ifPresent(t -> {
+                            if (!"ACTIVO".equals(t.getEstado())) {
+                                turnoService.cambiarEstado(t.getIdTurno(), "activar", usuarioActual(auth));
+                            }
+                        });
             } else {
 
                 String turnoQueServia = p.getTurnoManual();
@@ -497,9 +518,7 @@ public class AdminController {
         String[] partes = nombreCompleto.trim().split("\\s+", 2);
         u.setNombre(partes[0]);
         u.setApellido(partes.length > 1 ? partes[1] : "");
-        u.setCodigoUsuario(codigoUsuario == null || codigoUsuario.isBlank()
-                ? "USR-" + LocalDateTime.now().getYear() + "-" + String.format("%03d", usuarioRepo.count() + 1)
-                : codigoUsuario);
+        u.setCodigoUsuario(codigoUsuario == null || codigoUsuario.isBlank() ? null : codigoUsuario.trim());
         u.setDni(dni);
         u.setCorreo(correo);
         u.setTelefono(telefono);
@@ -686,15 +705,29 @@ public class AdminController {
                 .body(xlsx);
     }
 
+    private List<EventoEspecial> comidasDelEvento(EventoEspecial e) {
+        if (e.getGrupoEvento() == null || e.getGrupoEvento().isBlank()) return List.of(e);
+        List<EventoEspecial> grupo = eventoRepo.findByGrupoEvento(e.getGrupoEvento());
+        return grupo.isEmpty() ? List.of(e) : grupo;
+    }
+
+    private String textoComidas(List<EventoEspecial> grupo) {
+        if (grupo.size() == 1) return "";
+        return " (" + grupo.size() + " comidas: "
+                + String.join(", ", grupo.stream().map(EventoEspecial::getComidaTexto).toList()) + ")";
+    }
+
     @PostMapping("/eventos/{id}/aprobar")
     public String aprobarEvento(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
         eventoRepo.findById(id).ifPresent(e -> {
-            e.setEstado("APROBADO");
-            e.setRevisor(usuarioActual(auth));
-            eventoRepo.save(e);
-
-            flash.addFlashAttribute("ok", "Evento \"" + e.getNombre()
-                    + "\" aprobado: se prepararán raciones aparte para sus participantes (no justifica faltas).");
+            List<EventoEspecial> grupo = comidasDelEvento(e);
+            for (EventoEspecial comida : grupo) {
+                comida.setEstado("APROBADO");
+                comida.setRevisor(usuarioActual(auth));
+                eventoRepo.save(comida);
+            }
+            flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" aprobado" + textoComidas(grupo)
+                    + ": cada comida tiene su propio pase de lista para el preceptor.");
         });
         return "redirect:/admin/eventos/" + id;
     }
@@ -702,10 +735,13 @@ public class AdminController {
     @PostMapping("/eventos/{id}/rechazar")
     public String rechazarEvento(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
         eventoRepo.findById(id).ifPresent(e -> {
-            e.setEstado("RECHAZADO");
-            e.setRevisor(usuarioActual(auth));
-            eventoRepo.save(e);
-            flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" rechazado.");
+            List<EventoEspecial> grupo = comidasDelEvento(e);
+            for (EventoEspecial comida : grupo) {
+                comida.setEstado("RECHAZADO");
+                comida.setRevisor(usuarioActual(auth));
+                eventoRepo.save(comida);
+            }
+            flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" rechazado" + textoComidas(grupo) + ".");
         });
         return "redirect:/admin/eventos/" + id;
     }
@@ -713,9 +749,13 @@ public class AdminController {
     @PostMapping("/eventos/{id}/eliminar")
     public String eliminarEvento(@PathVariable Long id, RedirectAttributes flash) {
         eventoRepo.findById(id).ifPresent(e -> {
-            entregaRepo.deleteAll(entregaRepo.findByEventoIdEvento(id));
-            eventoRepo.delete(e);
-            flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" eliminado junto con su pase de lista.");
+            List<EventoEspecial> grupo = comidasDelEvento(e);
+            for (EventoEspecial comida : grupo) {
+                entregaRepo.deleteAll(entregaRepo.findByEventoIdEvento(comida.getIdEvento()));
+                eventoRepo.delete(comida);
+            }
+            flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" eliminado" + textoComidas(grupo)
+                    + " junto con su pase de lista.");
         });
         return "redirect:/admin/eventos";
     }

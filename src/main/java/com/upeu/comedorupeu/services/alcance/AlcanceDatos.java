@@ -13,6 +13,10 @@ public interface AlcanceDatos {
 
     List<Residente> residentesActivos();
 
+    static boolean yaEnVigencia(Residente r) {
+        return r.getFechaIngreso() == null || !r.getFechaIngreso().isAfter(LocalDate.now());
+    }
+
     List<SolicitudExtemporanea> reservas(LocalDate desde, LocalDate hasta);
 
     List<Ausencia> justificaciones(LocalDate desde, LocalDate hasta);

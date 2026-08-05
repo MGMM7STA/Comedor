@@ -318,7 +318,30 @@ public class ReporteService {
         }
 
         if (!turnoService.turnoYaOcurrio(tipo, fecha)) return "PEND";
+
+        if (comioEnUnEvento(residente, fecha, tipo)) {
+            agregarObservacion(fila, "Comió en un evento");
+            setMotivoComida(fila, tipo, "Comió en un evento especial");
+            return "JUST";
+        }
         return "NO";
+    }
+
+    private boolean comioEnUnEvento(Residente residente, LocalDate fecha, String tipo) {
+        if (eventoRepo == null) return false;
+        for (var ev : eventoRepo.findByEstadoAndFechaEvento("APROBADO", fecha)) {
+            if (!ev.sustituye(tipo)) continue;
+            if (ev.getExcluidosLista().contains(residente.getCodigoAcceso())) continue;
+            return true;
+        }
+        return false;
+    }
+
+    private com.upeu.comedorupeu.repository.EventoEspecialRepository eventoRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setEventoRepo(com.upeu.comedorupeu.repository.EventoEspecialRepository eventoRepo) {
+        this.eventoRepo = eventoRepo;
     }
 
     private void setHoraComida(FilaDia fila, String tipo, String hora) {

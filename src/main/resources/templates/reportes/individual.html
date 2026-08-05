@@ -279,7 +279,7 @@
                                             • <span th:text="${#strings.capitalize(#strings.toLowerCase(s.tipoComida))}">Almuerzo</span> —
                                             reservó <span th:text="${s.usuario != null} ? ${s.usuario.nombreCompleto} : '—'">Prec. Ríos</span> —
                                             <span th:text="${s.motivo}">motivo</span> —
-                                            <span th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Entregada</span>
+                                            <span th:text="${s.estadoTexto}">Entregada</span>
                                             <span th:if="${s.entregadoA != null}"> (a <span th:text="${s.entregadoATexto}">Residente</span>)</span>
                                         </div>
                                     </div>

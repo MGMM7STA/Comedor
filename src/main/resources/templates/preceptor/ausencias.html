@@ -95,7 +95,13 @@
                                     <div>Último Día</div>
                                     <div id="fechaUltimo" style="font-weight:400; font-size:0.7rem; color:#aebfce;">—</div>
                                 </th>
-                                <th rowspan="2"></th>
+                                <th rowspan="2" class="text-center">
+                                    <button type="button" class="btn btn-light border btn-sm" style="font-size:0.66rem;"
+                                            title="Marcar o quitar todas las comidas de TODOS los residentes de la lista"
+                                            onclick="alternarTodos()">
+                                        <i class="fa-solid fa-check-double me-1"></i>Todos
+                                    </button>
+                                </th>
                             </tr>
                             <tr>
                                 <th class="text-center" style="font-size:0.7rem;">D</th>
@@ -122,69 +128,17 @@
             </div>
         </form>
 
-        <div class="card-panel mt-3">
-            <h6 class="fw-bold mb-2" style="color:#2c3e50;">Ausencias Vigentes</h6>
-            <div style="font-size:0.72rem; color:#8a97a3;" class="mb-2">
-                Las futuras se pueden <strong>eliminar</strong>; las que ya empezaron se pueden
-                <strong>cancelar</strong> (lo ya transcurrido se conserva en el historial).
+
+        <div class="card-panel mt-3 text-center">
+            <a href="/admin/justificaciones" class="btn btn-navy btn-sm-flat"
+               title="Ver, cancelar y eliminar justificaciones en una pantalla completa">
+                <i class="fa-solid fa-clock-rotate-left me-1"></i>Ver historial de justificaciones
+            </a>
+            <div style="font-size:0.72rem; color:#8a97a3;" class="mt-2">
+                Ahí puedes consultar por fechas, buscar por residente y cancelar o eliminar.
             </div>
-
-            <table class="tabla-dark">
-                <thead>
-                <tr><th>N°</th><th>Fecha</th><th>Residente</th><th>Código</th><th>Acciones</th></tr>
-                </thead>
-                <tbody>
-                <tr th:each="a, it : ${ausenciasVigentes}" th:with="estado=${estadoAusencias.get(a.idAusencia)}">
-                    <td th:text="${it.count}">1</td>
-                    <td style="font-size:0.78rem;">
-                        <span th:text="${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')}">05/05</span>
-                        <span th:if="${!a.fechaInicio.equals(a.fechaFin)}">
-                            – <span th:text="${#temporals.format(a.fechaFin, 'dd/MM/yyyy')}">11/05</span>
-                        </span>
-                    </td>
-                    <td th:text="${a.residente.apellido} + ', ' + ${a.residente.nombre}">Mamani, Juan</td>
-                    <td th:text="${a.residente.codigoAcceso}">U-2024-10542</td>
-                    <td>
-
-                        <button type="button" class="btn btn-primary btn-sm" style="font-size:0.68rem;"
-                                onclick="verAusencia(this)" title="Ver el detalle completo de esta ausencia"
-                                th:attr="data-residente=${a.residente.nombreCompleto},
-                                         data-codigo=${a.residente.codigoAcceso},
-                                         data-fechas=${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')} + ' al ' + ${#temporals.format(a.fechaFin, 'dd/MM/yyyy')},
-                                         data-estado=${estado == 'FUTURA'} ? 'Aún no empieza' : 'En curso',
-                                         data-motivo=${a.motivo}">
-                            <i class="fa-solid fa-eye"></i> Ver detalles
-                        </button>
-
-                        <form th:if="${estado == 'FUTURA'}"
-                              th:action="@{'/preceptor/ausencias/' + ${a.idAusencia} + '/eliminar'}" method="post" style="margin:0;"
-                              data-titulo="Eliminar ausencia futura"
-                              data-confirmar="La ausencia aún no empieza: se eliminará por completo."
-                              data-boton="Sí, eliminar">
-                            <button class="btn btn-outline-danger btn-sm" style="font-size:0.68rem;"
-                                    title="Eliminar esta ausencia (aún no empieza)">
-                                <i class="fa-solid fa-trash"></i> Eliminar
-                            </button>
-                        </form>
-
-                        <form th:if="${estado == 'EN_CURSO'}"
-                              th:action="@{'/preceptor/ausencias/' + ${a.idAusencia} + '/cancelar'}" method="post" style="margin:0;"
-                              data-titulo="Cancelar ausencia en curso"
-                              data-confirmar="Cierre anticipado: los turnos que ya pasaron justificados se conservan, y desde este momento el residente vuelve a marcar normalmente."
-                              data-boton="Sí, cancelar desde ahora">
-                            <button class="btn btn-sm" style="font-size:0.68rem; background:#f39c12; color:#fff;"
-                                    title="Cancelar desde ahora (lo transcurrido se conserva)">
-                                <i class="fa-solid fa-scissors me-1"></i>Cancelar
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                <tr th:if="${#lists.isEmpty(ausenciasVigentes)}">
-                    <td colspan="5" class="text-center text-muted py-3">Sin ausencias vigentes.</td>
-                </tr>
-                </tbody>
-            </table>
         </div>
+
     </div>
 </div>
 
@@ -200,14 +154,50 @@
         const desdeEsHoy = document.getElementById('desde').value === fechaHoy;
         document.querySelectorAll('#cuerpoSel tr[data-grupo-cadena]').forEach(fila => {
             ['D', 'A', 'C'].forEach(letra => {
-                const ch = fila.querySelector('input[data-cadena="p"][data-comida="' + letra + '"]');
+                const ch = fila.querySelector('input[data-pref="p"][data-comida="' + letra + '"]');
                 if (!ch) return;
                 const cerrada = desdeEsHoy && comidasBloqueadas.includes(letraATurno[letra]);
-                ch.dataset.cerrada = cerrada ? '1' : '0';
+                ch.disabled = cerrada;
+                if (cerrada) ch.checked = false;
                 ch.title = cerrada ? 'Este turno de hoy ya cerró: no se puede justificar' : '';
             });
-            refrescarCadena(fila, 'p');
-            refrescarCadena(fila, 'u');
+        });
+    }
+
+    function alternarFila(idResidente, boton) {
+        const fila = document.getElementById('sel_' + idResidente);
+        if (!fila) return;
+        const casillas = [...fila.querySelectorAll('input[type=checkbox]:not(:disabled)')]
+            .filter(c => c.closest('td').style.display !== 'none');
+        const marcar = casillas.some(c => !c.checked);
+        casillas.forEach(c => c.checked = marcar);
+        boton.textContent = marcar ? 'Quitar todo' : 'Marcar todo';
+        actualizarResumen();
+    }
+
+    function alternarTodos() {
+        const filas = document.querySelectorAll('#cuerpoSel tr[data-grupo-cadena]');
+        if (filas.length === 0) {
+            avisoSistema('Primero agrega residentes a la lista.', 'Sin residentes');
+            return;
+        }
+        const casillas = [...document.querySelectorAll('#cuerpoSel input[type=checkbox]:not(:disabled)')]
+            .filter(c => c.closest('td').style.display !== 'none');
+        const marcar = casillas.some(c => !c.checked);
+        confirmarSistema({
+            titulo: marcar ? 'Marcar todas las comidas' : 'Quitar todas las comidas',
+            estilo: marcar ? 'exito' : 'peligro',
+            boton: marcar ? 'Sí, marcar todo' : 'Sí, quitar todo',
+            mensaje: marcar
+                ? 'Se marcarán TODAS las comidas de los ' + filas.length + ' residentes de la lista.'
+                : 'Se quitarán TODAS las comidas marcadas de los ' + filas.length + ' residentes de la lista.',
+            alConfirmar: () => {
+                casillas.forEach(c => c.checked = marcar);
+                document.querySelectorAll('.btn-fila-todo').forEach(b => {
+                    b.textContent = marcar ? 'Quitar todo' : 'Marcar todo';
+                });
+                actualizarResumen();
+            }
         });
     }
 
@@ -223,6 +213,8 @@
     function agregarResidente() {
         const q = document.getElementById('buscador').value.trim();
         if (!q) return;
+        const varios = coincidenciasDeNombre(residentes, q);
+        if (varios.length > 1) { avisarVariasCoincidencias(varios, q); return; }
         const r = buscarResidenteEnLista(residentes, q)
             || residentes.find(x => normalizarTexto(x.codigo + ' — ' + x.nombre) === normalizarTexto(q));
         if (!r) {
@@ -244,10 +236,15 @@
             ['D', 'A', 'C'].forEach(letra => {
                 celdas += '<td class="text-center' + (pref === 'u' ? ' colU' : '') + '">' +
                     '<input type="checkbox" class="form-check-input" name="' + pref + letra + '_' + r.id + '"' +
-                    ' data-cadena="' + pref + '" data-comida="' + letra + '"></td>';
+                    ' data-pref="' + pref + '" data-comida="' + letra + '"></td>';
             });
         });
-        celdas += '<td><button type="button" class="btn btn-danger btn-sm" style="font-size:0.7rem;" onclick="quitar(' + r.id + ')">Quitar</button></td>';
+        celdas += '<td class="text-nowrap">'
+            + '<button type="button" class="btn btn-outline-dark btn-sm btn-fila-todo me-1" style="font-size:0.66rem;"'
+            + ' title="Marcar o quitar todas las comidas de este residente"'
+            + ' onclick="alternarFila(' + r.id + ', this)">Marcar todo</button>'
+            + '<button type="button" class="btn btn-danger btn-sm" style="font-size:0.66rem;"'
+            + ' onclick="quitar(' + r.id + ')">Quitar</button></td>';
         fila.innerHTML = celdas;
         document.getElementById('cuerpoSel').appendChild(fila);
 
@@ -333,7 +330,9 @@
 
         const siguiente = new Date(desde.value + 'T00:00:00');
         siguiente.setDate(siguiente.getDate() + 1);
-        const minimo = siguiente.toISOString().slice(0, 10);
+        const minimo = siguiente.getFullYear() + '-'
+            + String(siguiente.getMonth() + 1).padStart(2, '0') + '-'
+            + String(siguiente.getDate()).padStart(2, '0');
         hasta.min = minimo;
         if (!hasta.value || hasta.value <= desde.value) hasta.value = minimo;
     }

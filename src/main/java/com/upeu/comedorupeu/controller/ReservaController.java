@@ -38,6 +38,13 @@ public class ReservaController {
         this.semestreService = semestreService;
     }
 
+    private com.upeu.comedorupeu.services.JustificacionService justificacionService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setJustificacionService(com.upeu.comedorupeu.services.JustificacionService justificacionService) {
+        this.justificacionService = justificacionService;
+    }
+
     public ReservaController(SolicitudExtemporaneaRepository solicitudRepo, ResidenteRepository residenteRepo,
                              UsuarioRepository usuarioRepo, TurnoService turnoService, AlcanceService alcanceService,
                              com.upeu.comedorupeu.services.ExcelService excelService) {
@@ -67,6 +74,7 @@ public class ReservaController {
                               @RequestParam(required = false) String motivo,
                               @RequestParam(required = false) java.time.LocalTime horaRecojo,
                               @RequestParam(required = false) String codigos,
+                              @RequestParam(required = false) String conTaper,
                               @RequestParam(defaultValue = "false") boolean agrupar,
                               Authentication auth, RedirectAttributes flash) {
 
@@ -87,7 +95,12 @@ public class ReservaController {
                 ? "G-" + java.time.LocalDateTime.now()
                         .format(java.time.format.DateTimeFormatter.ofPattern("ddMM-HHmmssSSS"))
                 : null;
-        int creadas = 0, repetidas = 0;
+        java.util.Set<String> traenTaper = new java.util.HashSet<>();
+        if (conTaper != null && !conTaper.isBlank()) {
+            for (String c : conTaper.split(",")) traenTaper.add(c.trim());
+        }
+
+        int creadas = 0, repetidas = 0, justificados = 0;
         for (String cod : codigos.split(",")) {
             String codigo = cod.trim();
             if (codigo.isEmpty()) continue;
@@ -100,6 +113,11 @@ public class ReservaController {
                             r.getIdResidente(), fecha, tipoComida, "PENDIENTE").isPresent();
             if (yaTiene) { repetidas++; continue; }
 
+            if (justificacionService.buscar(r, fecha, tipoComida).isPresent()) {
+                justificados++;
+                continue;
+            }
+
             SolicitudExtemporanea s = new SolicitudExtemporanea();
             s.setResidente(r);
             s.setUsuario(quien);
@@ -110,6 +128,7 @@ public class ReservaController {
             s.setMotivo((motivo == null || motivo.isBlank()) ? "Reserva registrada por preceptoría" : motivo.trim());
             s.setEstado("PENDIENTE");
             s.setGrupoLote(grupo);
+            s.setTraeTaper(traenTaper.contains(codigo));
             solicitudRepo.save(s);
             creadas++;
         }
@@ -121,6 +140,10 @@ public class ReservaController {
             msg += " como reservas individuales (el cajero las entrega una por una).";
         }
         if (repetidas > 0) msg += " " + repetidas + " ya tenían reserva y se omitieron.";
+        if (justificados > 0) {
+            msg += " " + justificados + " se omitieron porque están EN AUSENCIA JUSTIFICADA "
+                    + "en ese turno: no tiene sentido reservarles comida.";
+        }
         flash.addFlashAttribute("ok", msg);
         return "redirect:/preceptor/reservas";
     }
@@ -257,19 +280,33 @@ public class ReservaController {
     }
 
     @PostMapping("/admin/reservas/{id}/cancelar")
-    public String cancelarAdmin(@PathVariable Long id, RedirectAttributes flash) {
-        solicitudRepo.findById(id).ifPresent(s -> {
-            if (!"PENDIENTE".equals(s.getEstado())) {
-                flash.addFlashAttribute("error", "Esa reserva ya fue entregada: forma parte del historial.");
-                return;
-            }
-            if (turnoService.turnoYaOcurrio(s.getTipoComida(), s.getFecha())) {
-                flash.addFlashAttribute("error", "El turno de esa reserva ya pasó: queda como historial y no se puede cancelar.");
-                return;
-            }
-            solicitudRepo.delete(s);
-            flash.addFlashAttribute("ok", "Reserva de " + s.getResidente().getNombreCompleto() + " cancelada.");
-        });
+    public String cancelarAdmin(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
+        boolean esPreceptor = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_PRECEPTOR".equals(a.getAuthority()));
+        if (!esPreceptor) {
+            flash.addFlashAttribute("error", "Las reservas solo las puede cancelar el preceptor que "
+                    + "atiende a ese residente. El administrador puede consultarlas, no cancelarlas.");
+            return "redirect:/admin/reservas";
+        }
+
+        SolicitudExtemporanea s = solicitudRepo.findById(id).orElse(null);
+        if (s == null) return "redirect:/admin/reservas";
+
+        if (!alcanceService.de(auth).alcanza(s.getResidente())) {
+            flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
+        } else if (!"PENDIENTE".equals(s.getEstado())) {
+            flash.addFlashAttribute("error", "Esa reserva ya fue atendida por el cajero; no se puede cancelar.");
+        } else if (turnoService.turnoYaOcurrio(s.getTipoComida(), s.getFecha())) {
+            flash.addFlashAttribute("error", "El turno de esa reserva ya pasó: queda como historial y no se puede cancelar.");
+        } else {
+            Usuario quien = usuarioRepo.findByCorreo(auth.getName());
+            s.setEstado("CANCELADA");
+            s.setCanceladaPor(quien.getNombreCompleto() + " (" + quien.getRol() + ")");
+            s.setFechaCancelacion(java.time.LocalDateTime.now());
+            solicitudRepo.save(s);
+            flash.addFlashAttribute("ok", "Reserva de " + s.getTipoComida().toLowerCase()
+                    + " del " + s.getFecha() + " cancelada por " + s.getCanceladaPor() + ".");
+        }
         return "redirect:/admin/reservas";
     }
 

@@ -22,6 +22,42 @@ public class EventoEspecial {
 
     private String turnos;
 
+    private Boolean sustituyeDesayuno = false;
+    private Boolean sustituyeAlmuerzo = false;
+    private Boolean sustituyeCena = false;
+
+    private String comida;
+
+    private String grupoEvento;
+
+    public String getComidaTexto() {
+        if (comida == null || comida.isBlank()) return "Ración adicional";
+        return comida.charAt(0) + comida.substring(1).toLowerCase();
+    }
+
+    public String getNombreConComida() {
+        if (comida == null || comida.isBlank()) return nombre;
+        return nombre + " (" + getComidaTexto() + ")";
+    }
+
+    public boolean sustituye(String tipoComida) {
+        if (tipoComida == null) return false;
+        return switch (tipoComida) {
+            case "DESAYUNO" -> Boolean.TRUE.equals(sustituyeDesayuno);
+            case "ALMUERZO" -> Boolean.TRUE.equals(sustituyeAlmuerzo);
+            case "CENA" -> Boolean.TRUE.equals(sustituyeCena);
+            default -> false;
+        };
+    }
+
+    public String getComidasSustituidasTexto() {
+        java.util.List<String> l = new java.util.ArrayList<>();
+        if (Boolean.TRUE.equals(sustituyeDesayuno)) l.add("Desayuno");
+        if (Boolean.TRUE.equals(sustituyeAlmuerzo)) l.add("Almuerzo");
+        if (Boolean.TRUE.equals(sustituyeCena)) l.add("Cena");
+        return l.isEmpty() ? "Ninguna (ración adicional)" : String.join(" + ", l);
+    }
+
     @Column(length = 1000)
     private String excluidos;
 

@@ -90,12 +90,20 @@
                                     </div>
 
                                     <div class="col-md-4">
-                                        <div class="lbl">Semestre</div>
-                                        <input type="text" class="form-control" disabled
-                                               style="font-size:0.87rem; background:#f2f5f8; font-weight:600;"
-                                               th:value="${residente.semestreTexto}"
-                                               title="Asignado automáticamente según la fecha del sistema">
-                                        <div style="font-size:0.68rem; color:#8a97a3;">Automático según la fecha del sistema</div>
+                                        <div class="lbl" title="Desde cuándo puede usar el comedor">Inicio de estancia</div>
+                                        <input type="date" name="fechaIngreso" class="form-control"
+                                               th:value="${residente.fechaIngreso != null} ? ${residente.fechaIngreso} : ${hoy}"
+                                               th:min="${residente.idResidente == null} ? ${hoy} : null" required
+                                               title="No puede ser anterior a hoy">
+                                        <div style="font-size:0.68rem; color:#8a97a3;">
+                                            Si es posterior a hoy, solo figurará en esta lista hasta esa fecha.
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="lbl" title="Hasta cuándo puede usar el comedor">Fin de estancia</div>
+                                        <input type="date" name="fechaFinEstancia" class="form-control"
+                                               th:value="${residente.fechaFinEstancia}"
+                                               title="Al cumplirse, deja de figurar para nuevos registros">
                                     </div>
                                     <div class="col-md-4">
                                         <div class="lbl">Celular</div>

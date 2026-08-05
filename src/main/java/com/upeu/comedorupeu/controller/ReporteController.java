@@ -394,6 +394,10 @@ public class ReporteController {
         LocalDate desde = semestreService.recortarInicio(semestre, base);
         LocalDate hasta = semestreService.recortarFin(semestre,
                 (fechaHasta != null && !fechaHasta.isBefore(desde)) ? fechaHasta : desde);
+
+        LocalDate hoy = LocalDate.now();
+        if (desde.isAfter(hoy)) desde = hoy;
+        if (hasta.isAfter(hoy)) hasta = hoy;
         String pab = pabellonEfectivo(auth, pabellon);
 
         boolean vNormal = "NORMAL".equals(seccion);
@@ -424,13 +428,16 @@ public class ReporteController {
 
     @GetMapping("/exportar-masivo")
     public ResponseEntity<byte[]> exportarMasivo(
-            @RequestParam(name = "semestre", required = false) String semestreParam,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
             Authentication auth) throws IOException {
         String pab = pabellonEfectivo(auth, null);
 
-        String semestre = semestreService.valido(semestreParam);
-        LocalDate desde = semestreService.inicioDe(semestre);
-        LocalDate hasta = semestreService.recortarFin(semestre, LocalDate.now());
+        LocalDate hoy = LocalDate.now();
+        LocalDate desde = (fecha != null) ? fecha : hoy;
+        LocalDate hasta = (fechaHasta != null && !fechaHasta.isBefore(desde)) ? fechaHasta : desde;
+        if (desde.isAfter(hoy)) desde = hoy;
+        if (hasta.isAfter(hoy)) hasta = hoy;
 
         ReporteGeneral rep = reporteService.general(desde, hasta, "TODOS", null, pab, true, null);
 
@@ -598,6 +605,11 @@ public class ReporteController {
         }
 
         if (residente != null && pabellon != null && !pabellon.equals(residente.getPabellon())) {
+            return null;
+        }
+
+        if (residente != null
+                && !com.upeu.comedorupeu.services.alcance.AlcanceDatos.yaEnVigencia(residente)) {
             return null;
         }
         return residente;

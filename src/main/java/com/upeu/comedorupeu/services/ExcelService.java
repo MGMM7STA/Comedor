@@ -29,7 +29,7 @@ public class ExcelService {
     private static final String[] CABECERAS = {
             "Nombres", "Apellidos", "DNI", "Codigo", "Carrera", "Cuarto", "Celular",
             "Resp. Financiero", "Relacion", "DNI Resp.", "Telefono Resp.",
-            "Estado", "Estado de Pago"
+            "Inicio estancia (AAAA-MM-DD)", "Fin estancia (AAAA-MM-DD)", "Estado", "Estado de Pago"
     };
 
     private static final String[] ESTADOS = {"ACTIVO", "INACTIVO"};
@@ -56,6 +56,7 @@ public class ExcelService {
         }
 
         int importados = 0;
+        int actualizados = 0;
         List<String> omitidos = new ArrayList<>();
         DataFormatter fmt = new DataFormatter();
 
@@ -70,18 +71,51 @@ public class ExcelService {
                 String codigo = celda(fmt, fila, 3);
                 if (nombres.isBlank() && apellidos.isBlank() && codigo.isBlank()) continue;
 
-                if (codigo.isBlank() || nombres.isBlank()) {
-                    omitidos.add("Fila " + (fila.getRowNum() + 1) + ": falta nombre o código");
+                if (codigo.isBlank()) {
+                    omitidos.add("Fila " + (fila.getRowNum() + 1) + ": falta el código de residente, "
+                            + "que es obligatorio para poder importar");
                     continue;
                 }
-                if (residenteRepo.existsByCodigoAcceso(codigo)) {
-                    omitidos.add("Fila " + (fila.getRowNum() + 1) + ": código " + codigo + " ya existe");
+                if (nombres.isBlank()) {
+                    omitidos.add("Fila " + (fila.getRowNum() + 1) + ": falta el nombre");
                     continue;
                 }
-
                 String dniImportado = celda(fmt, fila, 2).trim();
-                if (!dniImportado.isEmpty() && residenteRepo.existsByDni(dniImportado)) {
-                    omitidos.add("Fila " + (fila.getRowNum() + 1) + ": DNI " + dniImportado + " ya existe");
+                var porCodigo = residenteRepo.findByCodigoAcceso(codigo);
+                var porDni = dniImportado.isEmpty()
+                        ? java.util.Optional.<Residente>empty()
+                        : residenteRepo.findFirstByDni(dniImportado);
+
+                boolean actualizar = false;
+                if (porCodigo.isPresent()) {
+                    String dniGuardado = porCodigo.get().getDni();
+                    boolean guardadoSinDni = dniGuardado == null || dniGuardado.isBlank();
+
+                    if (guardadoSinDni) {
+
+                        if (porDni.isPresent()
+                                && !porDni.get().getIdResidente().equals(porCodigo.get().getIdResidente())) {
+                            omitidos.add("Fila " + (fila.getRowNum() + 1) + ": el DNI " + dniImportado
+                                    + " ya está registrado con OTRO código (" + porDni.get().getCodigoAcceso() + ")");
+                            continue;
+                        }
+                        actualizar = true;
+                    } else if (dniImportado.isEmpty()) {
+                        omitidos.add("Fila " + (fila.getRowNum() + 1) + ": el código " + codigo
+                                + " ya existe y ese residente tiene DNI registrado. Escribe también su DNI "
+                                + "para poder actualizarlo");
+                        continue;
+                    } else if (dniGuardado.equals(dniImportado)) {
+                        actualizar = true;
+                    } else {
+                        omitidos.add("Fila " + (fila.getRowNum() + 1) + ": el código " + codigo
+                                + " ya existe pero con OTRO DNI (registrado " + dniGuardado
+                                + ", en el archivo " + dniImportado + "). Revisa cuál de los dos está mal");
+                        continue;
+                    }
+                } else if (porDni.isPresent()) {
+                    omitidos.add("Fila " + (fila.getRowNum() + 1) + ": el DNI " + dniImportado
+                            + " ya está registrado con OTRO código (" + porDni.get().getCodigoAcceso() + ")");
                     continue;
                 }
 
@@ -91,7 +125,18 @@ public class ExcelService {
                     continue;
                 }
 
-                Residente r = new Residente();
+                java.time.LocalDate hoy = java.time.LocalDate.now();
+                java.time.LocalDate ingresoPrevio = actualizar ? porCodigo.get().getFechaIngreso() : null;
+                java.time.LocalDate ingresoPorDefecto = (ingresoPrevio != null) ? ingresoPrevio : hoy;
+                java.time.LocalDate ingresoFila = (cols[3] >= 0)
+                        ? fechaDeCelda(fmt, fila, cols[3], ingresoPorDefecto) : ingresoPorDefecto;
+                if (!actualizar && ingresoFila.isBefore(hoy)) {
+                    omitidos.add("Fila " + (fila.getRowNum() + 1) + ": el inicio de estancia ("
+                            + ingresoFila + ") es anterior a hoy. Un residente no puede ingresar en el pasado");
+                    continue;
+                }
+
+                Residente r = actualizar ? porCodigo.get() : new Residente();
                 r.setNombre(nombres);
                 r.setApellido(apellidos);
                 r.setDni(dniImportado.isEmpty() ? null : dniImportado);
@@ -102,24 +147,23 @@ public class ExcelService {
                 r.setCuarto(celda(fmt, fila, 5));
                 r.setCelular(celda(fmt, fila, 6));
 
-                java.time.LocalDate ingreso = java.time.LocalDate.now();
-                r.setFechaIngreso(ingreso);
+                r.setFechaIngreso(ingresoFila);
 
-                java.time.LocalDate finSemestre = ingreso.getMonthValue() >= 7
-                        ? java.time.LocalDate.of(ingreso.getYear(), 12, 31)
-                        : java.time.LocalDate.of(ingreso.getYear(), 6, 30);
+                java.time.LocalDate finSemestre = ingresoFila.getMonthValue() >= 7
+                        ? java.time.LocalDate.of(ingresoFila.getYear(), 12, 31)
+                        : java.time.LocalDate.of(ingresoFila.getYear(), 6, 30);
                 r.setFechaFinEstancia(cols[2] >= 0
                         ? fechaDeCelda(fmt, fila, cols[2], finSemestre)
                         : finSemestre);
                 r.setEstado("INACTIVO".equalsIgnoreCase(celda(fmt, fila, cols[0])) ? "INACTIVO" : "ACTIVO");
 
                 r.setDeuda(celda(fmt, fila, cols[1]).toLowerCase().contains("deuda"));
-                r.setTokenAcceso(java.util.UUID.randomUUID().toString());
-                r.setPreceptor(preceptor);
+                if (r.getTokenAcceso() == null) r.setTokenAcceso(java.util.UUID.randomUUID().toString());
+                if (r.getPreceptor() == null) r.setPreceptor(preceptor);
 
                 String apoNombre = celda(fmt, fila, 7);
                 if (!apoNombre.isBlank()) {
-                    Apoderado a = new Apoderado();
+                    Apoderado a = (r.getApoderado() != null) ? r.getApoderado() : new Apoderado();
                     a.setNombre(apoNombre);
                     a.setRelacion(celda(fmt, fila, 8));
                     a.setDni(celda(fmt, fila, 9));
@@ -128,11 +172,15 @@ public class ExcelService {
                     r.setApoderado(a);
                 }
                 residenteRepo.save(r);
-                importados++;
+                if (actualizar) actualizados++; else importados++;
             }
         }
 
         StringBuilder resumen = new StringBuilder("Importación completada: " + importados + " residente(s) registrados.");
+        if (actualizados > 0) {
+            resumen.append(" ").append(actualizados)
+                    .append(" ya existían y se actualizaron con los datos del archivo.");
+        }
         if (!omitidos.isEmpty()) {
             resumen.append(" Omitidos ").append(omitidos.size()).append(": ")
                     .append(String.join("; ", omitidos.subList(0, Math.min(5, omitidos.size()))));
@@ -195,15 +243,28 @@ public class ExcelService {
 
             DataValidation dvEstado = ayuda.createValidation(
                     ayuda.createExplicitListConstraint(ESTADOS),
-                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 11, 11));
+                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 13, 13));
             dvEstado.setShowErrorBox(true);
             hoja.addValidationData(dvEstado);
 
             DataValidation dvPago = ayuda.createValidation(
                     ayuda.createExplicitListConstraint(ESTADOS_PAGO),
-                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 12, 12));
+                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 14, 14));
             dvPago.setShowErrorBox(true);
             hoja.addValidationData(dvPago);
+
+            CellStyle estiloFecha = wb.createCellStyle();
+            estiloFecha.setDataFormat(wb.createDataFormat().getFormat("yyyy-mm-dd"));
+            hoja.setDefaultColumnStyle(11, estiloFecha);
+            hoja.setDefaultColumnStyle(12, estiloFecha);
+
+            DataValidation dvFechas = ayuda.createValidation(
+                    ayuda.createDateConstraint(DataValidationConstraint.OperatorType.BETWEEN,
+                            "DATE(2000,1,1)", "DATE(2100,12,31)", "yyyy-mm-dd"),
+                    new org.apache.poi.ss.util.CellRangeAddressList(1, 500, 11, 12));
+            dvFechas.setShowErrorBox(true);
+            dvFechas.createErrorBox("Fecha inválida", "Escribe una fecha con formato AAAA-MM-DD.");
+            hoja.addValidationData(dvFechas);
 
             wb.setSheetHidden(wb.getSheetIndex(listas), true);
 
@@ -215,16 +276,17 @@ public class ExcelService {
     private int[] columnasDeEstado(Sheet hoja, DataFormatter fmt) {
         Row cabecera = hoja.getRow(0);
         if (cabecera != null) {
-            int estado = -1, pago = -1, fin = -1;
+            int estado = -1, pago = -1, fin = -1, ini = -1;
             for (int i = 0; i < 20; i++) {
                 String texto = celda(fmt, cabecera, i).trim().toLowerCase();
                 if (texto.startsWith("estado de pago")) pago = i;
                 else if (texto.equals("estado")) estado = i;
                 else if (texto.startsWith("fin estancia")) fin = i;
+                else if (texto.startsWith("inicio estancia")) ini = i;
             }
-            if (estado >= 0 && pago >= 0) return new int[]{estado, pago, fin};
+            if (estado >= 0 && pago >= 0) return new int[]{estado, pago, fin, ini};
         }
-        return new int[]{11, 12, -1};
+        return new int[]{13, 14, 12, 11};
     }
 
     private java.time.LocalDate fechaDeCelda(DataFormatter fmt, Row fila, int i, java.time.LocalDate porDefecto) {

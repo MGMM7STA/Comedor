@@ -213,37 +213,6 @@
                     </div>
                 </div>
 
-                <div th:if="${resultado.tipo == 'OK'}" class="card-panel mb-2" style="background:#eafaf1; border:2px solid #27ae60;">
-                    <h6 class="fw-bold text-center mb-2" style="color:#1e8449;">
-                        <i class="fa-solid fa-list-check me-1"></i>VERIFICACIÓN DEL SISTEMA
-                    </h6>
-                    <div th:each="ch : ${resultado.checks}" style="font-size:0.82rem; color:#1e8449;">
-                        <i class="fa-solid fa-check me-2"></i><span th:text="${ch}">Primera entrada del turno</span>
-                    </div>
-                </div>
-
-                <div th:if="${resultado.tipo == 'ADVERTENCIA'}" class="card-panel mb-2" style="background:#fdedec; border:2px solid #e74c3c;">
-                    <h6 class="fw-bold text-center mb-2" style="color:#c0392b;">
-                        <i class="fa-solid fa-triangle-exclamation me-1"></i>ALERTA DEL SISTEMA
-                    </h6>
-                    <div style="font-size:0.82rem; color:#c0392b;" th:text="${resultado.motivo}">Ya registró ingreso hoy.</div>
-
-                    <div th:if="${resultado.marcacionPrevia != null}" class="mt-2 p-2 rounded" style="background:#fff; border:1px solid #f5b7b1;">
-                        <div class="lbl mb-1">Registro anterior de este turno</div>
-                        <div style="font-size:0.78rem; color:#5d6d7b;">
-                            <i class="fa-solid fa-clock me-1"></i><span th:text="${#temporals.format(resultado.marcacionPrevia.fechaHora, 'HH:mm')}">12:04</span> ·
-                            <span th:text="${resultado.marcacionPrevia.estado}">PERMITIDO</span> ·
-                            <span th:text="${resultado.marcacionPrevia.punto != null} ? ${resultado.marcacionPrevia.punto.nombre} : '—'">Entrada A</span> ·
-                            Cajero: <span th:text="${resultado.marcacionPrevia.usuario != null} ? ${resultado.marcacionPrevia.usuario.nombreCompleto} : '—'">Carlos</span>
-                        </div>
-                        <div style="font-size:0.74rem; color:#9a7d0a;" class="mt-1">
-                            <i class="fa-solid fa-circle-info me-1"></i>Para <strong>Permitir</strong> de nuevo debes justificar abajo.
-                            El registro anterior no se elimina: llegará como <strong>⚠ ración alterada</strong>
-                            a la bandeja de Incidencias del administrador (no aparece en los reportes).
-                        </div>
-                    </div>
-                </div>
-
                 <div th:if="${resultado.reservaExtra != null && resultado.tipo != 'RESERVA'}" class="card-panel mb-2"
                      style="background:#eaf3fb; border:2px solid #2980b9;">
                     <h6 class="fw-bold text-center mb-1" style="color:#21618c;">
@@ -253,9 +222,13 @@
                         Reserva de <strong th:text="${#strings.toLowerCase(resultado.reservaExtra.tipoComida)}">almuerzo</strong>
                         <span th:if="${turnoActivo != null && resultado.reservaExtra.tipoComida != turnoActivo.tipo}"
                               class="badge-estado bg-justificado">⚠ es de OTRO turno, no del actual</span>
+                        <span th:if="${resultado.reservaExtra.traeTaper != null && resultado.reservaExtra.traeTaper}"
+                              class="badge-estado bg-permitido">🥡 TRAE SU PROPIO TÁPER</span>
+                        <span th:unless="${resultado.reservaExtra.traeTaper != null && resultado.reservaExtra.traeTaper}"
+                              class="badge-estado bg-denegado">SIN TÁPER — el comedor se lo provee</span>
                         <span th:if="${resultado.reservaExtra.horaRecojo != null}">
                             · recojo aprox. <span th:text="${resultado.reservaExtra.horaRecojo}">14:30</span></span>
-                        · <span th:text="${resultado.reservaExtra.motivo}">motivo</span>
+
                     </div>
 
                     <form th:action="@{/cajero/entregar-reserva}" method="post" class="d-grid">
@@ -269,7 +242,7 @@
                             <input type="radio" class="btn-check" name="entregadoA" value="PRECEPTOR" id="exPrec">
                             <label class="btn btn-outline-dark btn-sm flex-fill" for="exPrec"
                                    title="La ración la recoge el preceptor a cargo">
-                                <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor
+                                <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor/monitor
                             </label>
                         </div>
                         <button class="btnPrincipal btn btn-lg fw-bold" style="background:#2980b9; color:#fff;"
@@ -304,6 +277,38 @@
                     </div>
                 </div>
 
+                <div th:if="${resultado.tipo == 'OK'}" class="card-panel mb-2" style="background:#eafaf1; border:2px solid #27ae60;">
+                    <h6 class="fw-bold text-center mb-2" style="color:#1e8449;">
+                        <i class="fa-solid fa-list-check me-1"></i>VERIFICACIÓN DEL SISTEMA
+                    </h6>
+                    <div th:each="ch : ${resultado.checks}" style="font-size:0.82rem; color:#1e8449;">
+                        <i class="fa-solid fa-check me-2"></i><span th:text="${ch}">Primera entrada del turno</span>
+                    </div>
+                </div>
+
+                <div th:if="${resultado.tipo == 'ADVERTENCIA'}" class="card-panel mb-2" style="background:#fdedec; border:2px solid #e74c3c;">
+                    <h6 class="fw-bold text-center mb-2" style="color:#c0392b;">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i>ALERTA DEL SISTEMA
+                    </h6>
+                    <div style="font-size:0.82rem; color:#c0392b;" th:text="${resultado.motivo}">Ya registró ingreso hoy.</div>
+
+                    <div th:if="${resultado.marcacionPrevia != null}" class="mt-2 p-2 rounded" style="background:#fff; border:1px solid #f5b7b1;">
+                        <div class="lbl mb-1">Registro anterior de este turno</div>
+                        <div style="font-size:0.78rem; color:#5d6d7b;">
+                            <i class="fa-solid fa-clock me-1"></i><span th:text="${#temporals.format(resultado.marcacionPrevia.fechaHora, 'HH:mm')}">12:04</span> ·
+                            <span th:text="${resultado.marcacionPrevia.estado}">PERMITIDO</span> ·
+                            <span th:text="${resultado.marcacionPrevia.punto != null} ? ${resultado.marcacionPrevia.punto.nombre} : '—'">Entrada A</span> ·
+                            Cajero: <span th:text="${resultado.marcacionPrevia.usuario != null} ? ${resultado.marcacionPrevia.usuario.nombreCompleto} : '—'">Carlos</span>
+                        </div>
+                        <div style="font-size:0.74rem; color:#9a7d0a;" class="mt-1">
+                            <i class="fa-solid fa-circle-info me-1"></i>Para <strong>Permitir</strong> de nuevo debes justificar abajo.
+                            El registro anterior no se elimina: llegará como <strong>⚠ ración alterada</strong>
+                            a la bandeja de Incidencias del administrador (no aparece en los reportes).
+                        </div>
+                    </div>
+                </div>
+
+
                 <div th:if="${resultado.reservaEntregada != null}" class="card-panel mb-2"
                      style="background:#fdedec; border:2px solid #e74c3c;">
                     <h6 class="fw-bold text-center mb-2" style="color:#c0392b;">
@@ -335,7 +340,7 @@
                             <input type="radio" class="btn-check" name="entregadoA" value="PRECEPTOR" id="ovPrec">
                             <label class="btn btn-outline-dark btn-sm flex-fill" for="ovPrec"
                                    title="La nueva ración la recoge el preceptor a cargo">
-                                <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor
+                                <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor/monitor
                             </label>
                         </div>
 
@@ -378,6 +383,13 @@
                         <i class="fa-solid fa-check me-2"></i><span th:text="${ch}">Llegada tardía autorizada</span>
                     </div>
 
+                    <div class="text-center mt-2" th:if="${resultado.solicitud != null}">
+                        <span th:if="${resultado.solicitud.traeTaper != null && resultado.solicitud.traeTaper}"
+                              class="badge-estado bg-permitido">🥡 TRAE SU PROPIO TÁPER</span>
+                        <span th:unless="${resultado.solicitud.traeTaper != null && resultado.solicitud.traeTaper}"
+                              class="badge-estado bg-denegado">SIN TÁPER — el comedor se lo provee</span>
+                    </div>
+
                     <form th:action="@{/cajero/entregar-reserva}" method="post" class="d-grid mt-3">
                         <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
                         <div class="d-flex gap-2 mb-2">
@@ -389,7 +401,7 @@
                             <input type="radio" class="btn-check" name="entregadoA" value="PRECEPTOR" id="rvPrec">
                             <label class="btn btn-outline-dark btn-sm flex-fill" for="rvPrec"
                                    title="La ración la recoge el preceptor a cargo">
-                                <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor
+                                <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor/monitor
                             </label>
                         </div>
                         <button class="btnPrincipal btn btn-lg fw-bold" style="background:#2980b9; color:#fff;"
@@ -424,14 +436,21 @@
                     </div>
                 </div>
 
-                <div th:if="${resultado.tipo == 'JUSTIFICADO' && !reservaExtraMismoTurno}">
-                    <form th:action="@{/cajero/confirmar}" method="post" class="d-grid">
-                        <input type="hidden" name="codigo" th:value="${resultado.residente.codigoAcceso}">
-                        <input type="hidden" name="decision" value="JUSTIFICADO">
-                        <button class="btnPrincipal btn btn-lg fw-bold" style="background:#f39c12; color:#fff;">
-                            <i class="fa-solid fa-check me-2"></i>Registrar Justificado
-                        </button>
-                    </form>
+                <div th:if="${resultado.tipo == 'JUSTIFICADO' && !reservaExtraMismoTurno}" class="d-grid">
+                    <div class="p-3 rounded text-center mb-2"
+                         style="background:#fef5e7; border:2px solid #f39c12;">
+                        <div class="fw-bold" style="color:#9a7d0a; font-size:1.05rem;">
+                            <i class="fa-solid fa-calendar-check me-2"></i>RESIDENTE JUSTIFICADO
+                        </div>
+                        <div style="font-size:0.84rem; color:#9a7d0a;" class="mt-1">
+                            Preceptoría registró su ausencia para este turno. No corresponde registrar ingreso:
+                            no cuenta como falta y no debe recibir ración.
+                        </div>
+                    </div>
+                    <a href="/cajero/validar" class="btn btn-light border" style="font-size:0.85rem;"
+                       title="Cerrar la ficha sin registrar nada">
+                        <i class="fa-solid fa-xmark me-1"></i>Cerrar sin registrar
+                    </a>
                 </div>
 
                 <form th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.marcacionPrevia != null && !reservaExtraMismoTurno && !reservaMismoTurno && !residenteInactivo}"

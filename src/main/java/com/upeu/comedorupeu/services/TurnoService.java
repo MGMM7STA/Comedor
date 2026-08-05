@@ -37,10 +37,14 @@ public class TurnoService {
         this.marcacionRepo = marcacionRepo;
     }
 
+    public boolean selloEsDeOtroDia(java.time.LocalDateTime sello) {
+        return sello != null && !sello.toLocalDate().equals(LocalDate.now());
+    }
+
     public Optional<Turno> turnoActivoDe(com.upeu.comedorupeu.models.PuntoAtencion punto) {
         if (punto == null || !punto.isOperativo()) return turnoActivo();
 
-        String elegido = punto.getTurnoManual();
+        String elegido = selloEsDeOtroDia(punto.getUltimaAccionManual()) ? null : punto.getTurnoManual();
         if (elegido != null && !elegido.isBlank()) {
             Optional<Turno> propio = turnosDeHoy().stream()
                     .filter(t -> elegido.equals(t.getTipo()))
@@ -148,6 +152,7 @@ public class TurnoService {
 
             boolean agendaGobierna = limite != null
                     && (turno.getUltimaAccionManual() == null
+                        || selloEsDeOtroDia(turno.getUltimaAccionManual())
                         || turno.getUltimaAccionManual().isBefore(limite));
             if (agendaGobierna) return dentro;
         }

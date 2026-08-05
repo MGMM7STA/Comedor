@@ -23,6 +23,8 @@ public class SecurityConfig {
                         .requestMatchers("/padres/**").permitAll()
 
                         .requestMatchers("/login-error", "/login-bloqueado").permitAll()
+                        .requestMatchers("/admin/justificaciones/**").hasAnyRole("ADMIN", "PRECEPTOR")
+                        .requestMatchers("/admin/reservas/**").hasAnyRole("ADMIN", "PRECEPTOR")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/cajero/**").hasAnyRole("CAJERO", "ADMIN")
                         .requestMatchers("/preceptor/**").hasAnyRole("PRECEPTOR", "ADMIN")

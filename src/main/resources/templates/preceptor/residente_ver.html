@@ -89,101 +89,7 @@
                     </form>
                 </div>
 
-                <div class="card-panel mb-3">
-                    <span class="titulo-seccion">Ausencias Registradas</span>
-                    <table class="tabla-dark">
-                        <thead>
-                        <tr><th>Desde</th><th>Hasta</th><th>Motivo</th><th>Registró</th><th sec:authorize="hasRole('PRECEPTOR')"></th></tr>
-                        </thead>
-                        <tbody>
-                        <tr th:each="a : ${ausencias}">
-                            <td th:text="${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')}">05/05/2026</td>
-                            <td th:text="${#temporals.format(a.fechaFin, 'dd/MM/yyyy')}">11/05/2026</td>
-                            <td th:text="${a.motivo}">Viaje académico</td>
-                            <td th:text="${a.usuario != null} ? ${a.usuario.nombreCompleto} : '—'">Preceptor Ríos</td>
-                            <td sec:authorize="hasRole('PRECEPTOR')">
-                                <form th:action="@{'/preceptor/ausencias/' + ${a.idAusencia} + '/eliminar'}" method="post" style="margin:0;"
-                                      data-titulo="Eliminar ausencia"
-                                      data-confirmar="El residente dejará de figurar como justificado en esas fechas. Úsalo si la ausencia se registró por error."
-                                      data-boton="Sí, eliminar">
-                                    <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;" title="Eliminar ausencia mal registrada">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        <tr th:if="${#lists.isEmpty(ausencias)}">
-                            <td colspan="5" class="text-center text-muted py-3">Sin ausencias registradas.</td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
 
-                <div class="card-panel">
-                    <span class="titulo-seccion">Ración Reservada (Llegada Tardía)</span>
-                    <div style="font-size:0.76rem; color:#8a97a3;" class="mb-2">
-                        Si el residente llegará tarde por motivos académicos o emergencia, reserva su ración:
-                        el cajero podrá atenderlo aunque el turno ya no esté activo.
-                    </div>
-                    <form sec:authorize="hasRole('PRECEPTOR')" th:action="@{'/preceptor/residentes/' + ${residente.idResidente} + '/solicitud'}" method="post"
-                          class="d-flex gap-2 align-items-end flex-wrap mb-3">
-                        <div>
-                            <div class="lbl">Fecha</div>
-                            <input type="date" name="fecha" id="fechaReserva" class="form-control" th:value="${hoy}" th:min="${hoy}" required
-                                   onchange="bloquearComidasHoy()" title="Las reservas son de hoy en adelante">
-                        </div>
-                        <div>
-                            <div class="lbl">Turno</div>
-
-                            <select name="tipoComida" id="turnoReserva" class="form-select" style="font-size:0.85rem;">
-                                <option value="DESAYUNO">Desayuno</option>
-                                <option value="ALMUERZO">Almuerzo</option>
-                                <option value="CENA">Cena</option>
-                            </select>
-                        </div>
-                        <div>
-                            <div class="lbl" title="Hora aproximada en que pasará a recoger">Hora recojo</div>
-                            <input type="time" name="horaRecojo" class="form-control">
-                        </div>
-                        <div class="flex-fill" style="min-width:180px;">
-                            <div class="lbl">Motivo</div>
-                            <input type="text" name="motivo" class="form-control" placeholder="Motivo de la llegada tardía" required maxlength="300">
-                        </div>
-                        <button type="submit" class="btn btn-navy btn-sm-flat"><i class="fa-solid fa-utensils me-1"></i>Reservar</button>
-                    </form>
-
-                    <table class="tabla-dark">
-                        <thead>
-                        <tr><th>Fecha</th><th>Turno</th><th>Hora recojo</th><th>Motivo</th><th>Estado</th><th sec:authorize="hasRole('PRECEPTOR')"></th></tr>
-                        </thead>
-                        <tbody>
-                        <tr th:each="s : ${solicitudes}">
-                            <td th:text="${#temporals.format(s.fecha, 'dd/MM/yyyy')}">02/07/2026</td>
-                            <td th:text="${#strings.capitalize(#strings.toLowerCase(s.tipoComida))}">Almuerzo</td>
-                            <td th:text="${s.horaRecojo} ?: '—'">14:30</td>
-                            <td th:text="${s.motivo}">Clases hasta tarde</td>
-                            <td>
-                                <span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
-                                      th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Atendida'">Pendiente</span>
-                            </td>
-                            <td sec:authorize="hasRole('PRECEPTOR')">
-                                <form th:if="${s.estado == 'PENDIENTE'}"
-                                      th:action="@{'/preceptor/solicitudes/' + ${s.idSolicitud} + '/cancelar'}" method="post" style="margin:0;"
-                                      data-titulo="Cancelar reserva de ración"
-                                      data-confirmar="La reserva pendiente se eliminará y el cajero ya no podrá entregarla."
-                                      data-boton="Sí, cancelar reserva">
-                                    <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;" title="Cancelar reserva pendiente">
-                                        <i class="fa-solid fa-xmark"></i> Cancelar
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        <tr th:if="${#lists.isEmpty(solicitudes)}">
-                            <td colspan="6" class="text-center text-muted py-3">Sin solicitudes registradas.</td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
 
                 <div class="card-panel mt-3">
                     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
@@ -235,37 +141,6 @@
                     </table>
                 </div>
 
-                <div class="card-panel mt-3">
-                    <span class="titulo-seccion">Eventos en los que Participó</span>
-                    <table class="tabla-dark">
-                        <thead>
-                        <tr><th>N°</th><th>Fecha</th><th>Evento</th><th class="text-center">¿Recibió su ración?</th></tr>
-                        </thead>
-                        <tbody>
-                        <tr th:each="en, it : ${eventosParticipo}">
-                            <td th:text="${it.count}">1</td>
-                            <td th:text="${#temporals.format(en.evento.fechaEvento, 'dd/MM/yyyy')}">03/07/2026</td>
-                            <td>
-                                <i class="fa-solid fa-medal me-1" style="color:#e67e22;"></i>
-                                <span th:text="${en.evento.nombre}">Excursión Lago Titicaca</span>
-                            </td>
-                            <td class="text-center">
-                                <span th:if="${en.recibido != null && en.recibido}" class="badge-estado bg-permitido">
-                                    <i class="fa-solid fa-check"></i> Sí
-                                </span>
-                                <span th:if="${en.recibido == null || !en.recibido}" class="badge-estado bg-denegado">
-                                    <i class="fa-solid fa-xmark"></i> No
-                                </span>
-                            </td>
-                        </tr>
-                        <tr th:if="${#lists.isEmpty(eventosParticipo)}">
-                            <td colspan="4" class="text-center text-muted py-3">
-                                Aún no participa en eventos (o no hay pase de lista en el rango filtrado).
-                            </td>
-                        </tr>
-                        </tbody>
-                    </table>
-                </div>
             </div>
         </div>
     </div>
@@ -319,13 +194,13 @@
                 <div class="lbl mb-1" id="reTituloPrimero">Comidas del día</div>
                 <div class="d-flex gap-3 flex-wrap" style="font-size:0.84rem;">
                     <label style="cursor:pointer;">
-                        <input type="checkbox" class="form-check-input me-1" name="pD" data-cadena="p" data-comida="D"> Desayuno
+                        <input type="checkbox" class="form-check-input me-1" name="pD"> Desayuno
                     </label>
                     <label style="cursor:pointer;">
-                        <input type="checkbox" class="form-check-input me-1" name="pA" data-cadena="p" data-comida="A"> Almuerzo
+                        <input type="checkbox" class="form-check-input me-1" name="pA"> Almuerzo
                     </label>
                     <label style="cursor:pointer;">
-                        <input type="checkbox" class="form-check-input me-1" name="pC" data-cadena="p" data-comida="C"> Cena
+                        <input type="checkbox" class="form-check-input me-1" name="pC"> Cena
                     </label>
                 </div>
             </div>
@@ -334,13 +209,13 @@
                 <div class="lbl mb-1">Comidas del último día</div>
                 <div class="d-flex gap-3 flex-wrap" style="font-size:0.84rem;">
                     <label style="cursor:pointer;">
-                        <input type="checkbox" class="form-check-input me-1" name="uC" data-cadena="u" data-comida="C"> Cena
+                        <input type="checkbox" class="form-check-input me-1" name="uC"> Cena
                     </label>
                     <label style="cursor:pointer;">
-                        <input type="checkbox" class="form-check-input me-1" name="uA" data-cadena="u" data-comida="A"> Almuerzo
+                        <input type="checkbox" class="form-check-input me-1" name="uA"> Almuerzo
                     </label>
                     <label style="cursor:pointer;">
-                        <input type="checkbox" class="form-check-input me-1" name="uD" data-cadena="u" data-comida="D"> Desayuno
+                        <input type="checkbox" class="form-check-input me-1" name="uD"> Desayuno
                     </label>
                 </div>
             </div>
@@ -394,12 +269,16 @@
     function abrirRacionEspecial() {
         const caja = document.querySelector('#modalRacionEsp .modal-caja');
 
-        caja.querySelectorAll('input[data-cadena]').forEach(ch => ch.checked = false);
+        caja.querySelectorAll('input[type=checkbox]').forEach(ch => ch.checked = false);
         document.getElementById('reModoDia').checked = true;
         cambiarModoRE();
         const modal = document.getElementById('modalRacionEsp');
         modal.style.display = 'flex';
         modal.onclick = (e) => { if (e.target === modal) cerrarRacionEspecial(); };
+    }
+
+    if (new URLSearchParams(window.location.search).get('racion') === '1') {
+        abrirRacionEspecial();
     }
 
     function cerrarRacionEspecial() {
@@ -414,10 +293,9 @@
         document.getElementById('reTituloPrimero').textContent = dia ? 'Comidas del día' : 'Comidas del primer día';
         const caja = document.querySelector('#modalRacionEsp .modal-caja');
 
-        refrescarCadena(caja, 'p');
-        refrescarCadena(caja, 'u');
+        caja.querySelectorAll('input[type=checkbox]').forEach(ch => ch.disabled = false);
         if (dia) {
-            caja.querySelectorAll('input[data-cadena="u"]').forEach(ch => { ch.checked = false; ch.disabled = true; });
+            caja.querySelectorAll('input[name^="u"]').forEach(ch => { ch.checked = false; ch.disabled = true; });
         }
         sincronizarFechasRE();
     }
@@ -431,7 +309,7 @@
     document.getElementById('formRacionEsp').addEventListener('submit', function (e) {
         sincronizarFechasRE();
         const caja = document.querySelector('#modalRacionEsp .modal-caja');
-        const marcadas = caja.querySelectorAll('input[data-cadena]:checked').length;
+        const marcadas = caja.querySelectorAll('input[type=checkbox]:checked').length;
         if (marcadas === 0) {
             e.preventDefault();
             avisoSistema('Marca al menos una comida antes de asignar la ración especial.', 'Sin comidas marcadas');

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/base :: head('Admin: Reservas / Extras')}"></head>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/base :: head('Reservas / Extras')}"></head>
 <body>
 
 <div th:replace="~{fragments/base :: sidebar('reservas')}"></div>
@@ -120,7 +120,7 @@
                     <td style="font-size:0.78rem;" th:text="${s.entregadoATexto}">Residente titular</td>
                     <td>
                         <span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
-                              th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Pendiente</span>
+                              th:text="${s.estadoTexto}">Pendiente</span>
                     </td>
                     <td class="text-nowrap">
 
@@ -138,17 +138,22 @@
                             <i class="fa-solid fa-eye"></i> Ver detalles
                         </button>
 
-                        <form th:if="${puedeCancelar.get(s.idSolicitud)}"
+                        <form sec:authorize="hasRole('PRECEPTOR')"
+                              th:if="${s.estado == 'PENDIENTE' and !s.estaVencida()}"
                               th:action="@{'/admin/reservas/' + ${s.idSolicitud} + '/cancelar'}" method="post"
-                              style="margin:0; display:inline;"
-                              data-titulo="Cancelar reserva"
-                              data-confirmar="La reserva pendiente se eliminará y el cajero ya no podrá entregarla."
-                              data-boton="Sí, cancelar reserva">
-                            <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;"
-                                    title="Cancelar esta reserva pendiente">
-                                <i class="fa-solid fa-xmark"></i>
+                              class="d-inline"
+                              onsubmit="return confirm('¿Cancelar esta reserva? El cajero ya no podrá entregarla.');">
+                            <button type="submit" class="btn btn-danger btn-sm" style="font-size:0.7rem;"
+                                    title="Cancelar esta reserva antes de que pase el turno">
+                                <i class="fa-solid fa-ban"></i> Cancelar
                             </button>
                         </form>
+
+                        <span th:if="${s.canceladaPor != null}" class="badge-estado bg-denegado"
+                              style="font-size:0.66rem;"
+                              th:title="'Cancelada por ' + ${s.canceladaPor}">
+                            Canceló: <span th:text="${s.canceladaPor}">Ana Quispe</span>
+                        </span>
                     </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(reservas)}">

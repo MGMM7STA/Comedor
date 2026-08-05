@@ -190,9 +190,11 @@
                         <i class="fa-solid fa-eraser me-1"></i>Limpiar
                     </a>
 
-                    <button type="button" class="btn btn-sm-flat" style="background:#16a085; color:#fff;"
-                            onclick="confirmarExportacionMasiva()"
-                            title="Descarga la base de datos completa, sin los filtros de pantalla">
+                    <button type="button" class="btn btn-sm-flat btn-exportar-rango" style="background:#16a085; color:#fff;"
+                            data-titulo="Exportación masiva: elige el rango de fechas"
+                            data-ruta="/reportes/exportar-masivo"
+                            data-pdesde="fecha" data-phasta="fechaHasta"
+                            title="Descarga TODO lo del rango que elijas, sin los filtros de pantalla">
                         <i class="fa-solid fa-database me-1"></i>Exportación Masiva
                     </button>
 
@@ -351,7 +353,7 @@
                         <td th:text="${s.fechaHoraEntrega != null} ? ${#temporals.format(s.fechaHoraEntrega, 'HH:mm')} : '—'">14:42</td>
                         <td style="font-size:0.76rem;" th:text="${s.usuario != null} ? ${s.usuario.nombreCompleto} : '—'">Prec. Ríos</td>
                         <td><span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
-                                  th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Pendiente</span></td>
+                                  th:text="${s.estadoTexto}">Pendiente</span></td>
                         <td style="font-size:0.76rem;" th:text="${s.entregadoATexto}">Residente titular</td>
 
                         <td class="text-center">
@@ -462,23 +464,6 @@
 </div>
 
 <script>
-
-    function confirmarExportacionMasiva() {
-        confirmarSistema({
-            titulo: 'Exportación masiva de la base de datos',
-            estilo: 'peligro',
-            boton: 'Sí, descargar todo',
-            mensaje: 'Se descargará un Excel con TODA la información histórica disponible '
-                + '(movimientos, reservas, justificaciones y eventos), cada sección en su propia '
-                + 'pestaña del archivo. No se aplican los filtros de pantalla, por lo que puede '
-                + 'ser un archivo pesado y tardar unos segundos.',
-            alConfirmar: () => {
-                const sem = document.querySelector('.selector-semestre');
-                window.location.href = '/reportes/exportar-masivo'
-                    + (sem ? '?semestre=' + encodeURIComponent(sem.value) : '');
-            }
-        });
-    }
 
     function cambiarLimite(valor) {
         const campo = document.getElementById('campoLimite');

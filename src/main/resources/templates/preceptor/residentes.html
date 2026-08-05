@@ -139,7 +139,9 @@
 
                 <tr>
                     <th>N°</th><th>Foto</th><th>Nombre</th><th>Código</th><th>Carrera</th>
-                    <th>Resp. Fin.</th><th>Preceptor</th><th>Celular</th><th>Acciones</th>
+                    <th>Resp. Fin.</th>
+                    <th title="Residencia de género del residente. Pasa el cursor para ver su preceptor">Residencia</th>
+                    <th>Celular</th><th>Acciones</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -155,11 +157,23 @@
                         <span th:text="${r.apellido} + ', ' + ${r.nombre}">Mamani Quispe, Juan C.</span>
                         <i th:if="${r.deuda != null && r.deuda}" class="fa-solid fa-circle-dollar-to-slot ms-1"
                            style="color:#e74c3c;" title="Deuda pendiente"></i>
+                        <span th:if="${r.fechaIngreso != null && r.fechaIngreso.isAfter(hoy)}"
+                              class="badge-estado bg-pendiente ms-1" style="font-size:0.64rem;"
+                              th:title="'Todavía no ingresa: no aparecerá en reportes hasta el ' + ${#temporals.format(r.fechaIngreso,'dd/MM/yyyy')}">
+                            <i class="fa-solid fa-hourglass-start"></i>
+                            Ingresa el <span th:text="${#temporals.format(r.fechaIngreso,'dd/MM/yyyy')}">01/10</span>
+                        </span>
+                        <span th:if="${r.fechaFinEstancia != null && r.fechaFinEstancia.isBefore(hoy)}"
+                              class="badge-estado bg-denegado ms-1" style="font-size:0.64rem;"
+                              th:title="'Su estancia terminó el ' + ${#temporals.format(r.fechaFinEstancia,'dd/MM/yyyy')} + '. Su historial se conserva.'">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Estancia cumplida
+                        </span>
                     </td>
                     <td th:text="${r.codigoAcceso}">U-2024-10542</td>
                     <td th:text="${r.carrera}">Sistemas</td>
                     <td th:text="${r.apoderado != null} ? ${r.apoderado.nombre} : '—'">Pedro M.</td>
-                    <td th:text="${r.preceptor != null} ? ${r.preceptor.apellido} : '—'">Ríos</td>
+                    <td th:text="${r.pabellon} ?: '—'"
+                        th:title="${r.preceptor != null} ? 'Preceptor: ' + ${r.preceptor.nombreCompleto} : 'Sin preceptor asignado'">Varones</td>
                     <td th:text="${r.celular}">999-001</td>
                     <td class="text-nowrap">
 
@@ -179,6 +193,12 @@
                                          data-estancia=(${r.fechaIngreso != null} ? ${#temporals.format(r.fechaIngreso, 'dd/MM/yyyy')} : '—') + ' → ' + (${r.fechaFinEstancia != null} ? ${#temporals.format(r.fechaFinEstancia, 'dd/MM/yyyy')} : 'actualidad')">
                             <i class="fa-solid fa-eye"></i> Ver
                         </button>
+                        <a sec:authorize="hasRole('PRECEPTOR')"
+                           th:href="@{'/preceptor/residentes/' + ${r.idResidente} + '?racion=1'}"
+                           class="btn btn-warning btn-sm" style="font-size:0.72rem;"
+                           title="Asignar una ración especial a este residente">
+                            <i class="fa-solid fa-bowl-food"></i>
+                        </a>
                         <a sec:authorize="hasRole('PRECEPTOR')" th:href="@{'/preceptor/residentes/' + ${r.idResidente} + '/editar'}"
                            class="btn btn-success btn-sm" style="font-size:0.72rem;">Editar</a>
                         <form sec:authorize="hasRole('PRECEPTOR')" th:action="@{'/preceptor/residentes/' + ${r.idResidente} + '/eliminar'}"
@@ -208,7 +228,7 @@
 </div>
 
 <div id="modalResidente" class="modal-sistema" style="display:none;">
-    <div class="modal-caja modal-ancha">
+    <div class="modal-caja modal-gigante">
         <div class="d-flex justify-content-between align-items-start mb-2">
             <div class="modal-titulo mb-0">
                 <i class="fa-solid fa-user-graduate" style="color:#2980b9;"></i>
@@ -220,7 +240,7 @@
             </button>
         </div>
         <div class="d-flex gap-3 flex-wrap">
-            <div style="width:150px; height:150px; background:#e8edf1; border-radius:10px; border:2px solid #d5dde4; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;">
+            <div style="width:210px; height:210px; background:#e8edf1; border-radius:10px; border:2px solid #d5dde4; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;">
                 <img id="mrFoto" src="" alt="" style="width:100%; height:100%; object-fit:cover; display:none;">
                 <i id="mrSinFoto" class="fa-solid fa-user fa-3x" style="color:#aab7c4;"></i>
             </div>
@@ -240,7 +260,6 @@
         </div>
         <div class="modal-botones mt-3">
             <a id="mrReporte" href="#" class="btn btn-success btn-sm-flat"><i class="fa-solid fa-chart-column me-1"></i>Ver Reporte</a>
-            <a id="mrFicha" href="#" class="btn btn-navy btn-sm-flat"><i class="fa-solid fa-address-card me-1"></i>Ficha completa</a>
         </div>
     </div>
 </div>
@@ -293,7 +312,6 @@
         if (d.foto) { foto.src = d.foto; foto.style.display = ''; sinFoto.style.display = 'none'; }
         else { foto.style.display = 'none'; sinFoto.style.display = ''; }
         document.getElementById('mrReporte').href = '/reportes/individual?codigo=' + encodeURIComponent(d.codigo);
-        document.getElementById('mrFicha').href = '/preceptor/residentes/' + d.id;
         const modal = document.getElementById('modalResidente');
         modal.style.display = 'flex';
         modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };

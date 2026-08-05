@@ -77,6 +77,9 @@
                             <i class="fa-solid fa-medal me-1" style="color:#e67e22;"></i>
                             <span th:text="${e.nombre}">Excursión Lago Titicaca</span>
                         </strong>
+                        <div style="font-size:0.72rem; color:#8a97a3;">
+                            <i class="fa-solid fa-utensils me-1"></i><span th:text="${e.comidaTexto}">Almuerzo</span>
+                        </div>
                     </td>
                     <td style="font-size:0.78rem;"
                         th:text="${e.usuario != null} ? ${e.usuario.nombreCompleto} : '—'">Preceptor Ríos</td>
@@ -122,7 +125,7 @@
         <div class="d-flex justify-content-between align-items-start mb-2">
             <div class="modal-titulo mb-0">
                 <i class="fa-solid fa-medal" style="color:#e67e22;"></i>
-                <span th:text="${seleccionado.nombre}">Excursión Lago Titicaca</span>
+                <span th:text="${seleccionado.nombreConComida}">Excursión Lago Titicaca (Almuerzo)</span>
             </div>
             <a href="/admin/eventos" class="btn btn-light border btn-sm" style="font-size:0.72rem;" title="Cerrar (Esc)">
                 <i class="fa-solid fa-xmark"></i>
@@ -190,8 +193,8 @@
             <div class="dato">
                 <i class="fa-solid fa-utensils"></i>
                 <div>
-                    <span class="dato-lbl">Tipo de ración</span>
-                    <span class="dato-val">Adicional (independiente del comedor)</span>
+                    <span class="dato-lbl">Comida</span>
+                    <span class="dato-val" th:text="${seleccionado.comidaTexto}">Almuerzo</span>
                 </div>
             </div>
             <div class="dato">

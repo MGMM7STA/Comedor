@@ -44,7 +44,7 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="lbl">Código de usuario</div>
-                                <input type="text" name="codigoUsuario" class="form-control" placeholder="Código institucional (se genera solo si lo dejas vacío)"
+                                <input type="text" name="codigoUsuario" class="form-control" placeholder="Código institucional (opcional, puede quedar vacío)"
                                        th:value="${editando != null} ? ${editando.codigoUsuario} : ''" maxlength="50">
                             </div>
                             <div class="col-md-6">
@@ -147,6 +147,18 @@
                             <td th:text="${c.pabellon} ?: '—'">Varones</td>
                             <td><span class="badge-estado" th:classappend="${c.activo} ? 'bg-permitido' : 'bg-denegado'" th:text="${c.activo} ? 'Activa' : 'Desactivada'">Activa</span></td>
                             <td class="text-nowrap">
+                                <button type="button" class="btn btn-primary btn-sm ver-cuenta" style="font-size:0.72rem;"
+                                        th:attr="data-nombre=${c.nombreCompleto},
+                                                 data-codigo=${c.codigoUsuario} ?: '—',
+                                                 data-correo=${c.correo},
+                                                 data-rol=${c.rol},
+                                                 data-dni=${c.dni} ?: '—',
+                                                 data-telefono=${c.telefono} ?: '—',
+                                                 data-pabellon=${c.pabellon} ?: '—',
+                                                 data-estado=${c.activo} ? 'Activa' : 'Desactivada'"
+                                        title="Ver todos los datos de esta cuenta">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
                                 <a th:href="@{'/admin/cuentas/' + ${c.idUsuario} + '/editar'}"
                                    class="btn btn-success btn-sm" style="font-size:0.72rem;">Editar</a>
                                 <form th:action="@{'/admin/cuentas/' + ${c.idUsuario} + '/toggle'}" method="post" style="margin:0; display:inline;">
@@ -231,7 +243,43 @@
     </div>
 </div>
 
+<div id="modalCuenta" class="modal-sistema" style="display:none;">
+    <div class="modal-caja" style="max-width:430px;">
+        <div class="modal-titulo"><i class="fa-solid fa-id-badge me-2"></i><span id="mcNombre">Cuenta</span></div>
+        <div style="font-size:0.86rem; color:#5d6d7b;">
+            <div class="mb-1"><strong>Código de usuario:</strong> <span id="mcCodigo"></span></div>
+            <div class="mb-1"><strong>Correo:</strong> <span id="mcCorreo"></span></div>
+            <div class="mb-1"><strong>Rol:</strong> <span id="mcRol"></span></div>
+            <div class="mb-1"><strong>DNI:</strong> <span id="mcDni"></span></div>
+            <div class="mb-1"><strong>Teléfono:</strong> <span id="mcTelefono"></span></div>
+            <div class="mb-1"><strong>Residencia de Género:</strong> <span id="mcPabellon"></span></div>
+            <div class="mb-1"><strong>Estado:</strong> <span id="mcEstado"></span></div>
+        </div>
+        <div class="modal-botones mt-3">
+            <button type="button" class="btn btn-light border btn-sm-flat"
+                    onclick="document.getElementById('modalCuenta').style.display='none'">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <script>
+
+    document.addEventListener('click', function (e) {
+        const b = e.target.closest('.ver-cuenta');
+        if (!b) return;
+        const d = b.dataset;
+        document.getElementById('mcNombre').textContent = d.nombre;
+        document.getElementById('mcCodigo').textContent = d.codigo;
+        document.getElementById('mcCorreo').textContent = d.correo;
+        document.getElementById('mcRol').textContent = d.rol;
+        document.getElementById('mcDni').textContent = d.dni;
+        document.getElementById('mcTelefono').textContent = d.telefono;
+        document.getElementById('mcPabellon').textContent = d.pabellon;
+        document.getElementById('mcEstado').textContent = d.estado;
+        const m = document.getElementById('modalCuenta');
+        m.style.display = 'flex';
+        m.onclick = ev => { if (ev.target === m) m.style.display = 'none'; };
+    });
 
     function togglePabellon() {
         const esPreceptor = document.getElementById('rolPreceptor').checked;

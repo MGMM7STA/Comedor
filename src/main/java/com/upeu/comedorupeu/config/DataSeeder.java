@@ -29,6 +29,10 @@ public class DataSeeder implements CommandLineRunner {
     public void run(String... args) {
 
         Usuario adminExistente = usuarioRepo.findByCorreo(adminCorreo);
+        if (adminExistente != null && encoder.matches("admin123", adminExistente.getClave())) {
+            adminExistente.setClave(encoder.encode(adminClave));
+            usuarioRepo.save(adminExistente);
+        }
 
         if (adminReset && adminExistente != null) {
             adminExistente.setClave(encoder.encode(adminClave));

@@ -34,7 +34,9 @@ public class AlcancePorResidencia implements AlcanceDatos {
 
     @Override
     public List<Residente> residentesActivos() {
-        return residenteRepo.findByEstadoAndPabellonOrderByApellidoAsc("ACTIVO", residencia);
+        return residenteRepo.findByEstadoAndPabellonOrderByApellidoAsc("ACTIVO", residencia).stream()
+                .filter(AlcanceDatos::yaEnVigencia)
+                .toList();
     }
 
     @Override

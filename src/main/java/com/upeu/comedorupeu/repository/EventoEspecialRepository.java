@@ -10,6 +10,8 @@ public interface EventoEspecialRepository extends JpaRepository<EventoEspecial, 
 
     List<EventoEspecial> findAllByOrderByFechaEnvioDesc();
 
+    List<EventoEspecial> findByGrupoEvento(String grupoEvento);
+
     List<EventoEspecial> findByEstadoAndFechaEvento(String estado, LocalDate fechaEvento);
 
     List<EventoEspecial> findByEstadoAndFechaEventoBetweenOrderByFechaEventoAsc(String estado, LocalDate desde, LocalDate hasta);

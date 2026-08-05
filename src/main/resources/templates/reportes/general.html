@@ -287,7 +287,7 @@
                     <td th:text="${s.residente.codigoAcceso}">U-2024-10542</td>
                     <td th:text="${#strings.capitalize(#strings.toLowerCase(s.tipoComida))}">Almuerzo</td>
                     <td><span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
-                              th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Pendiente</span></td>
+                              th:text="${s.estadoTexto}">Pendiente</span></td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(reservasDia)}">
                     <td colspan="7" class="text-center text-muted py-3">Sin raciones reservadas en este rango.</td>

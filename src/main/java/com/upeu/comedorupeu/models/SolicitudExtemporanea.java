@@ -43,6 +43,22 @@ public class SolicitudExtemporanea {
 
     private String grupoLote;
 
+    private Boolean traeTaper = false;
+
+    private String canceladaPor;
+
+    public boolean estaVencida() {
+        return "PENDIENTE".equals(estado) && fecha != null && fecha.isBefore(java.time.LocalDate.now());
+    }
+
+    public String getEstadoTexto() {
+        if ("CANCELADA".equals(estado)) return "Cancelada";
+        if (estaVencida()) return "No recogida";
+        return "PENDIENTE".equals(estado) ? "Pendiente" : "Entregada";
+    }
+
+    private LocalDateTime fechaCancelacion;
+
     private LocalDateTime fechaHora = LocalDateTime.now();
 
     public String getEntregadoATexto() {

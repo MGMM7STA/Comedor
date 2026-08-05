@@ -150,10 +150,11 @@
                          th:text="${p.cajero != null} ? ${p.cajero.nombreCompleto} : 'Sin asignar'"
                          th:style="${p.cajero == null} ? 'color:#b8c2cb; font-style:italic;'">Carlos Mamani</div>
 
-                    <div style="font-size:0.78rem; color:#8a97a3;" class="mt-2">Horario fijo:</div>
+                    <div style="font-size:0.78rem; color:#8a97a3;" class="mt-2">Horario de hoy:</div>
                     <div style="font-size:0.83rem;"
                          th:style="${abiertoAMano.get(p.idPunto)} ? 'text-decoration:line-through; opacity:0.55;' : ''"
-                         th:text="${p.horarioTexto}">8:00 - 14:00</div>
+                         th:text="${horarioDelDia.get(p.idPunto)}"
+                         title="Horario programado para hoy, turno por turno">Desayuno 06:30 - 09:00</div>
                     <div th:if="${abiertoAMano.get(p.idPunto)}" class="mt-1 p-2 rounded"
                          style="background:#fef5e7; border:1px solid #f5cba7; font-size:0.72rem; color:#9c640c;">
                         <i class="fa-solid fa-triangle-exclamation me-1"></i>
@@ -191,7 +192,7 @@
             </div>
             <div th:if="${turnoPanel == 'TODOS'}" style="font-size:0.72rem; color:#8a97a3;" class="mb-2">
                 Todo el día: <span th:text="${residentesActivos}">22</span> residentes activos × 3 comidas =
-                <strong th:text="${habilitados}">66</strong> raciones posibles.
+                <strong th:text="${racionesPosibles}">66</strong> raciones posibles.
             </div>
             <div class="row g-3">
                 <div class="col-md-3">

@@ -209,20 +209,22 @@ public class ProgramacionController {
                 .stream().filter(c -> !Boolean.FALSE.equals(c.getActivo())).toList();
         if (hoy.isEmpty()) return false;
 
-        LocalTime inicio = null, fin = null;
-        for (ProgramacionHorario c : hoy) {
-            if (c.getHoraInicio() != null && (inicio == null || c.getHoraInicio().isBefore(inicio))) inicio = c.getHoraInicio();
-            if (c.getHoraFin() != null && (fin == null || c.getHoraFin().isAfter(fin))) fin = c.getHoraFin();
-        }
+        LocalTime ahora = LocalTime.now();
+        ProgramacionHorario vigente = celdaVigente(hoy, ahora);
+        ProgramacionHorario referencia = (vigente != null) ? vigente : celdaSiguiente(hoy, ahora);
+        if (referencia == null) return false;
+
         boolean horarioDistinto = !"HORARIO".equals(punto.getModo())
-                || !java.util.Objects.equals(inicio, punto.getHoraInicio())
-                || !java.util.Objects.equals(fin, punto.getHoraFin());
+                || !java.util.Objects.equals(referencia.getHoraInicio(), punto.getHoraInicio())
+                || !java.util.Objects.equals(referencia.getHoraFin(), punto.getHoraFin());
+
+        boolean aperturaDistinta = (vigente != null) != Boolean.TRUE.equals(punto.getActivo());
 
         Usuario esperado = cajeroEsperadoAhora(hoy);
         boolean cajeroDistinto = esperado != null
                 && (punto.getCajero() == null
                 || !esperado.getIdUsuario().equals(punto.getCajero().getIdUsuario()));
-        return horarioDistinto || cajeroDistinto;
+        return horarioDistinto || aperturaDistinta || cajeroDistinto;
     }
 
     private Usuario cajeroEsperadoAhora(List<ProgramacionHorario> celdasHoy) {
@@ -238,6 +240,20 @@ public class ProgramacionController {
                         .findFirst().orElse(null));
     }
 
+    private ProgramacionHorario celdaVigente(List<ProgramacionHorario> celdas, LocalTime ahora) {
+        return celdas.stream()
+                .filter(c -> c.getHoraInicio() != null || c.getHoraFin() != null)
+                .filter(c -> !ahora.isBefore(iniDe(c)) && !ahora.isAfter(finDe(c)))
+                .findFirst().orElse(null);
+    }
+
+    private ProgramacionHorario celdaSiguiente(List<ProgramacionHorario> celdas, LocalTime ahora) {
+        return celdas.stream()
+                .filter(c -> c.getHoraInicio() != null && c.getHoraInicio().isAfter(ahora))
+                .min(java.util.Comparator.comparing(ProgramacionHorario::getHoraInicio))
+                .orElse(null);
+    }
+
     private void aplicarAgendaDeHoy(PuntoAtencion punto) {
         List<ProgramacionHorario> hoy = programacionRepo
                 .findByObjetivoAndPuntoIdPuntoAndDiaSemana(CELDA, punto.getIdPunto(), diaDeHoy())
@@ -245,15 +261,16 @@ public class ProgramacionController {
         if (hoy.isEmpty()) return;
         punto.setModo("HORARIO");
 
-        LocalTime ini = null, fin = null;
-        for (ProgramacionHorario c : hoy) {
-            if (c.getHoraInicio() != null && (ini == null || c.getHoraInicio().isBefore(ini))) ini = c.getHoraInicio();
-            if (c.getHoraFin() != null && (fin == null || c.getHoraFin().isAfter(fin))) fin = c.getHoraFin();
+        LocalTime ahora = LocalTime.now();
+        ProgramacionHorario vigente = celdaVigente(hoy, ahora);
+        ProgramacionHorario referencia = (vigente != null) ? vigente : celdaSiguiente(hoy, ahora);
+
+        if (referencia != null) {
+            punto.setHoraInicio(referencia.getHoraInicio());
+            punto.setHoraFin(referencia.getHoraFin());
+            if (referencia.getCajero() != null) punto.setCajero(referencia.getCajero());
         }
-        punto.setHoraInicio(ini);
-        punto.setHoraFin(fin);
-        Usuario esperado = cajeroEsperadoAhora(hoy);
-        if (esperado != null) punto.setCajero(esperado);
+        punto.setActivo(vigente != null);
 
         punto.setUltimaAccionManual(null);
         puntoRepo.save(punto);

@@ -26,7 +26,8 @@
                     <option value="">— Elige un evento aprobado —</option>
                     <option th:each="e : ${eventosAprobados}" th:value="${e.idEvento}"
                             th:selected="${eventoLista != null && eventoLista.idEvento == e.idEvento}"
-                            th:text="${e.nombre} + ' (' + ${#temporals.format(e.fechaEvento, 'dd/MM/yyyy')} + ')'">Excursión</option>
+                            th:text="${e.nombreConComida} + ' — ' + ${#temporals.format(e.fechaEvento, 'dd/MM/yyyy')}
+                                     + (${listaHecha.get(e.idEvento)} ? '  ✓ lista guardada' : '')">Excursión (Almuerzo)</option>
                 </select>
                 <span style="font-size:0.72rem; color:#8a97a3;">Al elegir, la lista se carga sola.</span>
             </form>
@@ -41,8 +42,12 @@
             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <strong style="font-size:0.95rem; color:#2c3e50;">
                     <i class="fa-solid fa-medal me-1" style="color:#e67e22;"></i>
-                    <span th:text="${eventoLista.nombre}">Excursión</span> ·
+                    <span th:text="${eventoLista.nombreConComida}">Excursión (Almuerzo)</span> ·
                     <span th:text="${#temporals.format(eventoLista.fechaEvento, 'dd/MM/yyyy')}">15/06</span>
+                    <span class="badge-estado bg-permitido ms-1" th:if="${conPaseLista}"
+                          title="Ya guardaste el pase de lista de esta comida">
+                        <i class="fa-solid fa-check"></i> Lista guardada
+                    </span>
                     <span class="badge-estado" th:if="${esPasado}" style="background:#d6dbdf; color:#5d6d7b;">REALIZADO</span>
                     <span class="badge-estado bg-permitido ms-1">Recibidas: <span th:text="${recibidos}">0</span> / <span th:text="${#lists.size(participantesLista)}">32</span></span>
                 </strong>

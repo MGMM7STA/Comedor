@@ -117,6 +117,7 @@ public class PreceptorController {
         Residente r = new Residente();
         r.setFechaIngreso(LocalDate.now());
         model.addAttribute("residente", r);
+        model.addAttribute("hoy", LocalDate.now());
 
         model.addAttribute("pabellonAuto", usuarioActual(auth).getPabellon());
         model.addAttribute("facultades", carrerasService.facultades());
@@ -284,10 +285,18 @@ public class PreceptorController {
     }
 
     @PostMapping("/ausencias/{id}/cancelar")
-    public String cancelarAusencia(@PathVariable Long id, RedirectAttributes flash) {
+    public String cancelarAusencia(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
         Ausencia a = ausenciaRepo.findById(id).orElse(null);
         if (a == null) return "redirect:/preceptor/ausencias";
+        if (fueraDeSuResidencia(a.getResidente(), auth)) {
+            flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
+            return "redirect:/preceptor/ausencias";
+        }
+        Usuario quien = usuarioActual(auth);
         String resultado = justificacionService.cierreAnticipado(a);
+        if (resultado != null) {
+            resultado += " Cancelada por " + quien.getNombreCompleto() + " (" + quien.getRol() + ").";
+        }
         if (resultado == null) {
             flash.addFlashAttribute("error", "Esta ausencia no está en curso: no aplica el cierre anticipado.");
         } else {
@@ -297,19 +306,25 @@ public class PreceptorController {
     }
 
     @PostMapping("/solicitudes/{id}/cancelar")
-    public String cancelarSolicitud(@PathVariable Long id, RedirectAttributes flash) {
+    public String cancelarSolicitud(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
         SolicitudExtemporanea s = solicitudRepo.findById(id).orElse(null);
         if (s == null) return "redirect:/preceptor/residentes";
         Long idResidente = s.getResidente().getIdResidente();
-        if (!"PENDIENTE".equals(s.getEstado())) {
+        if (fueraDeSuResidencia(s.getResidente(), auth)) {
+            flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
+        } else if (!"PENDIENTE".equals(s.getEstado())) {
             flash.addFlashAttribute("error", "Esa reserva ya fue atendida por el cajero; no se puede cancelar.");
         } else if (turnoService.turnoYaOcurrio(s.getTipoComida(), s.getFecha())) {
 
             flash.addFlashAttribute("error", "El turno de esa reserva ya pasó: queda como historial y no se puede cancelar.");
         } else {
-            solicitudRepo.delete(s);
+            Usuario quien = usuarioActual(auth);
+            s.setEstado("CANCELADA");
+            s.setCanceladaPor(quien.getNombreCompleto() + " (" + quien.getRol() + ")");
+            s.setFechaCancelacion(java.time.LocalDateTime.now());
+            solicitudRepo.save(s);
             flash.addFlashAttribute("ok", "Reserva de " + s.getTipoComida().toLowerCase()
-                    + " del " + s.getFecha() + " cancelada.");
+                    + " del " + s.getFecha() + " cancelada por " + s.getCanceladaPor() + ".");
         }
         return "redirect:/preceptor/residentes/" + idResidente;
     }
@@ -318,9 +333,18 @@ public class PreceptorController {
     public String eliminarEvento(@PathVariable Long id, RedirectAttributes flash) {
         EventoEspecial e = eventoRepo.findById(id).orElse(null);
         if (e == null) return "redirect:/preceptor/eventos";
-        entregaRepo.deleteAll(entregaRepo.findByEventoIdEvento(id));
-        eventoRepo.delete(e);
-        flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" eliminado junto con su pase de lista.");
+
+        List<EventoEspecial> grupo = (e.getGrupoEvento() == null || e.getGrupoEvento().isBlank())
+                ? List.of(e) : eventoRepo.findByGrupoEvento(e.getGrupoEvento());
+        if (grupo.isEmpty()) grupo = List.of(e);
+
+        for (EventoEspecial comida : grupo) {
+            entregaRepo.deleteAll(entregaRepo.findByEventoIdEvento(comida.getIdEvento()));
+            eventoRepo.delete(comida);
+        }
+        String cuantas = grupo.size() == 1 ? "" : " (" + grupo.size() + " comidas)";
+        flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" eliminado" + cuantas
+                + " junto con su pase de lista.");
         return "redirect:/preceptor/eventos";
     }
 
@@ -355,6 +379,8 @@ public class PreceptorController {
                                    @RequestParam(required = false) String celular,
                                    @RequestParam(defaultValue = "ACTIVO") String estado,
                                    @RequestParam(defaultValue = "false") boolean deuda,
+                                   @RequestParam(required = false) LocalDate fechaIngreso,
+                                   @RequestParam(required = false) LocalDate fechaFinEstancia,
                                    @RequestParam(required = false) MultipartFile foto,
                                    @RequestParam(required = false) String apoNombre,
                                    @RequestParam(required = false) String apoRelacion,
@@ -403,12 +429,28 @@ public class PreceptorController {
         r.setEstado(estado);
         r.setDeuda(deuda);
 
-        if (r.getFechaIngreso() == null) {
-            LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now();
+        if (fechaIngreso != null) {
+            if (idResidente == null && fechaIngreso.isBefore(hoy)) {
+                flash.addFlashAttribute("error", "El inicio de estancia no puede ser anterior a hoy.");
+                return "redirect:/preceptor/residentes/nuevo";
+            }
+            r.setFechaIngreso(fechaIngreso);
+        } else if (r.getFechaIngreso() == null) {
             r.setFechaIngreso(hoy);
-            r.setFechaFinEstancia(hoy.getMonthValue() >= 7
-                    ? LocalDate.of(hoy.getYear(), 12, 31)
-                    : LocalDate.of(hoy.getYear(), 6, 30));
+        }
+        if (fechaFinEstancia != null) {
+            if (fechaFinEstancia.isBefore(r.getFechaIngreso())) {
+                flash.addFlashAttribute("error", "El fin de estancia no puede ser anterior a su inicio.");
+                return idResidente == null ? "redirect:/preceptor/residentes/nuevo"
+                        : "redirect:/preceptor/residentes/" + idResidente + "/editar";
+            }
+            r.setFechaFinEstancia(fechaFinEstancia);
+        } else if (r.getFechaFinEstancia() == null) {
+            LocalDate ini = r.getFechaIngreso();
+            r.setFechaFinEstancia(ini.getMonthValue() >= 7
+                    ? LocalDate.of(ini.getYear(), 12, 31)
+                    : LocalDate.of(ini.getYear(), 6, 30));
         }
         if (r.getTokenAcceso() == null) r.setTokenAcceso(java.util.UUID.randomUUID().toString());
         if (r.getPreceptor() == null) r.setPreceptor(quienRegistra);
@@ -479,6 +521,7 @@ public class PreceptorController {
         }
         Usuario preceptor = usuarioActual(auth);
         int registrados = 0;
+        final int[] reservasAnuladas = {0};
 
         for (Long idRes : ids) {
             Residente r = residenteRepo.findById(idRes).orElse(null);
@@ -518,13 +561,30 @@ public class PreceptorController {
             }
             ausenciaRepo.save(ausencia);
             registrados++;
+
+            for (AusenciaDetalle d : ausencia.getDetalles()) {
+                solicitudRepo.findFirstByResidenteIdResidenteAndFechaAndTipoComidaAndEstado(
+                                r.getIdResidente(), d.getFecha(), d.getTipoComida(), "PENDIENTE")
+                        .ifPresent(s -> {
+                            s.setEstado("CANCELADA");
+                            s.setCanceladaPor(preceptor.getNombreCompleto()
+                                    + " (justificación registrada)");
+                            solicitudRepo.save(s);
+                            reservasAnuladas[0]++;
+                        });
+            }
         }
         if (registrados == 0) {
             flash.addFlashAttribute("error", "No se registró ninguna ausencia: "
                     + "revisa que los residentes seleccionados pertenezcan a tu residencia de género.");
         } else {
-            flash.addFlashAttribute("ok", "Ausencia registrada para " + registrados + " residente(s) del "
-                    + desde + " al " + hasta + ".");
+            String msg = "Ausencia registrada para " + registrados + " residente(s) del "
+                    + desde + " al " + hasta + ".";
+            if (reservasAnuladas[0] > 0) {
+                msg += " Se cancelaron " + reservasAnuladas[0] + " reserva(s) que coincidían con "
+                        + "las comidas justificadas: la justificación manda sobre la reserva.";
+            }
+            flash.addFlashAttribute("ok", msg);
         }
         return "redirect:/preceptor/ausencias";
     }
@@ -606,11 +666,13 @@ public class PreceptorController {
         if (lista != null) return "redirect:/preceptor/pase-lista?evento=" + lista;
 
         List<Residente> activos = residentesActivosDe(auth);
+        List<EventoEspecial> aprobados = eventoRepo.findAllByOrderByFechaEnvioDesc().stream()
+                .filter(e -> "APROBADO".equals(e.getEstado())).toList();
         model.addAttribute("residentes", activos);
         model.addAttribute("activos", activos.size());
         model.addAttribute("misEventos", eventoRepo.findAllByOrderByFechaEnvioDesc());
-        model.addAttribute("eventosAprobados", eventoRepo.findAllByOrderByFechaEnvioDesc().stream()
-                .filter(e -> "APROBADO".equals(e.getEstado())).toList());
+        model.addAttribute("eventosAprobados", aprobados);
+        model.addAttribute("listaHecha", paseDeListaHecho(aprobados, activos));
         model.addAttribute("hoy", LocalDate.now());
 
         if (detalle != null) {
@@ -623,14 +685,28 @@ public class PreceptorController {
     @GetMapping("/pase-lista")
     public String paseLista(@RequestParam(required = false) Long evento, Model model, Authentication auth) {
         List<Residente> activos = residentesActivosDe(auth);
-        model.addAttribute("eventosAprobados", eventoRepo.findAllByOrderByFechaEnvioDesc().stream()
-                .filter(e -> "APROBADO".equals(e.getEstado())).toList());
+        List<EventoEspecial> aprobados = eventoRepo.findAllByOrderByFechaEnvioDesc().stream()
+                .filter(e -> "APROBADO".equals(e.getEstado())).toList();
+        model.addAttribute("eventosAprobados", aprobados);
+        model.addAttribute("listaHecha", paseDeListaHecho(aprobados, activos));
         if (evento != null) {
             eventoRepo.findById(evento)
                     .filter(e -> "APROBADO".equals(e.getEstado()))
                     .ifPresent(e -> cargarDatosEvento(model, e, activos, "eventoLista"));
         }
         return "preceptor/pase_lista";
+    }
+
+    private java.util.Map<Long, Boolean> paseDeListaHecho(List<EventoEspecial> eventos, List<Residente> activos) {
+        java.util.Set<Long> mios = activos.stream().map(Residente::getIdResidente)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.Map<Long, Boolean> hecho = new java.util.HashMap<>();
+        for (EventoEspecial e : eventos) {
+            boolean hay = entregaRepo.findByEventoIdEvento(e.getIdEvento()).stream()
+                    .anyMatch(en -> mios.contains(en.getResidente().getIdResidente()));
+            hecho.put(e.getIdEvento(), hay);
+        }
+        return hecho;
     }
 
     private void cargarDatosEvento(Model model, EventoEspecial evento, List<Residente> activos, String nombreAttr) {
@@ -791,18 +867,46 @@ public class PreceptorController {
     public String enviarEvento(@RequestParam String nombre,
                                @RequestParam LocalDate fechaEvento,
                                @RequestParam(required = false) String excluidos,
+                               @RequestParam(defaultValue = "false") boolean sustDesayuno,
+                               @RequestParam(defaultValue = "false") boolean sustAlmuerzo,
+                               @RequestParam(defaultValue = "false") boolean sustCena,
                                Authentication auth,
                                RedirectAttributes flash) {
-        EventoEspecial e = new EventoEspecial();
-        e.setNombre(nombre);
-        e.setFechaEvento(fechaEvento);
+        List<String> comidas = new java.util.ArrayList<>();
+        if (sustDesayuno) comidas.add("DESAYUNO");
+        if (sustAlmuerzo) comidas.add("ALMUERZO");
+        if (sustCena) comidas.add("CENA");
 
-        e.setTurnos("ADICIONAL");
-        e.setExcluidos(excluidos);
-        e.setEstado("PENDIENTE");
-        e.setUsuario(usuarioActual(auth));
-        eventoRepo.save(e);
-        flash.addFlashAttribute("ok", "Evento \"" + nombre + "\" enviado al administrador para su aprobación.");
+        if (comidas.isEmpty()) {
+            flash.addFlashAttribute("error", "Marca al menos una comida: el evento tiene que decir "
+                    + "a qué desayuno, almuerzo o cena corresponde la ración.");
+            return "redirect:/preceptor/eventos";
+        }
+
+        String grupo = java.util.UUID.randomUUID().toString();
+        Usuario quien = usuarioActual(auth);
+
+        for (String comida : comidas) {
+            EventoEspecial e = new EventoEspecial();
+            e.setNombre(nombre);
+            e.setFechaEvento(fechaEvento);
+            e.setComida(comida);
+            e.setGrupoEvento(grupo);
+            e.setSustituyeDesayuno("DESAYUNO".equals(comida));
+            e.setSustituyeAlmuerzo("ALMUERZO".equals(comida));
+            e.setSustituyeCena("CENA".equals(comida));
+            e.setTurnos(comida);
+            e.setExcluidos(excluidos);
+            e.setEstado("PENDIENTE");
+            e.setUsuario(quien);
+            eventoRepo.save(e);
+        }
+
+        String detalle = comidas.size() == 1
+                ? "para el " + comidas.get(0).toLowerCase()
+                : "con un pase de lista por cada comida (" + comidas.size() + ")";
+        flash.addFlashAttribute("ok", "Evento \"" + nombre + "\" enviado al administrador "
+                + detalle + ".");
         return "redirect:/preceptor/eventos";
     }
 }

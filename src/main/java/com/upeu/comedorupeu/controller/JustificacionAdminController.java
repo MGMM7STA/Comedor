@@ -196,8 +196,12 @@ public class JustificacionAdminController {
     }
 
     @PostMapping("/{id}/eliminar")
-    public String eliminar(@PathVariable Long id, RedirectAttributes flash) {
+    public String eliminar(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
         ausenciaRepo.findById(id).ifPresent(a -> {
+            if (!alcanceService.de(auth).alcanza(a.getResidente())) {
+                flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
+                return;
+            }
             String estado = justificacionService.estadoDe(a);
             if (!"FUTURA".equals(estado)) {
                 flash.addFlashAttribute("error", "Esta justificación ya "
@@ -213,8 +217,12 @@ public class JustificacionAdminController {
     }
 
     @PostMapping("/{id}/cancelar")
-    public String cancelar(@PathVariable Long id, RedirectAttributes flash) {
+    public String cancelar(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
         ausenciaRepo.findById(id).ifPresent(a -> {
+            if (!alcanceService.de(auth).alcanza(a.getResidente())) {
+                flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
+                return;
+            }
             String resultado = justificacionService.cierreAnticipado(a);
             if (resultado == null) {
                 flash.addFlashAttribute("error", "Esta justificación no está en curso: no aplica el cierre anticipado.");

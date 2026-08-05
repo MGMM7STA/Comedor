@@ -135,6 +135,15 @@
             cursor: pointer; transition: all 0.18s; display: inline-flex; align-items: center; gap: 6px;
         }
         .tab-seccion:hover { border-color: #aab7c4; color: #2c3e50; }
+        #cuerpoSel input[type=checkbox].form-check-input {
+            width: 1.2rem; height: 1.2rem; border: 2px solid #566573; cursor: pointer;
+        }
+        #cuerpoSel input[type=checkbox].form-check-input:checked {
+            background-color: #166534; border-color: #14532d;
+        }
+        #cuerpoSel input[type=checkbox].form-check-input:disabled {
+            opacity: 0.3; border-color: #b8c2cb; cursor: not-allowed;
+        }
         .punto-pendiente {
             display: inline-block; width: 7px; height: 7px; border-radius: 50%;
             background: #e67e22; vertical-align: middle;
@@ -313,7 +322,8 @@
            title="Registrar un residente nuevo">
             <i class="fa-solid fa-user-plus" style="color:#aab7c4;"></i><span>Nuevo Registro</span>
         </a>
-        <a href="/preceptor/ausencias" class="sidebar-link" th:classappend="${active == 'ausencias'} ? 'active'"
+        <a href="/preceptor/ausencias" class="sidebar-link"
+           th:classappend="${active == 'ausencias' or active == 'justificaciones'} ? 'active'"
            title="Justificar ausencias por período">
             <i class="fa-solid fa-calendar-xmark" style="color:#ec7063;"></i><span>Ausencias</span>
         </a>
@@ -479,10 +489,17 @@
             if (e.target.matches && e.target.matches('input[type="time"].auto-guardar') && e.target.form) {
                 const campo = e.target;
                 clearTimeout(esperaAutoGuardar);
-                esperaAutoGuardar = setTimeout(function () {
 
-                    if (campo.isConnected && campo.form) campo.form.requestSubmit();
-                }, 1200);
+                function esperarASalir() {
+                    esperaAutoGuardar = setTimeout(function () {
+                        if (!campo.isConnected || !campo.form) return;
+                        const sigueAhi = document.activeElement && campo.form.contains(document.activeElement);
+                        if (sigueAhi) { esperarASalir(); return; }
+                        campo.form.requestSubmit();
+                    }, 1200);
+                }
+
+                esperarASalir();
             }
         });
     </script>
@@ -572,18 +589,38 @@
             });
         }, true);
 
+        window.fechaLocalHoy = function () {
+            const d = new Date();
+            return d.getFullYear() + '-'
+                + String(d.getMonth() + 1).padStart(2, '0') + '-'
+                + String(d.getDate()).padStart(2, '0');
+        };
+
         window.exportarConRango = function (opciones) {
             const modal = document.getElementById('modalExportar');
             document.getElementById('exportarTitulo').textContent = opciones.titulo || 'Exportar';
             const ini = document.getElementById('exportarDesde');
             const fin = document.getElementById('exportarHasta');
-            const hoy = new Date().toISOString().slice(0, 10);
-            if (!ini.value) ini.value = hoy;
-            if (!fin.value) fin.value = hoy;
+            const hoy = window.fechaLocalHoy();
+
+            const params = new URLSearchParams(window.location.search);
+            const filtroDesde = params.get(opciones.pDesde);
+            const filtroHasta = params.get(opciones.pHasta);
+
+            ini.value = (filtroDesde && filtroDesde <= hoy) ? filtroDesde : hoy;
+            fin.value = (filtroHasta && filtroHasta <= hoy) ? filtroHasta : ini.value;
+            ini.max = hoy;
+            fin.max = hoy;
+
             modal.style.display = 'flex';
             document.getElementById('exportarOk').onclick = function () {
                 if (!ini.value || !fin.value) { avisoSistema('Indica la fecha inicial y la fecha final.', 'Faltan fechas'); return; }
                 if (fin.value < ini.value) { avisoSistema('La fecha final no puede ser anterior a la inicial.', 'Rango inválido'); return; }
+                if (ini.value > hoy || fin.value > hoy) {
+                    avisoSistema('No se puede exportar un día que todavía no ha ocurrido. '
+                        + 'La fecha máxima es hoy (' + hoy + ').', 'Fecha futura');
+                    return;
+                }
                 modal.style.display = 'none';
                 const url = opciones.ruta + '?' + opciones.pDesde + '=' + ini.value
                     + '&' + opciones.pHasta + '=' + fin.value + (opciones.extra || '');
@@ -626,6 +663,24 @@
                 || null;
         };
 
+        window.coincidenciasDeNombre = function (lista, texto) {
+            const t = window.normalizarTexto(texto);
+            if (!t) return [];
+            if (lista.some(x => window.normalizarTexto(x.codigo) === t
+                             || window.normalizarTexto(x.nombre) === t)) return [];
+            return lista.filter(x => window.normalizarTexto(x.nombre).includes(t));
+        };
+
+        window.avisarVariasCoincidencias = function (coincidencias, texto) {
+            const lista = coincidencias.slice(0, 8)
+                .map(x => '• ' + x.nombre + '  (' + x.codigo + ')').join('\n');
+            window.avisoSistema(
+                'Hay ' + coincidencias.length + ' residentes cuyo nombre contiene "' + texto + '":\n\n'
+                + lista + (coincidencias.length > 8 ? '\n…' : '')
+                + '\n\nEscribe el código o el nombre completo para elegir sin ambigüedad.',
+                'Varios residentes coinciden');
+        };
+
         window.alPresionarEnter = function (campo, accion) {
             campo.addEventListener('keydown', function (e) {
                 if (e.key !== 'Enter') return;
@@ -634,6 +689,16 @@
             });
             campo.addEventListener('input', function (e) {
                 if (e.inputType === 'insertReplacementText') setTimeout(accion, 0);
+            });
+        };
+
+        window.radiosDesmarcables = function (nombre, alCambiar) {
+            document.querySelectorAll('input[type=radio][name="' + nombre + '"]').forEach(function (r) {
+                r.addEventListener('mousedown', function () { r.dataset.previo = r.checked ? '1' : '0'; });
+                r.addEventListener('click', function () {
+                    if (r.dataset.previo === '1') { r.checked = false; r.dataset.previo = '0'; }
+                    if (typeof alCambiar === 'function') alCambiar();
+                });
             });
         };
 

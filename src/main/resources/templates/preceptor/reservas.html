@@ -100,14 +100,17 @@
                                     th:text="${r.nombreCompleto}"></option>
                         </datalist>
                         <input type="hidden" name="codigos" id="codigosHidden">
+                        <input type="hidden" name="conTaper" id="taperHidden">
 
                         <table class="tabla-dark">
                             <thead>
-                            <tr><th>N°</th><th>Código</th><th>Residente</th><th>Cuarto</th><th>Quitar</th></tr>
+                            <tr><th>N°</th><th>Código</th><th>Residente</th><th>Cuarto</th>
+                                <th class="text-center" title="Marca si el residente trae su propio táper">Táper</th>
+                                <th>Quitar</th></tr>
                             </thead>
                             <tbody id="cuerpoLista">
                             <tr id="filaVacia">
-                                <td colspan="5" class="text-center text-muted py-3">
+                                <td colspan="6" class="text-center text-muted py-3">
                                     Aún no has agregado residentes. Usa el buscador de arriba.
                                 </td>
                             </tr>
@@ -126,44 +129,17 @@
             </div>
         </form>
 
-        <div class="card-panel mt-3">
-            <span class="titulo-seccion">Reservas registradas</span>
-            <table class="tabla-dark">
-                <thead>
-                <tr><th>N°</th><th>Fecha</th><th>Residente</th><th>Código</th><th>Estado</th><th>Acciones</th></tr>
-                </thead>
-                <tbody>
-                <tr th:each="s, it : ${misReservas}">
-                    <td th:text="${it.count}">1</td>
-                    <td th:text="${#temporals.format(s.fecha, 'dd/MM/yyyy')}">02/07/2026</td>
-                    <td th:text="${s.residente.apellido} + ', ' + ${s.residente.nombre}">Mamani, Juan</td>
-                    <td th:text="${s.residente.codigoAcceso}">U-2024-10542</td>
-                    <td>
-                        <span class="badge-estado" th:classappend="${s.estado == 'PENDIENTE'} ? 'bg-pendiente' : 'bg-permitido'"
-                              th:text="${s.estado == 'PENDIENTE'} ? 'Pendiente' : 'Entregada'">Pendiente</span>
-                    </td>
-                    <td>
 
-                        <button type="button" class="btn btn-primary btn-sm" style="font-size:0.68rem;"
-                                onclick="verReservaPrec(this)" title="Ver el detalle completo de esta reserva"
-                                th:attr="data-residente=${s.residente.nombreCompleto},
-                                         data-codigo=${s.residente.codigoAcceso},
-                                         data-fecha=${#temporals.format(s.fecha, 'dd/MM/yyyy')},
-                                         data-turno=${#strings.capitalize(#strings.toLowerCase(s.tipoComida))},
-                                         data-programada=${s.horaRecojo} ?: '—',
-                                         data-real=${s.fechaHoraEntrega != null} ? ${#temporals.format(s.fechaHoraEntrega, 'HH:mm')} : 'Aún no recogida',
-                                         data-entregado=${s.entregadoATexto},
-                                         data-motivo=${s.motivo}">
-                            <i class="fa-solid fa-eye"></i> Ver detalles
-                        </button>
-                    </td>
-                </tr>
-                <tr th:if="${#lists.isEmpty(misReservas)}">
-                    <td colspan="6" class="text-center text-muted py-3">Sin reservas registradas.</td>
-                </tr>
-                </tbody>
-            </table>
+        <div class="card-panel mt-3 text-center">
+            <a href="/admin/reservas" class="btn btn-navy btn-sm-flat"
+               title="Ver y cancelar reservas en una pantalla completa">
+                <i class="fa-solid fa-clock-rotate-left me-1"></i>Ver historial de reservas
+            </a>
+            <div style="font-size:0.72rem; color:#8a97a3;" class="mt-2">
+                Ahí puedes consultar por fechas, buscar por residente y cancelar las que aún no pasaron.
+            </div>
         </div>
+
     </div>
 </div>
 
@@ -205,6 +181,13 @@
     const fechaHoy = /*[[${hoy != null ? #temporals.format(hoy, 'yyyy-MM-dd') : ''}]]*/ '';
 
     const lista = [];
+    const conTaper = new Set();
+
+    function marcarTaper(chk) {
+        if (chk.checked) conTaper.add(chk.dataset.codigo);
+        else conTaper.delete(chk.dataset.codigo);
+        document.getElementById('taperHidden').value = [...conTaper].join(',');
+    }
 
     window.hayTrabajoEnCurso = () => lista.length > 0;
 
@@ -235,6 +218,8 @@
         const campo = document.getElementById('buscador');
         const texto = campo.value.trim();
         if (!texto) return;
+        const varios = coincidenciasDeNombre(residentes, texto);
+        if (varios.length > 1) { avisarVariasCoincidencias(varios, texto); return; }
         const r = buscarResidenteEnLista(residentes, texto);
         if (!r) {
             avisoSistema('No hay ningún residente activo de tu residencia con "' + texto + '". '
@@ -264,7 +249,7 @@
         cuerpo.innerHTML = '';
         if (lista.length === 0) {
 
-            cuerpo.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">'
+            cuerpo.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">'
                 + 'Aún no has agregado residentes. Usa el buscador de arriba.</td></tr>';
         } else {
             lista.forEach((cod, i) => {
@@ -274,6 +259,10 @@
                     + '<td>' + cod + '</td>'
                     + '<td>' + r.nombre + '</td>'
                     + '<td>' + (r.cuarto || '—') + '</td>'
+                    + '<td class="text-center"><input type="checkbox" class="form-check-input chk-taper" '
+                    + 'data-codigo="' + cod + '"' + (conTaper.has(cod) ? ' checked' : '')
+                    + ' title="Marcado: el residente trae su propio táper" '
+                    + 'onchange="marcarTaper(this)"></td>'
                     + '<td><button type="button" class="btn btn-danger btn-sm" style="font-size:0.7rem;" '
                     + 'title="Quitar de la lista" onclick="quitar(\'' + cod + '\')">Quitar</button></td>';
                 cuerpo.appendChild(tr);
@@ -281,6 +270,7 @@
         }
         document.getElementById('conteo').textContent = lista.length;
         document.getElementById('codigosHidden').value = lista.join(',');
+        document.getElementById('taperHidden').value = [...conTaper].join(',');
         document.getElementById('btnGuardar').disabled = lista.length === 0;
         actualizarConfirmacionLote();
     }
@@ -312,6 +302,8 @@
     document.getElementById('switchAgrupar').addEventListener('change', actualizarConfirmacionLote);
 
     alPresionarEnter(document.getElementById('buscador'), agregar);
+
+    radiosDesmarcables('tipoComida');
 
     marcarTurnosBloqueados();
     pintarLista();
