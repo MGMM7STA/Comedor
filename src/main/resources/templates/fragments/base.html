@@ -520,10 +520,25 @@
                 : 'fa-solid fa-triangle-exclamation';
             icono.style.color = opciones.estilo === 'exito' ? '#27ae60' : '#e67e22';
             btnNo.style.display = '';
+
+            const zonaMotivo = document.getElementById('modalZonaMotivo');
+            const campoMotivo = document.getElementById('modalMotivo');
+            campoMotivo.value = '';
+            if (opciones.motivo) {
+                document.getElementById('modalMotivoEtiqueta').textContent = opciones.motivo;
+                zonaMotivo.style.display = '';
+            } else {
+                zonaMotivo.style.display = 'none';
+            }
+
             modal.style.display = 'flex';
 
             const cerrar = () => { modal.style.display = 'none'; btnOk.onclick = null; btnNo.onclick = null; modal.onclick = null; };
-            btnOk.onclick = () => { cerrar(); if (opciones.alConfirmar) opciones.alConfirmar(); };
+            btnOk.onclick = () => {
+                const texto = campoMotivo.value.trim();
+                cerrar();
+                if (opciones.alConfirmar) opciones.alConfirmar(texto);
+            };
             btnNo.onclick = cerrar;
             modal.onclick = (e) => { if (e.target === modal) cerrar(); };
             document.addEventListener('keydown', function esc(e) {
@@ -580,11 +595,24 @@
                 mensaje: f.dataset.confirmar,
                 boton: f.dataset.boton || 'Sí, continuar',
                 estilo: f.dataset.estilo || 'peligro',
-                alConfirmar: () => {
+                motivo: f.dataset.motivo,
+                alConfirmar: (texto) => {
 
                     const objetivo = f.isConnected ? f
                         : document.querySelector('form[action="' + accion + '"]');
-                    if (objetivo) { objetivo.dataset.confirmado = '1'; objetivo.submit(); }
+                    if (!objetivo) return;
+                    if (f.dataset.motivo) {
+                        let campo = objetivo.querySelector('input[name="motivoAccion"]');
+                        if (!campo) {
+                            campo = document.createElement('input');
+                            campo.type = 'hidden';
+                            campo.name = 'motivoAccion';
+                            objetivo.appendChild(campo);
+                        }
+                        campo.value = texto || '';
+                    }
+                    objetivo.dataset.confirmado = '1';
+                    objetivo.submit();
                 }
             });
         }, true);
@@ -752,6 +780,11 @@
             <span id="modalTitulo">Confirmar acción</span>
         </div>
         <div class="modal-texto" id="modalTexto">¿Deseas continuar?</div>
+        <div id="modalZonaMotivo" class="mt-2" style="display:none;">
+            <div class="lbl mb-1" id="modalMotivoEtiqueta">Motivo (opcional)</div>
+            <textarea id="modalMotivo" class="form-control" rows="2" maxlength="300"
+                      placeholder="Puedes dejarlo en blanco"></textarea>
+        </div>
         <div class="modal-botones">
             <button type="button" id="modalCancelar" class="btn btn-light border btn-sm-flat">Cancelar</button>
             <button type="button" id="modalConfirmar" class="btn btn-danger btn-sm-flat">Sí, continuar</button>
@@ -806,8 +839,7 @@
                         ? #temporals.format(semFin, 'yyyy-MM-dd')
                         : #temporals.format(nav.hoy, 'yyyy-MM-dd')},
               pendientesDeEstaPantalla=${ruta == '/admin/peticiones' ? diasIncidencias
-                        : (ruta == '/admin/reservas' ? diasReservas
-                        : (ruta == '/admin/eventos' ? diasEventos : null))}">
+                        : (ruta == '/admin/eventos' ? diasEventos : null)}">
     <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
         <div th:if="${semestres != null and !semestres.isEmpty()}" class="d-flex align-items-center gap-1">
             <span class="lbl" style="margin:0;">Semestre</span>

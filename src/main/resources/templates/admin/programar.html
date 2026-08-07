@@ -73,6 +73,7 @@
             <div class="d-flex gap-2">
                 <form th:action="@{/admin/programar/copiar-dia}" method="post" style="margin:0;">
                     <input type="hidden" name="diaSemana" th:value="${diaSel}">
+                            <input type="hidden" name="fecha" th:value="${fechaSel}">
                     <button class="btn btn-light border btn-sm-flat"
                             th:title="'Copiar toda la programación de los ' + ${dias[diaSel - 1]} + ' (horarios y personal)'">
                         <i class="fa-solid fa-copy me-1"></i>Copiar Día
@@ -84,6 +85,7 @@
                                data-confirmar='Los horarios y el personal de los ' + ${dias[diaCopiado - 1]} + ' se copiarán sobre los ' + ${dias[diaSel - 1]} + ', reemplazando lo que tengan programado.',
                                data-boton='Sí, pegar aquí'">
                     <input type="hidden" name="diaSemana" th:value="${diaSel}">
+                            <input type="hidden" name="fecha" th:value="${fechaSel}">
                     <button class="btn btn-sm-flat" style="background:#16a085; color:#fff;"
                             th:title="'Pegar aquí lo copiado de los ' + ${dias[diaCopiado - 1]}">
                         <i class="fa-solid fa-paste me-1"></i>Pegar Día
@@ -147,6 +149,7 @@
                       th:style="'background:#fff; border:2px solid ' + ${colorBorde} + ';'">
                     <input type="hidden" name="tipoTurno" th:value="${tipo}">
                     <input type="hidden" name="diaSemana" th:value="${diaSel}">
+                            <input type="hidden" name="fecha" th:value="${fechaSel}">
                     <span style="font-size:0.74rem; font-weight:700;" th:style="'font-size:0.74rem; font-weight:700; color:' + ${colorTexto} + ';'"
                           th:title="'Horario en que el turno de ' + ${#strings.toLowerCase(tipo)} + ' abre y cierra este día'">
                         <i class="fa-regular fa-clock me-1"></i>Horario del turno:
@@ -176,30 +179,62 @@
 
                 <div class="col-md-4 tarjeta-celda" th:each="p : ${puntos}"
                      th:with="celda=${celdas.get(tipo + '-' + p.idPunto)},
-                              quitada=${celda != null && celda.activo != null && !celda.activo}"
+                              quitada=false,
+                              atiendeEsteTurno=${p.operativo && turnoEnCurso != null && turnoEnCurso.get(p.idPunto) != null
+                                                 && turnoEnCurso.get(p.idPunto) == tipo}"
                      th:attr="data-turno=${tipo}, data-nombre=${p.nombre},
-                              data-prog=${celda != null && !quitada} ? '1' : '0'">
+                              data-prog=${celda != null} ? '1' : '0'">
 
                     <div class="rounded h-100"
-                         th:style="'border:1px solid ' + ${colorBorde} + '; background:' + ${colorFondo} + ';'
-                                   + (${quitada} ? ' opacity:0.45;' : '')">
+                         th:style="'border:1px solid ' + ${colorBorde} + '; background:' + ${colorFondo} + ';'">
                         <div class="d-flex justify-content-between align-items-center px-2 py-1"
                              th:style="'border-bottom:1px solid ' + ${colorBorde} + ';'">
                             <strong th:style="'font-size:0.8rem; color:' + ${colorTexto} + ';'">
                                 <i class="fa-solid fa-door-open me-1"></i><span th:text="${p.nombre}">Entrada A</span>
                             </strong>
-                            <span class="badge-estado bg-denegado" th:if="${quitada}"
-                                  title="Esta entrada fue quitada de este turno (no se eliminó)">QUITADA</span>
-                            <span class="badge-estado" th:if="${!quitada}"
-                                  th:classappend="${p.operativo} ? 'bg-permitido' : 'bg-denegado'"
-                                  th:text="${p.operativo} ? 'Operativo' : 'Cerrado'"
-                                  title="Estado de servicio en este momento">Operativo</span>
+                            <span class="badge-estado"
+                                  th:classappend="${atiendeEsteTurno} ? 'bg-permitido' : 'bg-ausente'"
+                                  th:text="${atiendeEsteTurno}
+                                           ? 'Atendiendo ' + ${#strings.toLowerCase(tipo)}
+                                           : (${p.operativo} ? 'Abierta en otro turno' : 'Cerrada')"
+                                  th:title="${atiendeEsteTurno}
+                                            ? 'Ahora mismo esta entrada está atendiendo este turno'
+                                            : (${p.operativo}
+                                               ? 'La entrada está abierta, pero sirviendo otro turno distinto de este'
+                                               : 'La entrada no está atendiendo en este momento')">Cerrada</span>
+                        </div>
+
+                        <div class="px-2 pt-2"
+                             th:with="esHeredada=${celda != null && heredada.get(tipo + '-' + p.idPunto)},
+                                      conHorario=${celda != null && celda.horaInicio != null && celda.horaFin != null}">
+                            <span class="badge-estado w-100 text-center d-block bg-ausente"
+                                  style="font-size:0.66rem;" th:unless="${conHorario}"
+                                  title="Todavía no hay horario guardado para esta entrada en este turno">
+                                <i class="fa-solid fa-circle-minus"></i> Sin guardar
+                            </span>
+
+                            <span class="badge-estado w-100 text-center d-block bg-pendiente"
+                                  style="font-size:0.66rem;" th:if="${conHorario and esHeredada}"
+                                  title="Viene de la plantilla semanal. Si la guardas, quedará fijada solo para este día.">
+                                <i class="fa-solid fa-clone"></i>
+                                <span th:text="'De plantilla · ' + ${#temporals.format(celda.horaInicio, 'HH:mm')}
+                                               + ' a ' + ${#temporals.format(celda.horaFin, 'HH:mm')}">De plantilla</span>
+                            </span>
+
+                            <span class="badge-estado w-100 text-center d-block bg-permitido"
+                                  style="font-size:0.66rem;" th:if="${conHorario and !esHeredada}"
+                                  title="Guardada solo para este día concreto">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span th:text="'Guardada este día · ' + ${#temporals.format(celda.horaInicio, 'HH:mm')}
+                                               + ' a ' + ${#temporals.format(celda.horaFin, 'HH:mm')}">Guardada</span>
+                            </span>
                         </div>
 
                         <form th:action="@{/admin/programar/celda}" method="post" class="p-2">
                             <input type="hidden" name="idPunto" th:value="${p.idPunto}">
                             <input type="hidden" name="tipoTurno" th:value="${tipo}">
                             <input type="hidden" name="diaSemana" th:value="${diaSel}">
+                            <input type="hidden" name="fecha" th:value="${fechaSel}">
 
                             <fieldset th:disabled="${diaPasado || quitada}" style="border:none; padding:0; margin:0;">
                                 <div class="d-flex align-items-center gap-1 mb-1">
@@ -223,9 +258,13 @@
                                            style="font-size:0.74rem;" th:value="${celda != null} ? ${celda.horaFin} : null"
                                            title="Hora en que deja de atender (se guarda sola al elegirla)">
                                 </div>
+                                <label class="d-block mb-1" style="cursor:pointer; font-size:0.66rem; color:#5d6d7b;">
+                                    <input type="checkbox" name="guardarPlantilla" value="true" class="form-check-input me-1">
+                                    <span th:text="'Fijar para todos los ' + ${dias[diaSel - 1]}">Fijar para todos los lunes</span>
+                                </label>
                                 <div class="d-flex gap-1">
                                     <button class="btn btn-navy btn-sm flex-fill" style="font-size:0.7rem;"
-                                            th:title="'Guardar esta programación de ' + ${p.nombre}">
+                                            th:title="'Guardar el horario de ' + ${p.nombre} + ' solo para este día'">
                                         <i class="fa-solid fa-floppy-disk me-1"></i>Guardar
                                     </button>
 
@@ -243,15 +282,11 @@
                                 <input type="hidden" name="idPunto" th:value="${p.idPunto}">
                                 <input type="hidden" name="tipoTurno" th:value="${tipo}">
                                 <input type="hidden" name="diaSemana" th:value="${diaSel}">
-                                <button th:if="${!quitada}" class="btn btn-outline-secondary btn-sm w-100"
+                            <input type="hidden" name="fecha" th:value="${fechaSel}">
+                                <button class="btn btn-outline-secondary btn-sm w-100"
                                         style="font-size:0.66rem;"
-                                        th:title="'Quitar ' + ${p.nombre} + ' de este turno (el horario del turno no se le aplicará; no se elimina nada)'">
+                                        th:title="'Sacar ' + ${p.nombre} + ' de este turno. Podrás volver a añadirla con el botón + y entrará limpia.'">
                                     <i class="fa-solid fa-ban me-1"></i>Quitar de este turno
-                                </button>
-                                <button th:if="${quitada}" class="btn btn-success btn-sm w-100"
-                                        style="font-size:0.66rem;"
-                                        th:title="'Volver a incluir ' + ${p.nombre} + ' en este turno'">
-                                    <i class="fa-solid fa-rotate-left me-1"></i>Incluir en este turno
                                 </button>
                             </form>
                         </div>
@@ -283,7 +318,43 @@
 
 <script>
 
+    function diaActual() {
+        const campo = document.querySelector('input[name="diaSemana"]');
+        return campo ? campo.value : '0';
+    }
+
+    function claveAbiertas() {
+        return 'programarAbiertas:' + diaActual();
+    }
+
+    function abiertasAMano() {
+        try {
+            return new Set(JSON.parse(sessionStorage.getItem(claveAbiertas()) || '[]'));
+        } catch (e) {
+            return new Set();
+        }
+    }
+
+    function guardarAbiertas(conjunto) {
+        try {
+            sessionStorage.setItem(claveAbiertas(), JSON.stringify(Array.from(conjunto)));
+        } catch (e) { }
+    }
+
+    function recordarEntrada(turno, nombre) {
+        const s = abiertasAMano();
+        s.add(turno + '|' + nombre);
+        guardarAbiertas(s);
+    }
+
+    function olvidarEntrada(turno, nombre) {
+        const s = abiertasAMano();
+        s.delete(turno + '|' + nombre);
+        guardarAbiertas(s);
+    }
+
     function iniciarZonas() {
+        const recordadas = abiertasAMano();
         document.querySelectorAll('.tarjeta-anadir').forEach(anadir => {
             const turno = anadir.dataset.turno;
             const combo = document.getElementById('combo-' + turno);
@@ -291,7 +362,7 @@
             while (combo.options.length > 1) combo.remove(1);
             const tarjetas = Array.from(document.querySelectorAll('.tarjeta-celda[data-turno="' + turno + '"]'));
             tarjetas.forEach(t => {
-                if (t.dataset.prog === '1') {
+                if (t.dataset.prog === '1' || recordadas.has(turno + '|' + t.dataset.nombre)) {
                     t.classList.remove('d-none');
                 } else {
 
@@ -316,6 +387,7 @@
         if (!nombre) return;
         const tarjeta = document.querySelector('.tarjeta-celda[data-turno="' + turno + '"][data-nombre="' + nombre + '"]');
         if (tarjeta) tarjeta.classList.remove('d-none');
+        recordarEntrada(turno, nombre);
         combo.querySelector('option[value="' + nombre + '"]').remove();
         combo.value = '';
         if (combo.options.length <= 1) {
@@ -336,6 +408,22 @@
             if (fin && !fin.value && pFin) { fin.value = pFin.value; fin.defaultValue = pFin.value; }
         });
     }
+
+    document.addEventListener('submit', function (e) {
+        const f = e.target;
+        if (!f || !f.action) return;
+        const tarjeta = f.closest('.tarjeta-celda');
+        if (!tarjeta) return;
+
+        const borraCelda = f.action.indexOf('/programar/celda') >= 0
+            && !f.querySelector('input[name="horaInicio"]').value
+            && !f.querySelector('input[name="horaFin"]').value;
+        const quitaDelTurno = f.action.indexOf('/excluir-entrada') >= 0;
+
+        if (borraCelda || quitaDelTurno) {
+            olvidarEntrada(tarjeta.dataset.turno, tarjeta.dataset.nombre);
+        }
+    }, true);
 
     iniciarZonas();
     heredarPlantilla();

@@ -100,9 +100,9 @@
 
                         <div class="p-2 rounded mb-3" style="background:#fef9e7; border:1px solid #f7dc6f; font-size:0.76rem; color:#9a7d0a;">
                             <i class="fa-solid fa-circle-info me-1"></i>
-                            El evento prepara <strong>raciones adicionales</strong>, independientes de las comidas
-                            habituales (el residente recibe ambas). No justifica faltas: la entrega se
-                            controla con el <strong>pase de lista</strong>.
+                            El evento <strong>sustituye</strong> la comida del comedor en los turnos que marques:
+                            quien participe no figura como ausente en ellos. La entrega se controla con el
+                            <strong>pase de lista</strong> de cada comida.
                         </div>
 
                         <div class="d-flex gap-2">
@@ -132,19 +132,24 @@
                                       style="background:#d6dbdf; color:#5d6d7b;" title="La fecha del evento ya pasó">REALIZADO</span>
                                 <span class="badge-estado"
                                       th:classappend="${e.estado == 'PENDIENTE'} ? 'bg-pendiente' : (${e.estado == 'APROBADO'} ? 'bg-permitido' : 'bg-denegado')"
-                                      th:text="${e.estado}">PENDIENTE</span>
+                                      th:text="${e.estado}"
+                                      th:title="${e.canceladoPor != null}
+                                                ? 'Cancelado por ' + ${e.canceladoPor}
+                                                  + (${e.motivoCancelacion != null} ? ' — ' + ${e.motivoCancelacion} : '')
+                                                : ''">PENDIENTE</span>
                                 <a th:href="@{/preceptor/eventos(detalle=${e.idEvento})}" class="btn btn-primary btn-sm"
                                    style="font-size:0.66rem; padding:2px 8px;" title="Ver detalles del evento">
                                     <i class="fa-solid fa-eye"></i> Ver
                                 </a>
-                                <form th:if="${e.estado != 'APROBADO'}" th:action="@{'/preceptor/eventos/' + ${e.idEvento} + '/eliminar'}"
+                                <form th:if="${e.estado != 'CANCELADO'}" th:action="@{'/preceptor/eventos/' + ${e.idEvento} + '/eliminar'}"
                                       method="post" style="margin:0;"
-                                      th:attr="data-titulo='Eliminar evento: ' + ${e.nombre},
-                                               data-confirmar='El evento se eliminará y no se puede deshacer.',
-                                               data-boton='Sí, eliminar'">
+                                      th:attr="data-titulo='Cancelar evento: ' + ${e.nombreConComida},
+                                               data-confirmar='El evento quedará CANCELADO: se borra su pase de lista, deja de contar como sustituto de esa comida y el administrador lo verá como cancelado. Si el evento tiene varias comidas, se cancelan todas.',
+                                               data-motivo='Motivo de la cancelación (opcional)',
+                                               data-boton='Sí, cancelar evento'">
                                     <button class="btn btn-outline-danger btn-sm" style="font-size:0.66rem; padding:2px 6px;"
-                                            title="Eliminar evento">
-                                        <i class="fa-solid fa-trash"></i>
+                                            title="Cancelar evento">
+                                        <i class="fa-solid fa-ban"></i>
                                     </button>
                                 </form>
                             </div>
@@ -230,6 +235,17 @@
             </div>
         </div>
 
+        <div th:if="${eventoDetalle.estado == 'CANCELADO'}" class="p-2 rounded mb-2"
+             style="background:#fdedec; border:1px solid #f5b7b1; font-size:0.78rem; color:#943126;">
+            <i class="fa-solid fa-ban me-1"></i>
+            Evento <strong>cancelado</strong> por <span th:text="${eventoDetalle.canceladoPor}">Preceptor Varones</span>
+            <span th:if="${eventoDetalle.fechaCancelacion != null}"
+                  th:text="'el ' + ${#temporals.format(eventoDetalle.fechaCancelacion, 'dd/MM/yyyy HH:mm')}">el 05/08</span>.
+            <div class="mt-1">Motivo:
+                <span th:text="${eventoDetalle.motivoCancelacion} ?: 'no se indicó ninguno'">Se suspendió la salida</span>
+            </div>
+        </div>
+
         <div th:if="${eventoDetalle.estado == 'RECHAZADO'}" class="p-2 rounded mb-2"
              style="background:#fdedec; border:1px solid #f5b7b1; font-size:0.78rem; color:#943126;">
             <i class="fa-solid fa-ban me-1"></i>
@@ -264,11 +280,14 @@
         </div>
 
         <div class="modal-botones">
-            <form th:action="@{'/preceptor/eventos/' + ${eventoDetalle.idEvento} + '/eliminar'}" method="post" style="margin:0; margin-right:auto;"
-                  th:attr="data-titulo='Eliminar evento: ' + ${eventoDetalle.nombre},
-                           data-confirmar='El evento se eliminará junto con su pase de lista. Esta acción no se puede deshacer.',
-                           data-boton='Sí, eliminar evento'">
-                <button class="btn btn-outline-danger btn-sm-flat"><i class="fa-solid fa-trash me-1"></i>Eliminar evento</button>
+            <form th:if="${eventoDetalle.estado != 'CANCELADO'}"
+                  th:action="@{'/preceptor/eventos/' + ${eventoDetalle.idEvento} + '/eliminar'}" method="post"
+                  style="margin:0; margin-right:auto;"
+                  th:attr="data-titulo='Cancelar evento: ' + ${eventoDetalle.nombreConComida},
+                           data-confirmar='El evento quedará CANCELADO: se borra su pase de lista, deja de contar como sustituto de esa comida y el administrador lo verá como cancelado. Si el evento tiene varias comidas, se cancelan todas.',
+                           data-motivo='Motivo de la cancelación (opcional)',
+                           data-boton='Sí, cancelar evento'">
+                <button class="btn btn-outline-danger btn-sm-flat"><i class="fa-solid fa-ban me-1"></i>Cancelar evento</button>
             </form>
             <a th:if="${eventoDetalle.estado == 'APROBADO'}" th:href="@{/preceptor/pase-lista(evento=${eventoDetalle.idEvento})}"
                class="btn btn-success btn-sm-flat"><i class="fa-solid fa-clipboard-check me-1"></i>Pasar lista</a>
@@ -375,7 +394,9 @@
         if (comidasElegidas().length === 0) {
             e.preventDefault();
             e.stopImmediatePropagation();
-            alert('Marca al menos una comida (Desayuno, Almuerzo o Cena): el evento tiene que decir a qué comida corresponde la ración.');
+            window.avisoSistema('Marca al menos una comida (Desayuno, Almuerzo o Cena): el evento tiene que decir '
+                + 'a qué comida corresponde la ración, porque cada una lleva su propio pase de lista.',
+                'Falta elegir la comida');
             document.querySelector('.chk-comida').focus();
         }
     }, true);

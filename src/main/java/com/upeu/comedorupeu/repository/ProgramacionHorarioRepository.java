@@ -10,16 +10,19 @@ public interface ProgramacionHorarioRepository extends JpaRepository<Programacio
 
     List<ProgramacionHorario> findByObjetivo(String objetivo);
 
-    Optional<ProgramacionHorario> findFirstByObjetivoAndPuntoIdPuntoAndDiaSemana(String objetivo, Long idPunto, Integer diaSemana);
-
     Optional<ProgramacionHorario> findFirstByObjetivoAndTipoTurnoAndDiaSemana(String objetivo, String tipoTurno, Integer diaSemana);
-
-    List<ProgramacionHorario> findByObjetivoAndPuntoIdPuntoOrderByDiaSemanaAsc(String objetivo, Long idPunto);
-
-    Optional<ProgramacionHorario> findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndDiaSemana(
-            String objetivo, Long idPunto, String tipoTurno, Integer diaSemana);
 
     List<ProgramacionHorario> findByObjetivoAndDiaSemana(String objetivo, Integer diaSemana);
 
     List<ProgramacionHorario> findByObjetivoAndPuntoIdPuntoAndDiaSemana(String objetivo, Long idPunto, Integer diaSemana);
+
+    List<ProgramacionHorario> findByObjetivoAndFecha(String objetivo, java.time.LocalDate fecha);
+
+    List<ProgramacionHorario> findByObjetivoAndDiaSemanaAndFechaIsNull(String objetivo, Integer diaSemana);
+
+    Optional<ProgramacionHorario> findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndFecha(
+            String objetivo, Long idPunto, String tipoTurno, java.time.LocalDate fecha);
+
+    Optional<ProgramacionHorario> findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndDiaSemanaAndFechaIsNull(
+            String objetivo, Long idPunto, String tipoTurno, Integer diaSemana);
 }

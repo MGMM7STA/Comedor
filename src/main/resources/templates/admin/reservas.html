@@ -134,7 +134,9 @@
                                          data-preceptor=${s.usuario != null} ? ${s.usuario.nombreCompleto} : '—',
                                          data-programada=${s.horaRecojo} ?: '—',
                                          data-real=${s.fechaHoraEntrega != null} ? ${#temporals.format(s.fechaHoraEntrega, 'HH:mm')} : 'Aún no recogida',
-                                         data-entregado=${s.entregadoATexto}">
+                                         data-entregado=${s.entregadoATexto},
+                                         data-cancelo=${s.canceladaPor} ?: '',
+                                         data-motivocancel=${s.motivoCancelacion} ?: ''">
                             <i class="fa-solid fa-eye"></i> Ver detalles
                         </button>
 
@@ -142,18 +144,15 @@
                               th:if="${s.estado == 'PENDIENTE' and !s.estaVencida()}"
                               th:action="@{'/admin/reservas/' + ${s.idSolicitud} + '/cancelar'}" method="post"
                               class="d-inline"
-                              onsubmit="return confirm('¿Cancelar esta reserva? El cajero ya no podrá entregarla.');">
+                              data-titulo="Cancelar reserva"
+                              data-confirmar="El cajero ya no podrá entregar esta ración."
+                              data-motivo="Motivo de la cancelación (opcional)"
+                              data-boton="Sí, cancelar">
                             <button type="submit" class="btn btn-danger btn-sm" style="font-size:0.7rem;"
                                     title="Cancelar esta reserva antes de que pase el turno">
                                 <i class="fa-solid fa-ban"></i> Cancelar
                             </button>
                         </form>
-
-                        <span th:if="${s.canceladaPor != null}" class="badge-estado bg-denegado"
-                              style="font-size:0.66rem;"
-                              th:title="'Cancelada por ' + ${s.canceladaPor}">
-                            Canceló: <span th:text="${s.canceladaPor}">Ana Quispe</span>
-                        </span>
                     </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(reservas)}">
@@ -195,6 +194,13 @@
             <div class="lbl mt-2 mb-1"><i class="fa-solid fa-quote-left me-1"></i>Motivo de la reserva</div>
             <div class="p-2 rounded" style="background:#f7f9fb; border:1px solid #e3e9ee; white-space:pre-wrap;"
                  id="rMotivo">Motivo</div>
+
+            <div id="rZonaCancel" class="mt-2 p-2 rounded"
+                 style="display:none; background:#fdedec; border:1px solid #f5b7b1;">
+                <div class="lbl mb-1"><i class="fa-solid fa-ban me-1"></i>Cancelación</div>
+                <div style="font-size:0.82rem;">Canceló: <strong id="rCancelo">—</strong></div>
+                <div style="font-size:0.82rem;">Motivo: <span id="rMotivoCancel">—</span></div>
+            </div>
         </div>
         <div class="modal-botones mt-3">
             <button type="button" class="btn btn-light border btn-sm-flat"
@@ -216,6 +222,16 @@
         document.getElementById('rReal').textContent = d.real;
         document.getElementById('rEntregado').textContent = d.entregado;
         document.getElementById('rMotivo').textContent = d.motivo;
+
+        const zona = document.getElementById('rZonaCancel');
+        if (d.cancelo) {
+            document.getElementById('rCancelo').textContent = d.cancelo;
+            document.getElementById('rMotivoCancel').textContent = d.motivocancel || 'sin motivo indicado';
+            zona.style.display = '';
+        } else {
+            zona.style.display = 'none';
+        }
+
         const modal = document.getElementById('modalReserva');
         modal.style.display = 'flex';
         modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };

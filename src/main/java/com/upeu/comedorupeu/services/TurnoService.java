@@ -42,7 +42,9 @@ public class TurnoService {
     }
 
     public Optional<Turno> turnoActivoDe(com.upeu.comedorupeu.models.PuntoAtencion punto) {
-        if (punto == null || !punto.isOperativo()) return turnoActivo();
+        if (punto == null) return turnoActivo();
+
+        if (!punto.isOperativo()) return Optional.empty();
 
         String elegido = selloEsDeOtroDia(punto.getUltimaAccionManual()) ? null : punto.getTurnoManual();
         if (elegido != null && !elegido.isBlank()) {
@@ -62,14 +64,21 @@ public class TurnoService {
             if (propio.isPresent()) return propio;
         }
 
+        if (!agendaService.listaDe(LocalDate.now(), punto.getIdPunto()).isEmpty()) return Optional.empty();
+
         return turnoActivo();
     }
 
+    private com.upeu.comedorupeu.services.AgendaService agendaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAgendaService(com.upeu.comedorupeu.services.AgendaService agendaService) {
+        this.agendaService = agendaService;
+    }
+
     private String turnoDeLaAgendaDe(com.upeu.comedorupeu.models.PuntoAtencion punto) {
-        int hoyDia = LocalDate.now().getDayOfWeek().getValue();
         java.time.LocalTime ahora = java.time.LocalTime.now();
-        for (var celda : programacionRepo.findByObjetivoAndPuntoIdPuntoAndDiaSemana(
-                "TURNO_PUNTO", punto.getIdPunto(), hoyDia)) {
+        for (var celda : agendaService.listaDe(LocalDate.now(), punto.getIdPunto())) {
             if (Boolean.FALSE.equals(celda.getActivo())) continue;
             java.time.LocalTime ini = celda.getHoraInicio();
             if (ini == null) continue;

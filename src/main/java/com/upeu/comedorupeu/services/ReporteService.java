@@ -99,6 +99,9 @@ public class ReporteService {
         Map<String, Marcacion> unaPorDia = new java.util.LinkedHashMap<>();
         for (Marcacion m : filtrados) {
             if (!vigente(m)) continue;
+
+            if ("DENEGADO".equals(m.getEstado())) continue;
+
             String clave = m.getResidente().getIdResidente() + ":" + m.getTurno().getFecha();
             Marcacion actual = unaPorDia.get(clave);
             if (actual == null || m.getFechaHora().isAfter(actual.getFechaHora())) {
@@ -211,18 +214,34 @@ public class ReporteService {
 
     public ReporteIndividual individual(Residente residente, LocalDate desde, LocalDate hasta) {
 
-        if (residente.getFechaIngreso() != null && desde.isBefore(residente.getFechaIngreso())) {
-            desde = residente.getFechaIngreso();
-        }
         LocalDate hoy = LocalDate.now();
+        LocalDate ingreso = residente.getFechaIngreso();
+
+        ReporteIndividual rep = new ReporteIndividual();
+        rep.setResidente(residente);
+        rep.setDesde(desde);
+        rep.setHasta(hasta);
+
+        if (ingreso != null && hasta.isBefore(ingreso)) {
+            return rep;
+        }
+        if (ingreso != null && desde.isBefore(ingreso)) {
+            desde = ingreso;
+        }
         if (hasta.isAfter(hoy)) hasta = hoy;
         if (residente.getFechaFinEstancia() != null && hasta.isAfter(residente.getFechaFinEstancia())) {
             hasta = residente.getFechaFinEstancia();
         }
-        if (hasta.isBefore(desde)) hasta = desde;
 
-        ReporteIndividual rep = new ReporteIndividual();
-        rep.setResidente(residente);
+        if (vigenciaService != null) {
+            LocalDate borrado = vigenciaService.diaDelBorrado(residente);
+            if (borrado != null) {
+                if (desde.isAfter(borrado)) return rep;
+                if (hasta.isAfter(borrado)) hasta = borrado;
+            }
+        }
+        if (hasta.isBefore(desde)) return rep;
+
         rep.setDesde(desde);
         rep.setHasta(hasta);
 
@@ -319,12 +338,35 @@ public class ReporteService {
 
         if (!turnoService.turnoYaOcurrio(tipo, fecha)) return "PEND";
 
+        if (vigenciaService != null) {
+            String fuera = vigenciaService.estadoEn(residente, fecha, horaDeCierre(tipo, fecha));
+            if (fuera != null) {
+                agregarObservacion(fila, "BORRADO".equals(fuera)
+                        ? "Residente borrado: ya no figuraba en el comedor"
+                        : "Residente inactivo en ese turno");
+                return "BORRADO".equals(fuera) ? "BORR" : "INAC";
+            }
+        }
+
         if (comioEnUnEvento(residente, fecha, tipo)) {
             agregarObservacion(fila, "Comió en un evento");
             setMotivoComida(fila, tipo, "Comió en un evento especial");
             return "JUST";
         }
         return "NO";
+    }
+
+    private com.upeu.comedorupeu.services.VigenciaService vigenciaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setVigenciaService(com.upeu.comedorupeu.services.VigenciaService vigenciaService) {
+        this.vigenciaService = vigenciaService;
+    }
+
+    private java.time.LocalTime horaDeCierre(String tipo, LocalDate fecha) {
+        return turnoService.ventanaDe(tipo)
+                .map(v -> (v.length > 1 && v[1] != null) ? v[1] : java.time.LocalTime.NOON)
+                .orElse(java.time.LocalTime.NOON);
     }
 
     private boolean comioEnUnEvento(Residente residente, LocalDate fecha, String tipo) {

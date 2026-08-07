@@ -259,6 +259,12 @@
                             <i th:if="${comida == 'SI'}" class="fa-solid fa-check"></i>
                             <span th:if="${comida == 'JUST'}">J</span>
                             <i th:if="${comida == 'NO'}" class="fa-solid fa-xmark"></i>
+                            <span th:if="${comida == 'INAC'}" class="badge-estado"
+                                  style="background:#eef1f4; color:#5d6d7b; border:1px solid #b8c2cb; font-weight:700;"
+                                  title="El residente estaba INACTIVO en este turno: no podia asistir">I</span>
+                            <span th:if="${comida == 'BORR'}" class="badge-estado"
+                                  style="background:#f4ecf7; color:#7d3c98; border:1px solid #c39bd3; font-weight:700;"
+                                  title="El residente ya estaba borrado en este turno">B</span>
                             <span th:if="${comida == 'PEND' or comida == ''}">—</span>
                         </span>
                     </td>

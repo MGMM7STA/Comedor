@@ -305,6 +305,12 @@
                                 <i th:if="${comida == 'SI'}" class="fa-solid fa-check"></i>
                                 <span th:if="${comida == 'JUST'}">J</span>
                                 <i th:if="${comida == 'NO'}" class="fa-solid fa-xmark"></i>
+                                <span th:if="${comida == 'INAC'}" class="badge-estado"
+                                      style="background:#eef1f4; color:#5d6d7b; border:1px solid #b8c2cb; font-weight:700;"
+                                      title="El residente estaba INACTIVO en este turno: no podia asistir">I</span>
+                                <span th:if="${comida == 'BORR'}" class="badge-estado"
+                                      style="background:#f4ecf7; color:#7d3c98; border:1px solid #c39bd3; font-weight:700;"
+                                      title="El residente ya estaba borrado en este turno">B</span>
                                 <span th:if="${comida == 'PEND' or comida == ''}">—</span>
                             </span>
                         </td>
@@ -382,6 +388,7 @@
 
                     <th>N°</th><th>Fecha</th><th>Residente</th><th>Código</th>
                     <th>Residencia de Género</th><th>Registró</th>
+                    <th title="Comidas que cubre la justificación">Turnos</th>
                     <th class="text-center">Motivo</th>
                 </tr>
                 </thead>
@@ -399,16 +406,22 @@
                     <td th:text="${a.residente.pabellon} ?: '—'">Mujeres</td>
                     <td th:text="${a.usuario != null} ? ${a.usuario.nombreCompleto} : '—'">Preceptor Ríos</td>
 
+                    <td style="font-size:0.76rem;" th:text="${turnosJustificacion.get(a.idAusencia)}">Todos</td>
+
                     <td class="text-center">
                         <button type="button" class="btn btn-primary btn-sm ver-motivo"
                                 style="font-size:0.72rem; padding:3px 10px; white-space:nowrap;"
-                                th:attr="data-motivo=${a.motivo}"
-                                title="Ver el motivo completo de la justificación">
+                                th:attr="data-motivo='Período: ' + ${#temporals.format(a.fechaInicio, 'dd/MM/yyyy')}
+                                                     + ' al ' + ${#temporals.format(a.fechaFin, 'dd/MM/yyyy')}
+                                                     + ' · Turnos: ' + ${turnosJustificacion.get(a.idAusencia)}
+                                                     + ' · Detalle por día: ' + ${detalleJustificacion.get(a.idAusencia)}
+                                                     + ' · Motivo: ' + (${a.motivo} ?: 'sin motivo')"
+                                title="Ver período, turnos cubiertos y motivo">
                             <i class="fa-solid fa-eye me-1"></i>Ver detalles</button>
                     </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(justificacionesCompleto)}">
-                    <td colspan="7" class="text-center text-muted py-3">Sin justificaciones en este rango.</td>
+                    <td colspan="8" class="text-center text-muted py-3">Sin justificaciones en este rango.</td>
                 </tr>
                 </tbody>
             </table>

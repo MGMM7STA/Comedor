@@ -93,10 +93,24 @@
                                         <div class="lbl" title="Desde cuándo puede usar el comedor">Inicio de estancia</div>
                                         <input type="date" name="fechaIngreso" class="form-control"
                                                th:value="${residente.fechaIngreso != null} ? ${residente.fechaIngreso} : ${hoy}"
-                                               th:min="${residente.idResidente == null} ? ${hoy} : null" required
+                                               th:min="${hoy}" required
                                                title="No puede ser anterior a hoy">
                                         <div style="font-size:0.68rem; color:#8a97a3;">
                                             Si es posterior a hoy, solo figurará en esta lista hasta esa fecha.
+                                        </div>
+
+                                        <div th:if="${residente.idResidente != null and historialResidente != null}"
+                                             class="mt-2 p-2 rounded"
+                                             style="background:#fdedec; border:1px solid #f5b7b1; font-size:0.72rem; color:#943126;">
+                                            <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                                            Este residente ya tiene movimientos:
+                                            <strong th:text="${historialResidente}">2 reservas</strong>.
+                                            Si cambias el inicio de estancia,
+                                            <strong>se borrará todo ese historial</strong> para que las fechas cuadren.
+                                            <label class="d-block mt-1" style="cursor:pointer;">
+                                                <input type="checkbox" name="borrarHistorial" value="true" class="form-check-input me-1">
+                                                Acepto que se borre su historial
+                                            </label>
                                         </div>
                                     </div>
                                     <div class="col-md-4">

@@ -64,6 +64,13 @@ public class PreceptorController {
         this.justificacionService = justificacionService;
     }
 
+    private com.upeu.comedorupeu.repository.MarcacionRepository marcacionRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setMarcacionRepo(com.upeu.comedorupeu.repository.MarcacionRepository repo) {
+        this.marcacionRepo = repo;
+    }
+
     private RacionEspecialRepository racionEspecialRepo;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -86,6 +93,85 @@ public class PreceptorController {
                 : residenteRepo.findByEstadoAndPabellonOrderByApellidoAsc("ACTIVO", pab);
     }
 
+    private com.upeu.comedorupeu.services.VigenciaService vigenciaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setVigenciaService(com.upeu.comedorupeu.services.VigenciaService vigenciaService) {
+        this.vigenciaService = vigenciaService;
+    }
+
+    private com.upeu.comedorupeu.services.HistorialService historialService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setHistorialService(com.upeu.comedorupeu.services.HistorialService historialService) {
+        this.historialService = historialService;
+    }
+
+    private String resumenHistorial(Residente r) {
+        return historialService.resumen(r);
+    }
+
+    private void borrarHistorialDe(Residente r) {
+        historialService.borrar(r);
+    }
+
+    @GetMapping("/residentes/exportar")
+    public org.springframework.http.ResponseEntity<byte[]> exportarResidentes(
+            @RequestParam(required = false) String q, Authentication auth) throws java.io.IOException {
+        String pab = pabellonDe(auth);
+        List<Residente> lista;
+        if (q != null && !q.isBlank()) {
+            lista = residenteRepo.buscar(q.trim(), pab);
+        } else if (pab != null) {
+            lista = residenteRepo.findByPabellonOrderByApellidoAsc(pab);
+        } else {
+            lista = residenteRepo.findAll();
+        }
+
+        java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        List<String[]> datos = new java.util.ArrayList<>();
+        int n = 1;
+        for (Residente r : lista) {
+            var apo = r.getApoderado();
+            datos.add(new String[]{
+                    String.valueOf(n++),
+                    r.getNombre() == null ? "" : r.getNombre(),
+                    r.getApellido() == null ? "" : r.getApellido(),
+                    r.getDni() == null ? "—" : r.getDni(),
+                    r.getCodigoAcceso() == null ? "" : r.getCodigoAcceso(),
+                    r.getCarrera() == null ? "—" : r.getCarrera(),
+                    r.getPabellon() == null ? "—" : r.getPabellon(),
+                    r.getCuarto() == null ? "—" : r.getCuarto(),
+                    r.getCelular() == null ? "—" : r.getCelular(),
+                    apo == null || apo.getNombre() == null ? "—" : apo.getNombre(),
+                    apo == null || apo.getRelacion() == null ? "—" : apo.getRelacion(),
+                    apo == null || apo.getDni() == null ? "—" : apo.getDni(),
+                    apo == null || apo.getTelefono() == null ? "—" : apo.getTelefono(),
+                    r.getFechaIngreso() == null ? "—" : f.format(r.getFechaIngreso()),
+                    r.getFechaFinEstancia() == null ? "—" : f.format(r.getFechaFinEstancia()),
+                    r.getEstado() == null ? "—" : r.getEstado(),
+                    Boolean.TRUE.equals(r.getDeuda()) ? "Con deuda" : "Pago al día",
+                    r.getPreceptor() == null ? "—" : r.getPreceptor().getNombreCompleto()
+            });
+        }
+
+        String filtros = "Residencia de género: " + (pab == null ? "todas" : pab)
+                + (q == null || q.isBlank() ? "" : "   Búsqueda: " + q)
+                + "   Total: " + datos.size();
+        byte[] xlsx = excelService.exportarTabla("COMEDOR UPEU — Residentes", filtros,
+                new String[]{"N°", "Nombres", "Apellidos", "DNI", "Código", "Carrera",
+                        "Residencia de Género", "Cuarto", "Celular",
+                        "Resp. Financiero", "Relación", "DNI Resp.", "Teléfono Resp.",
+                        "Inicio de estancia", "Fin de estancia", "Estado", "Estado de pago", "Preceptor"},
+                datos);
+        String nombre = "residentes_" + LocalDate.now() + ".xlsx";
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + nombre + "\"")
+                .contentType(org.springframework.http.MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(xlsx);
+    }
+
     @GetMapping("/residentes")
     public String residentes(@RequestParam(required = false) String q, Model model, Authentication auth) {
         String pab = pabellonDe(auth);
@@ -97,6 +183,7 @@ public class PreceptorController {
         } else {
             lista = residenteRepo.findAll();
         }
+        lista = lista.stream().filter(x -> !x.estaBorrado()).toList();
         model.addAttribute("residentes", lista);
         model.addAttribute("q", q);
         model.addAttribute("pabellonScope", pab);
@@ -141,6 +228,7 @@ public class PreceptorController {
         model.addAttribute("residente", residente);
         model.addAttribute("pabellonAuto", usuarioActual(auth).getPabellon());
         model.addAttribute("facultades", carrerasService.facultades());
+        model.addAttribute("historialResidente", resumenHistorial(residente));
         return "preceptor/residente_form";
     }
 
@@ -152,14 +240,12 @@ public class PreceptorController {
             flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
             return "redirect:/preceptor/residentes";
         }
-        try {
-            residenteRepo.delete(r);
-            residenteRepo.flush();
-            flash.addFlashAttribute("ok", "Residente " + r.getNombreCompleto() + " eliminado del sistema.");
-        } catch (Exception e) {
-            flash.addFlashAttribute("error", "No se puede eliminar a " + r.getNombreCompleto()
-                    + " porque tiene historial (marcaciones, ausencias o reservas). Márcalo como INACTIVO en su lugar.");
-        }
+        vigenciaService.marcarBorrado(r);
+        r.setEstado("INACTIVO");
+        r.setEliminado(true);
+        residenteRepo.save(r);
+        flash.addFlashAttribute("ok", "Residente " + r.getNombreCompleto() + " borrado: desde ahora ya no figura "
+                + "en ninguna pantalla. Todo lo que hizo hasta este momento se conserva en el historial.");
         return "redirect:/preceptor/residentes";
     }
 
@@ -306,7 +392,9 @@ public class PreceptorController {
     }
 
     @PostMapping("/solicitudes/{id}/cancelar")
-    public String cancelarSolicitud(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
+    public String cancelarSolicitud(@PathVariable Long id,
+                                    @RequestParam(required = false) String motivoAccion,
+                                    Authentication auth, RedirectAttributes flash) {
         SolicitudExtemporanea s = solicitudRepo.findById(id).orElse(null);
         if (s == null) return "redirect:/preceptor/residentes";
         Long idResidente = s.getResidente().getIdResidente();
@@ -321,6 +409,7 @@ public class PreceptorController {
             Usuario quien = usuarioActual(auth);
             s.setEstado("CANCELADA");
             s.setCanceladaPor(quien.getNombreCompleto() + " (" + quien.getRol() + ")");
+            s.setMotivoCancelacion(motivoAccion == null || motivoAccion.isBlank() ? null : motivoAccion.trim());
             s.setFechaCancelacion(java.time.LocalDateTime.now());
             solicitudRepo.save(s);
             flash.addFlashAttribute("ok", "Reserva de " + s.getTipoComida().toLowerCase()
@@ -330,7 +419,9 @@ public class PreceptorController {
     }
 
     @PostMapping("/eventos/{id}/eliminar")
-    public String eliminarEvento(@PathVariable Long id, RedirectAttributes flash) {
+    public String eliminarEvento(@PathVariable Long id,
+                                 @RequestParam(required = false) String motivoAccion,
+                                 Authentication auth, RedirectAttributes flash) {
         EventoEspecial e = eventoRepo.findById(id).orElse(null);
         if (e == null) return "redirect:/preceptor/eventos";
 
@@ -338,13 +429,21 @@ public class PreceptorController {
                 ? List.of(e) : eventoRepo.findByGrupoEvento(e.getGrupoEvento());
         if (grupo.isEmpty()) grupo = List.of(e);
 
+        Usuario quien = usuarioActual(auth);
+        String firma = quien.getNombreCompleto() + " (" + quien.getRol() + ")";
+        String motivo = (motivoAccion == null || motivoAccion.isBlank()) ? null : motivoAccion.trim();
+
         for (EventoEspecial comida : grupo) {
             entregaRepo.deleteAll(entregaRepo.findByEventoIdEvento(comida.getIdEvento()));
-            eventoRepo.delete(comida);
+            comida.setEstado("CANCELADO");
+            comida.setCanceladoPor(firma);
+            comida.setMotivoCancelacion(motivo);
+            comida.setFechaCancelacion(java.time.LocalDateTime.now());
+            eventoRepo.save(comida);
         }
         String cuantas = grupo.size() == 1 ? "" : " (" + grupo.size() + " comidas)";
-        flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" eliminado" + cuantas
-                + " junto con su pase de lista.");
+        flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" cancelado" + cuantas
+                + " por " + firma + ". El administrador lo verá como cancelado.");
         return "redirect:/preceptor/eventos";
     }
 
@@ -386,6 +485,7 @@ public class PreceptorController {
                                    @RequestParam(required = false) String apoRelacion,
                                    @RequestParam(required = false) String apoDni,
                                    @RequestParam(required = false) String apoTelefono,
+                                   @RequestParam(required = false) Boolean borrarHistorial,
                                    Authentication auth,
                                    RedirectAttributes flash) {
         Residente r = (idResidente != null) ? residenteRepo.findById(idResidente).orElse(new Residente()) : new Residente();
@@ -426,14 +526,37 @@ public class PreceptorController {
         r.setPabellon(quienRegistra.getPabellon() != null ? quienRegistra.getPabellon() : pabellon);
         r.setCuarto(cuarto);
         r.setCelular(celular);
+        final String estadoPrevio = r.getEstado();
         r.setEstado(estado);
         r.setDeuda(deuda);
 
         LocalDate hoy = LocalDate.now();
         if (fechaIngreso != null) {
-            if (idResidente == null && fechaIngreso.isBefore(hoy)) {
-                flash.addFlashAttribute("error", "El inicio de estancia no puede ser anterior a hoy.");
-                return "redirect:/preceptor/residentes/nuevo";
+            boolean cambia = r.getFechaIngreso() == null || !fechaIngreso.equals(r.getFechaIngreso());
+            if (cambia && fechaIngreso.isBefore(hoy)) {
+                flash.addFlashAttribute("error", "El inicio de estancia no puede ser anterior a hoy ("
+                        + hoy + "). Elige hoy o una fecha posterior.");
+                return idResidente == null ? "redirect:/preceptor/residentes/nuevo"
+                        : "redirect:/preceptor/residentes/" + idResidente + "/editar";
+            }
+
+            boolean cambiaIngreso = idResidente != null
+                    && r.getFechaIngreso() != null
+                    && !fechaIngreso.equals(r.getFechaIngreso());
+            if (cambiaIngreso) {
+                String historial = resumenHistorial(r);
+                if (historial != null && !Boolean.TRUE.equals(borrarHistorial)) {
+                    flash.addFlashAttribute("error", "No se puede mover el inicio de estancia de "
+                            + r.getNombreCompleto() + ": ya tiene movimientos registrados (" + historial + "). "
+                            + "Marca la casilla de confirmación del formulario si aceptas que TODO ese historial "
+                            + "se borre para poder cambiar la fecha.");
+                    return "redirect:/preceptor/residentes/" + idResidente + "/editar";
+                }
+                if (historial != null) {
+                    borrarHistorialDe(r);
+                    flash.addFlashAttribute("ok", "Se borró el historial de " + r.getNombreCompleto()
+                            + " (" + historial + ") para poder mover su inicio de estancia.");
+                }
             }
             r.setFechaIngreso(fechaIngreso);
         } else if (r.getFechaIngreso() == null) {
@@ -473,7 +596,17 @@ public class PreceptorController {
         }
 
         residenteRepo.save(r);
-        flash.addFlashAttribute("ok", "Residente " + r.getNombreCompleto() + " guardado correctamente.");
+
+        if (!"INACTIVO".equals(estadoPrevio) && "INACTIVO".equals(estado)) {
+            vigenciaService.marcarInactivo(r);
+        } else if ("INACTIVO".equals(estadoPrevio) && "ACTIVO".equals(estado)) {
+            vigenciaService.marcarActivo(r);
+        }
+
+        flash.addFlashAttribute("ok", "Residente " + r.getNombreCompleto() + " guardado correctamente."
+                + ("INACTIVO".equals(estado) && !"INACTIVO".equals(estadoPrevio)
+                   ? " Queda inactivo desde este momento: lo anterior se conserva y los turnos que vengan figurarán como I."
+                   : ""));
         return "redirect:/preceptor/residentes";
     }
 
@@ -713,6 +846,8 @@ public class PreceptorController {
         var excluidos = evento.getExcluidosLista();
         var participantes = activos.stream()
                 .filter(r -> !excluidos.contains(r.getCodigoAcceso()))
+                .filter(r -> com.upeu.comedorupeu.services.alcance.AlcanceDatos
+                        .vigenteEn(r, evento.getFechaEvento()))
                 .toList();
         java.util.Map<Long, Boolean> entregas = new java.util.HashMap<>();
         for (EventoEntrega en : entregaRepo.findByEventoIdEvento(evento.getIdEvento())) {

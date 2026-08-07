@@ -29,6 +29,12 @@ public class Residente {
 
     private String estado = "ACTIVO";
 
+    private Boolean eliminado = false;
+
+    public boolean estaBorrado() {
+        return Boolean.TRUE.equals(eliminado);
+    }
+
     private Boolean deuda = false;
 
     private java.time.LocalDate fechaIngreso;

@@ -41,6 +41,13 @@ public class ProgramacionScheduler {
         this.cambios = cambios;
     }
 
+    private com.upeu.comedorupeu.services.AgendaService agendaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAgendaService(com.upeu.comedorupeu.services.AgendaService agendaService) {
+        this.agendaService = agendaService;
+    }
+
     @Scheduled(fixedRate = 60000, initialDelay = 15000)
     @Transactional
     public void aplicarAgenda() {
@@ -119,8 +126,8 @@ public class ProgramacionScheduler {
                 continue;
             }
 
-            List<ProgramacionHorario> celdas = programacionRepo
-                    .findByObjetivoAndPuntoIdPuntoAndDiaSemana("TURNO_PUNTO", punto.getIdPunto(), hoyDia)
+            List<ProgramacionHorario> celdas = agendaService
+                    .listaDe(LocalDate.now(), punto.getIdPunto())
                     .stream()
                     .filter(c -> !Boolean.FALSE.equals(c.getActivo()))
                     .filter(c -> c.getHoraInicio() != null || c.getHoraFin() != null)
@@ -152,8 +159,9 @@ public class ProgramacionScheduler {
 
             if (debeAbrir && !punto.isOperativo()) {
 
-                punto.setModo("MANUAL");
+                punto.setModo("HORARIO");
                 punto.setActivo(true);
+                punto.setTurnoManual(null);
                 punto.setHoraInicio(actual.getHoraInicio());
                 punto.setHoraFin(actual.getHoraFin());
                 if (actual.getCajero() != null) punto.setCajero(actual.getCajero());
@@ -161,8 +169,9 @@ public class ProgramacionScheduler {
                 cambio = true;
             } else if (!debeAbrir && Boolean.TRUE.equals(punto.getActivo())) {
 
-                punto.setModo("MANUAL");
+                punto.setModo("HORARIO");
                 punto.setActivo(false);
+                punto.setTurnoManual(null);
                 puntoRepo.save(punto);
                 cambio = true;
             }

@@ -40,6 +40,20 @@ public class ValidacionService {
         this.solicitudRepo = solicitudRepo;
     }
 
+    private VigenciaService vigenciaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setVigenciaService(VigenciaService vigenciaService) {
+        this.vigenciaService = vigenciaService;
+    }
+
+    private com.upeu.comedorupeu.repository.AusenciaDetalleRepository ausenciaDetalleRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAusenciaDetalleRepo(com.upeu.comedorupeu.repository.AusenciaDetalleRepository repo) {
+        this.ausenciaDetalleRepo = repo;
+    }
+
     private com.upeu.comedorupeu.repository.RacionEspecialDetalleRepository racionEspecialRepo;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -178,7 +192,27 @@ public class ValidacionService {
             boolean consumio = turnoRepo.findByFechaAndTipo(hoy, tipo)
                     .map(t -> !marcacionRepo.consumosVigentes(residente.getIdResidente(), t.getIdTurno()).isEmpty())
                     .orElse(false);
-            res.getConsumoDia().put(tipo, consumio);
+
+            String estado;
+            String fuera = (vigenciaService == null) ? null
+                    : vigenciaService.estadoEn(residente, hoy, turnoService.ventanaDe(tipo)
+                            .map(v -> (v.length > 1 && v[1] != null) ? v[1] : java.time.LocalTime.NOON)
+                            .orElse(java.time.LocalTime.NOON));
+
+            if (consumio) {
+                estado = "CONSUMIO";
+            } else if (fuera != null) {
+                estado = "BORRADO".equals(fuera) ? "BORRADO" : "INACTIVO";
+            } else if (ausenciaDetalleRepo != null && ausenciaDetalleRepo
+                    .findFirstByAusenciaResidenteIdResidenteAndFechaAndTipoComida(
+                            residente.getIdResidente(), hoy, tipo).isPresent()) {
+                estado = "JUSTIFICADO";
+            } else if (turnoService.turnoYaOcurrio(tipo, hoy)) {
+                estado = "FALTO";
+            } else {
+                estado = "PENDIENTE";
+            }
+            res.getConsumoDia().put(tipo, estado);
         }
     }
 

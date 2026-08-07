@@ -47,6 +47,9 @@ public class SolicitudExtemporanea {
 
     private String canceladaPor;
 
+    @Column(length = 300)
+    private String motivoCancelacion;
+
     public boolean estaVencida() {
         return "PENDIENTE".equals(estado) && fecha != null && fecha.isBefore(java.time.LocalDate.now());
     }

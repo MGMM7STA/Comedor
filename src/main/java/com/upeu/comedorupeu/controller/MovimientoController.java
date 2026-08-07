@@ -88,7 +88,7 @@ public class MovimientoController {
                                                         String orden, Authentication auth) {
 
         AlcanceDatos alcance = alcanceService.de(auth);
-        List<Residente> residentes = alcance.residentesActivos();
+        List<Residente> residentes = alcance.residentesParaHistorial();
 
         String busqueda = (codigo == null) ? "" : codigo.trim().toLowerCase();
         if (!busqueda.isEmpty()) {

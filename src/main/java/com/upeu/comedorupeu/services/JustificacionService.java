@@ -39,6 +39,24 @@ public class JustificacionService {
         return quedanTurnos ? "EN_CURSO" : "PASADA";
     }
 
+    public String etiquetaEstado(Ausencia a) {
+        LocalDate hoy = LocalDate.now();
+        boolean cancelada = a.getCanceladaPor() != null;
+        boolean algoTranscurrido = a.getDetalles().stream()
+                .anyMatch(d -> turnoService.turnoYaOcurrio(d.getTipoComida(), d.getFecha()));
+        boolean algoVigente = a.getDetalles().stream()
+                .anyMatch(d -> !turnoService.turnoYaOcurrio(d.getTipoComida(), d.getFecha()));
+
+        if (a.getFechaInicio().isAfter(hoy) && !cancelada) return "Aún no empieza";
+
+        java.util.List<String> partes = new java.util.ArrayList<>();
+        if (algoTranscurrido) partes.add("Histórica");
+        if (algoVigente) partes.add("En transcurso");
+        if (cancelada) partes.add("Cancelada");
+        if (partes.isEmpty()) partes.add("Sin turnos");
+        return String.join(" + ", partes);
+    }
+
     public String cierreAnticipado(Ausencia a) {
         if (!"EN_CURSO".equals(estadoDe(a))) return null;
 

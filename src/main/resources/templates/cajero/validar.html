@@ -22,9 +22,14 @@
             </div>
         </div>
         <div th:if="${turnoActivo != null}" style="font-size:0.78rem; color:#aebfce; text-align:right;">
-            <i class="fa-solid fa-utensils me-1"></i>Raciones servidas:
-            <strong style="color:#58d68d;" th:text="${racionesServidas}">3</strong>
-            · Por servir: <strong style="color:#f1c40f;" th:text="${racionesPorServir}">3</strong>
+            <i class="fa-solid fa-utensils me-1"></i>Servidas:
+            <strong style="color:#58d68d;" th:text="${racionesServidas}" title="Raciones ya entregadas en este turno">3</strong>
+            · Por servir: <strong style="color:#f1c40f;" th:text="${racionesPorServir}"
+                                  title="Residentes activos menos los ya servidos y los justificados">3</strong>
+            · Justificados: <strong style="color:#f39c12;" th:text="${racionesJustificadas}"
+                                    title="Ausencias registradas por preceptoría para este turno">2</strong>
+            · Reservas: <strong style="color:#aed6f1;" th:text="${racionesReservadas}"
+                                title="Raciones reservadas de este turno que aún no se recogen">1</strong>
         </div>
     </div>
 
@@ -175,8 +180,22 @@
                             <div class="lbl mt-2">Consumo del día</div>
                             <div class="d-flex gap-2">
                                 <span th:each="c : ${resultado.consumoDia}" class="badge-estado"
-                                      th:classappend="${c.value} ? 'bg-permitido' : 'bg-ausente'">
-                                    <i th:if="${c.value}" class="fa-solid fa-check me-1"></i>
+                                      th:classappend="${c.value == 'CONSUMIO'} ? 'bg-permitido'
+                                                    : (${c.value == 'FALTO'} ? 'bg-denegado' : 'bg-ausente')"
+                                      th:style="${c.value == 'JUSTIFICADO'}
+                                                ? 'background:#fef5e7; color:#9a7d0a; border:1px solid #f39c12;'
+                                                : (${c.value == 'INACTIVO'}
+                                                   ? 'background:#eef1f4; color:#5d6d7b; border:1px solid #b8c2cb; font-weight:700;'
+                                                   : (${c.value == 'BORRADO'}
+                                                      ? 'background:#f4ecf7; color:#7d3c98; border:1px solid #c39bd3; font-weight:700;' : ''))"
+                                      th:title="${c.value == 'CONSUMIO'} ? 'Recibió su ración'
+                                              : (${c.value == 'JUSTIFICADO'} ? 'Justificado por preceptoría'
+                                              : (${c.value == 'FALTO'} ? 'No vino a este turno' : 'Este turno aún no ocurre'))">
+                                    <i th:if="${c.value == 'CONSUMIO'}" class="fa-solid fa-check me-1"></i>
+                                    <i th:if="${c.value == 'FALTO'}" class="fa-solid fa-xmark me-1"></i>
+                                    <i th:if="${c.value == 'JUSTIFICADO'}" class="fa-solid fa-calendar-check me-1"></i>
+                                    <strong th:if="${c.value == 'INACTIVO'}" class="me-1">I</strong>
+                                    <strong th:if="${c.value == 'BORRADO'}" class="me-1">B</strong>
                                     <span th:text="${#strings.capitalize(#strings.toLowerCase(c.key))}">Desayuno</span>
                                 </span>
                             </div>
@@ -447,10 +466,6 @@
                             no cuenta como falta y no debe recibir ración.
                         </div>
                     </div>
-                    <a href="/cajero/validar" class="btn btn-light border" style="font-size:0.85rem;"
-                       title="Cerrar la ficha sin registrar nada">
-                        <i class="fa-solid fa-xmark me-1"></i>Cerrar sin registrar
-                    </a>
                 </div>
 
                 <form th:if="${resultado.tipo != 'JUSTIFICADO' && resultado.marcacionPrevia != null && !reservaExtraMismoTurno && !reservaMismoTurno && !residenteInactivo}"

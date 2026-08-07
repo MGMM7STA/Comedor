@@ -63,9 +63,25 @@
                     </div>
                 </th:block>
             </div>
-            <div th:if="${!hayActividad}" class="text-center text-muted py-3" style="font-size:0.8rem;">
+            <div th:if="${!hayActividad and #lists.isEmpty(puntosSinTurno)}" class="text-center text-muted py-3" style="font-size:0.8rem;">
                 Ningún turno está siendo atendido en este momento. Las entradas se abren
                 según lo agendado en "Programar" o a mano con su interruptor.
+            </div>
+
+            <div th:if="${!#lists.isEmpty(puntosSinTurno)}" class="mt-2 p-2 rounded"
+                 style="background:#fef5e7; border:1px solid #f5cba7; font-size:0.78rem; color:#9c640c;">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                <strong>Abiertas sin turno asignado:</strong>
+                a esta hora su programación de hoy no cubre ningún turno, así que no cuentan para ninguna comida.
+                <div th:each="s : ${puntosSinTurno}" class="mt-1">
+                    · <strong th:text="${s.nombre}">Entrada A</strong>
+                    <span th:text="'(horario guardado: ' + ${s.horario} + ')'">(horario guardado: 12:00 - 14:30)</span>
+                    — atiende <span th:text="${s.cajero}">Caja Comedor</span>
+                </div>
+                <div class="mt-1">
+                    Usa <em>Reaplicar programación</em> para devolverle el control a la agenda,
+                    o ciérrala con su interruptor.
+                </div>
             </div>
         </div>
 
@@ -129,8 +145,16 @@
                         <div th:id="'selTurno-' + ${p.idPunto}" class="d-none mt-1 p-2 rounded"
                              style="background:#fef9e7; border:1px solid #f7dc6f;">
                             <div style="font-size:0.7rem; color:#9a7d0a;" class="mb-1">
-                                <i class="fa-solid fa-circle-question me-1"></i>¿Para qué turno abres esta entrada?
+                                <i class="fa-solid fa-circle-question me-1"></i>¿Quién atiende y para qué turno?
                             </div>
+                            <select name="idCajeroManual" class="form-select form-select-sm mb-2"
+                                    style="font-size:0.72rem;" required
+                                    title="Al abrir a mano no hay agenda que diga quién atiende: elígelo aquí">
+                                <option value="">— Elige el operador —</option>
+                                <option th:each="c : ${cajeros}" th:value="${c.idUsuario}"
+                                        th:selected="${p.cajero != null && p.cajero.idUsuario == c.idUsuario}"
+                                        th:text="${c.nombreCompleto}">Caja Comedor</option>
+                            </select>
                             <div class="d-flex gap-1 flex-wrap">
                                 <button type="submit" name="turnoManual" value="DESAYUNO"
                                         class="btn btn-sm btn-outline-success" style="font-size:0.7rem;">Desayuno</button>
@@ -145,16 +169,21 @@
                     <div style="font-size:0.78rem; color:#8a97a3;">Ubicación:</div>
                     <div style="font-size:0.83rem;" th:text="${p.ubicacion} ?: '—'">Comedor Principal - Planta Baja</div>
 
-                    <div style="font-size:0.78rem; color:#8a97a3;" class="mt-2">Operador asignado:</div>
-                    <div style="font-size:0.83rem; font-weight:600;"
-                         th:text="${p.cajero != null} ? ${p.cajero.nombreCompleto} : 'Sin asignar'"
-                         th:style="${p.cajero == null} ? 'color:#b8c2cb; font-style:italic;'">Carlos Mamani</div>
-
-                    <div style="font-size:0.78rem; color:#8a97a3;" class="mt-2">Horario de hoy:</div>
-                    <div style="font-size:0.83rem;"
-                         th:style="${abiertoAMano.get(p.idPunto)} ? 'text-decoration:line-through; opacity:0.55;' : ''"
-                         th:text="${horarioDelDia.get(p.idPunto)}"
-                         title="Horario programado para hoy, turno por turno">Desayuno 06:30 - 09:00</div>
+                    <div style="font-size:0.78rem; color:#8a97a3;" class="mt-2">Programación de hoy:</div>
+                    <table class="w-100" style="font-size:0.76rem;"
+                           th:style="${abiertoAMano.get(p.idPunto)} ? 'opacity:0.55;' : ''">
+                        <tr th:each="f : ${agendaDelDia.get(p.idPunto)}"
+                            th:style="${f.vigente} ? 'background:#eafaf1;' : ''">
+                            <td style="padding:3px 4px; color:#5d6d7b; white-space:nowrap;"
+                                th:text="${f.turno}">Desayuno</td>
+                            <td style="padding:3px 4px; white-space:nowrap;" th:text="${f.horas}">06:30 – 09:00</td>
+                            <td style="padding:3px 4px; font-weight:600;">
+                                <span th:text="${f.cajero}">Caja Comedor</span>
+                                <i class="fa-solid fa-circle-exclamation" th:if="${f.aviso != null}"
+                                   style="color:#e67e22;" th:title="${f.aviso}"></i>
+                            </td>
+                        </tr>
+                    </table>
                     <div th:if="${abiertoAMano.get(p.idPunto)}" class="mt-1 p-2 rounded"
                          style="background:#fef5e7; border:1px solid #f5cba7; font-size:0.72rem; color:#9c640c;">
                         <i class="fa-solid fa-triangle-exclamation me-1"></i>
@@ -175,8 +204,14 @@
 
         <div class="card-panel">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-                <div class="lbl mb-0">
-                    Turno activo: <span th:text="${turnoActivo != null} ? ${turnoActivo.tipo} : 'NINGUNO'">DESAYUNO</span>
+                <div class="lbl mb-0"
+                     th:title="${turnoActivo != null}
+                               ? 'Ahora mismo se está atendiendo el ' + ${#strings.toLowerCase(turnoActivo.tipo)}
+                               : 'Ahora mismo no se está atendiendo ningún turno'">
+                    <span th:if="${turnoPanel == 'TODOS'}">Cifras de todo el día</span>
+                    <span th:unless="${turnoPanel == 'TODOS'}"
+                          th:text="(${turnoPanel == 'CENA'} ? 'Cifras de la ' : 'Cifras del ')
+                                   + ${#strings.toLowerCase(turnoPanel)}">Cifras del desayuno</span>
                 </div>
                 <form th:action="@{/admin/puntos}" method="get" class="d-flex align-items-center gap-1">
                     <span style="font-size:0.72rem; color:#8a97a3;">Ver cifras de</span>
@@ -208,29 +243,42 @@
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="stat-box">
-                        <div class="stat-num" style="color:#f39c12;" th:text="${pendientes}">111</div>
-                        <div class="stat-lbl">Pendientes</div>
+                    <div class="stat-box" title="Ausencias que preceptoría registró para este turno: no cuentan como falta y no se sirve ración">
+                        <div class="stat-num" style="color:#9a7d0a;" th:text="${justificados}">4</div>
+                        <div class="stat-lbl">Justificados</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="stat-box">
+                    <div class="stat-box" title="Raciones reservadas todavía sin recoger">
+                        <div class="stat-num" style="color:#f1c40f;" th:text="${reservas}">1</div>
+                        <div class="stat-lbl">Reservas por recoger</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-box" title="Raciones que aún faltan por servir: posibles menos atendidos menos justificados">
+                        <div class="stat-num" style="color:#f39c12;" th:text="${pendientes}">111</div>
+                        <div class="stat-lbl">Por servir</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-box" title="Ingresos que el cajero denegó">
                         <div class="stat-num" style="color:#e74c3c;" th:text="${bloqueados}">0</div>
                         <div class="stat-lbl">Bloqueados</div>
                     </div>
                 </div>
-            </div>
-
-            <div class="foot-bar mt-3">
-                <i class="fa-solid fa-utensils me-1"></i>
-                Cocina — Raciones del turno:
-                Servidas <strong style="color:#58d68d;" th:text="${racionesServidas}">3</strong> ·
-                Reservadas (tardíos) <strong style="color:#f1c40f;" th:text="${racionesReservadas}">1</strong> ·
-                Por servir <strong style="color:#aebfce;" th:text="${racionesPorServir}">3</strong>
-                <span th:if="${eventoHoy != null}" class="ms-2" style="color:#e67e22;">
-                    · <i class="fa-solid fa-medal me-1"></i>EVENTO HOY "<span th:text="${eventoHoy.nombre}">Excursión</span>":
-                    <strong th:text="${eventoHoyRaciones}">32</strong> raciones adicionales
-                </span>
+                <div class="col-md-3">
+                    <div class="stat-box"
+                         th:title="${#lists.isEmpty(eventosHoy)} ? 'Hoy no hay ningún evento aprobado'
+                                 : 'Raciones adicionales por eventos aprobados de hoy'">
+                        <div class="stat-num" style="color:#e67e22;"
+                             th:text="${#lists.isEmpty(eventosHoy)} ? '—' : ${eventoHoyRaciones}">32</div>
+                        <div class="stat-lbl">
+                            <span th:if="${#lists.isEmpty(eventosHoy)}">Sin eventos hoy</span>
+                            <span th:unless="${#lists.isEmpty(eventosHoy)}"
+                                  th:text="'Evento: ' + ${eventosHoy[0].nombreConComida}">Evento: Excursión</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

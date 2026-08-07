@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:replace="~{fragments/base :: head('Justificaciones de Inasistencia')}"></head>
 <body>
 
@@ -83,7 +83,9 @@
                         </a>
                     </th>
                     <th>Residente</th><th>Código</th>
-                    <th title="Preceptor que registró la justificación">Preceptor</th><th>Acciones</th>
+                    <th title="Preceptor que registró la justificación">Preceptor</th>
+                    <th title="Histórica: ya transcurrió · En transcurso: sigue vigente · Cancelada: se cerró antes de tiempo">Estado</th>
+                    <th>Acciones</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -101,6 +103,16 @@
                     <td th:text="${a.residente.apellido} + ', ' + ${a.residente.nombre}">Mamani, Juan</td>
                     <td th:text="${a.residente.codigoAcceso}">U-2024-10542</td>
                     <td style="font-size:0.78rem;" th:text="${a.usuario != null} ? ${a.usuario.nombreCompleto} : '—'">Preceptor Ríos</td>
+                    <td th:with="etiqueta=${etiquetaPorAusencia.get(a.idAusencia)}">
+                        <span class="badge-estado" style="font-size:0.66rem;"
+                              th:classappend="${#strings.contains(etiqueta, 'Cancelada')} ? 'bg-denegado'
+                                            : (${#strings.contains(etiqueta, 'En transcurso')} ? 'bg-pendiente' : 'bg-ausente')"
+                              th:text="${etiqueta}"
+                              th:title="${a.canceladaPor != null}
+                                        ? 'Cancelada por ' + ${a.canceladaPor}
+                                          + (${a.motivoCancelacion != null} ? ' — ' + ${a.motivoCancelacion} : '')
+                                        : 'Estado de esta justificación'">Histórica</span>
+                    </td>
                     <td class="text-nowrap">
 
                         <button type="button" class="btn btn-primary btn-sm" style="font-size:0.7rem;"
@@ -117,11 +129,12 @@
                             <i class="fa-solid fa-eye"></i> Ver detalles
                         </button>
 
-                        <form th:if="${estado == 'FUTURA'}"
+                        <form th:if="${estado == 'FUTURA'}" sec:authorize="hasRole('PRECEPTOR')"
                               th:action="@{'/admin/justificaciones/' + ${a.idAusencia} + '/eliminar'}" method="post"
                               style="margin:0; display:inline;"
                               data-titulo="Eliminar justificación"
                               data-confirmar="Esta justificación aún no empieza: se eliminará por completo y el residente no figurará como justificado."
+                              data-motivo="Motivo de la eliminación (opcional)"
                               data-boton="Sí, eliminar">
                             <button class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;"
                                     title="Eliminar esta justificación (aún no empieza)">
@@ -129,11 +142,12 @@
                             </button>
                         </form>
 
-                        <form th:if="${estado == 'EN_CURSO'}"
+                        <form th:if="${estado == 'EN_CURSO'}" sec:authorize="hasRole('PRECEPTOR')"
                               th:action="@{'/admin/justificaciones/' + ${a.idAusencia} + '/cancelar'}" method="post"
                               style="margin:0; display:inline;"
                               data-titulo="Cancelar justificación en curso"
                               data-confirmar="Cierre anticipado: los turnos que ya pasaron justificados se conservan en el historial, y la justificación terminará en este momento (los turnos futuros dejan de estar justificados)."
+                              data-motivo="Motivo de la cancelación (opcional)"
                               data-boton="Sí, cancelar desde ahora">
                             <button class="btn btn-sm" style="font-size:0.7rem; background:#f39c12; color:#fff;"
                                     title="Cancelar desde ahora (lo ya transcurrido se conserva)">
@@ -146,7 +160,7 @@
                     </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(justificaciones)}">
-                    <td colspan="6" class="text-center text-muted py-3">
+                    <td colspan="7" class="text-center text-muted py-3">
                         No hay justificaciones registradas en este período.
                     </td>
                 </tr>

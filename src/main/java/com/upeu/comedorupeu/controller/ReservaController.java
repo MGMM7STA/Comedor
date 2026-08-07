@@ -75,7 +75,6 @@ public class ReservaController {
                               @RequestParam(required = false) java.time.LocalTime horaRecojo,
                               @RequestParam(required = false) String codigos,
                               @RequestParam(required = false) String conTaper,
-                              @RequestParam(defaultValue = "false") boolean agrupar,
                               Authentication auth, RedirectAttributes flash) {
 
         if (fecha.equals(LocalDate.now()) && turnoService.comidasBloqueadasHoy().contains(tipoComida)) {
@@ -91,10 +90,7 @@ public class ReservaController {
         Usuario quien = usuarioRepo.findByCorreo(auth.getName());
         AlcanceDatos alcance = alcanceService.de(auth);
 
-        String grupo = agrupar
-                ? "G-" + java.time.LocalDateTime.now()
-                        .format(java.time.format.DateTimeFormatter.ofPattern("ddMM-HHmmssSSS"))
-                : null;
+        String grupo = null;
         java.util.Set<String> traenTaper = new java.util.HashSet<>();
         if (conTaper != null && !conTaper.isBlank()) {
             for (String c : conTaper.split(",")) traenTaper.add(c.trim());
@@ -280,7 +276,9 @@ public class ReservaController {
     }
 
     @PostMapping("/admin/reservas/{id}/cancelar")
-    public String cancelarAdmin(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
+    public String cancelarAdmin(@PathVariable Long id,
+                                @RequestParam(required = false) String motivoAccion,
+                                Authentication auth, RedirectAttributes flash) {
         boolean esPreceptor = auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_PRECEPTOR".equals(a.getAuthority()));
         if (!esPreceptor) {
@@ -302,6 +300,7 @@ public class ReservaController {
             Usuario quien = usuarioRepo.findByCorreo(auth.getName());
             s.setEstado("CANCELADA");
             s.setCanceladaPor(quien.getNombreCompleto() + " (" + quien.getRol() + ")");
+            s.setMotivoCancelacion(motivoAccion == null || motivoAccion.isBlank() ? null : motivoAccion.trim());
             s.setFechaCancelacion(java.time.LocalDateTime.now());
             solicitudRepo.save(s);
             flash.addFlashAttribute("ok", "Reserva de " + s.getTipoComida().toLowerCase()

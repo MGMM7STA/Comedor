@@ -58,6 +58,13 @@ public class CajeroController {
         this.turnoRepo = turnoRepo;
     }
 
+    private com.upeu.comedorupeu.repository.AusenciaDetalleRepository ausenciaDetalleRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAusenciaDetalleRepo(com.upeu.comedorupeu.repository.AusenciaDetalleRepository repo) {
+        this.ausenciaDetalleRepo = repo;
+    }
+
     private Usuario usuarioActual(Authentication auth) {
         return usuarioRepo.findByCorreo(auth.getName());
     }
@@ -90,10 +97,20 @@ public class CajeroController {
         model.addAttribute("codigo", codigo);
 
         if (turnoActivo != null) {
-            long servidas = marcacionRepo.countByTurnoIdTurnoAndEstado(turnoActivo.getIdTurno(), "PERMITIDO")
-                    + marcacionRepo.countByTurnoIdTurnoAndEstado(turnoActivo.getIdTurno(), "JUSTIFICADO");
+            long servidas = marcacionRepo.countByTurnoIdTurnoAndEstado(turnoActivo.getIdTurno(), "PERMITIDO");
+
+            long justificadas = ausenciaDetalleRepo
+                    .findByFechaAndTipoComida(turnoActivo.getFecha(), turnoActivo.getTipo()).size();
+
+            long reservadas = solicitudRepo.findByFechaOrderByTipoComidaAsc(turnoActivo.getFecha()).stream()
+                    .filter(s -> turnoActivo.getTipo().equals(s.getTipoComida()) && "PENDIENTE".equals(s.getEstado()))
+                    .count();
+
             model.addAttribute("racionesServidas", servidas);
-            model.addAttribute("racionesPorServir", Math.max(0, residenteRepo.countByEstado("ACTIVO") - servidas));
+            model.addAttribute("racionesJustificadas", justificadas);
+            model.addAttribute("racionesReservadas", reservadas);
+            model.addAttribute("racionesPorServir",
+                    Math.max(0, residenteRepo.countByEstado("ACTIVO") - servidas - justificadas));
         }
 
         if (codigo != null && !codigo.isBlank()) {
@@ -137,10 +154,6 @@ public class CajeroController {
                                   Authentication auth, RedirectAttributes flash) {
         Usuario cajero = usuarioActual(auth);
 
-        if (puntoDelCajero(cajero) == null || puntoCerrado(cajero)) {
-            flash.addFlashAttribute("error", "Tu punto no está operativo.");
-            return "redirect:/cajero/validar";
-        }
         var residente = residenteRepo.findByCodigoAcceso(codigo.trim()).orElse(null);
         if (residente == null) {
             flash.addFlashAttribute("error", "Residente no encontrado.");
@@ -187,10 +200,6 @@ public class CajeroController {
     public String entregarReservaMasiva(@RequestParam String grupo,
                                         Authentication auth, RedirectAttributes flash) {
         Usuario cajero = usuarioActual(auth);
-        if (puntoDelCajero(cajero) == null || puntoCerrado(cajero)) {
-            flash.addFlashAttribute("error", "Tu punto no está operativo.");
-            return "redirect:/cajero/validar";
-        }
         var pendientes = solicitudRepo.findByGrupoLoteAndFechaAndEstado(
                 grupo, java.time.LocalDate.now(), "PENDIENTE");
         if (pendientes.isEmpty()) {

@@ -102,6 +102,12 @@
                         <span th:if="${comida == 'SI'}" class="badge-estado bg-permitido"><i class="fa-solid fa-check"></i></span>
                         <span th:if="${comida == 'JUST'}" class="badge-estado bg-justificado">Justif.</span>
                         <span th:if="${comida == 'NO'}" class="badge-estado bg-denegado"><i class="fa-solid fa-xmark"></i></span>
+                        <span th:if="${comida == 'INAC'}" class="badge-estado"
+                              style="background:#eef1f4; color:#5d6d7b; border:1px solid #b8c2cb; font-weight:700;"
+                              title="No figuraba activo en este turno">I</span>
+                        <span th:if="${comida == 'BORR'}" class="badge-estado"
+                              style="background:#f4ecf7; color:#7d3c98; border:1px solid #c39bd3; font-weight:700;"
+                              title="Ya no figuraba en el comedor en este turno">B</span>
                         <span th:if="${comida == ''}" style="color:#c3ccd4;">—</span>
                     </td>
                     <td style="font-size:0.76rem;" th:style="${f.injustificada} ? 'color:#e74c3c;' : 'color:#8a97a3;'"

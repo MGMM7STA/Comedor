@@ -37,13 +37,25 @@ public class AlcanceTotal implements AlcanceDatos {
     }
 
     @Override
+    public List<Residente> residentesParaHistorial() {
+        return residenteRepo.findAll().stream()
+                .sorted(java.util.Comparator.comparing(r -> r.getApellido() == null ? "" : r.getApellido()))
+                .toList();
+    }
+
+    @Override
     public List<SolicitudExtemporanea> reservas(LocalDate desde, LocalDate hasta) {
-        return solicitudRepo.findByFechaBetweenOrderByFechaAscTipoComidaAsc(desde, hasta);
+        return solicitudRepo.findByFechaBetweenOrderByFechaAscTipoComidaAsc(desde, hasta).stream()
+                .filter(s -> AlcanceDatos.vigenteEn(s.getResidente(), s.getFecha()))
+                .toList();
     }
 
     @Override
     public List<Ausencia> justificaciones(LocalDate desde, LocalDate hasta) {
-        return ausenciaRepo.findByFechaInicioLessThanEqualAndFechaFinGreaterThanEqualOrderByFechaInicioAsc(hasta, desde);
+        return ausenciaRepo.findByFechaInicioLessThanEqualAndFechaFinGreaterThanEqualOrderByFechaInicioAsc(hasta, desde)
+                .stream()
+                .filter(a -> AlcanceDatos.vigenteEn(a.getResidente(), a.getFechaFin()))
+                .toList();
     }
 
     @Override

@@ -28,6 +28,8 @@ public class ProgramacionHorario {
 
     private Integer diaSemana;
 
+    private java.time.LocalDate fecha;
+
     private LocalTime horaInicio;
     private LocalTime horaFin;
 

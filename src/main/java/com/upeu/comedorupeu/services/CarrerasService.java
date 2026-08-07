@@ -42,4 +42,39 @@ public class CarrerasService {
     public Map<String, List<String>> facultades() {
         return FACULTADES;
     }
+
+    public List<String> todas() {
+        List<String> lista = new java.util.ArrayList<>();
+        FACULTADES.values().forEach(lista::addAll);
+        return lista;
+    }
+
+    public static String simplificar(String texto) {
+        if (texto == null) return "";
+        String sinTildes = java.text.Normalizer.normalize(texto, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+        return sinTildes.toLowerCase().replaceAll("[^a-z0-9]+", " ").trim();
+    }
+
+    public String reconocer(String delArchivo) {
+        String buscado = simplificar(delArchivo);
+        if (buscado.isEmpty()) return null;
+
+        for (String carrera : todas()) {
+            if (simplificar(carrera).equals(buscado)) return carrera;
+        }
+
+        String mejor = null;
+        int largoMejor = 0;
+        for (String carrera : todas()) {
+            String simple = simplificar(carrera);
+            if (buscado.contains(simple) || simple.contains(buscado)) {
+                if (simple.length() > largoMejor) {
+                    mejor = carrera;
+                    largoMejor = simple.length();
+                }
+            }
+        }
+        return mejor;
+    }
 }

@@ -41,6 +41,13 @@ public class ExcelService {
 
     private final CarrerasService carrerasService;
 
+    private HistorialService historialService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setHistorialService(HistorialService historialService) {
+        this.historialService = historialService;
+    }
+
     public ExcelService(ResidenteRepository residenteRepo, ApoderadoRepository apoderadoRepo,
                         CarrerasService carrerasService) {
         this.residenteRepo = residenteRepo;
@@ -58,11 +65,18 @@ public class ExcelService {
         int importados = 0;
         int actualizados = 0;
         List<String> omitidos = new ArrayList<>();
+        java.util.LinkedHashSet<String> fechasAdelantadas = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<String> historialesBorrados = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<String> carrerasAjustadas = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<String> carrerasSinReconocer = new java.util.LinkedHashSet<>();
         DataFormatter fmt = new DataFormatter();
+
+        boolean columnaInicioFaltante = false;
 
         try (Workbook wb = new XSSFWorkbook(archivo.getInputStream())) {
             Sheet hoja = wb.getSheetAt(0);
             int[] cols = columnasDeEstado(hoja, fmt);
+            columnaInicioFaltante = cols[3] < 0;
             for (Row fila : hoja) {
                 if (fila.getRowNum() == 0) continue;
 
@@ -130,18 +144,37 @@ public class ExcelService {
                 java.time.LocalDate ingresoPorDefecto = (ingresoPrevio != null) ? ingresoPrevio : hoy;
                 java.time.LocalDate ingresoFila = (cols[3] >= 0)
                         ? fechaDeCelda(fmt, fila, cols[3], ingresoPorDefecto) : ingresoPorDefecto;
-                if (!actualizar && ingresoFila.isBefore(hoy)) {
-                    omitidos.add("Fila " + (fila.getRowNum() + 1) + ": el inicio de estancia ("
-                            + ingresoFila + ") es anterior a hoy. Un residente no puede ingresar en el pasado");
-                    continue;
+                if (ingresoFila.isBefore(hoy)) {
+                    fechasAdelantadas.add("fila " + (fila.getRowNum() + 1) + " (" + ingresoFila + ")");
+                    ingresoFila = hoy;
                 }
 
                 Residente r = actualizar ? porCodigo.get() : new Residente();
+
+                if (actualizar && ingresoPrevio != null && !ingresoFila.equals(ingresoPrevio)) {
+                    String queTenia = historialService.resumen(r);
+                    if (queTenia != null) {
+                        historialService.borrar(r);
+                        historialesBorrados.add(r.getNombreCompleto() + " (" + queTenia + ")");
+                    }
+                }
+
                 r.setNombre(nombres);
                 r.setApellido(apellidos);
                 r.setDni(dniImportado.isEmpty() ? null : dniImportado);
                 r.setCodigoAcceso(codigo);
-                r.setCarrera(celda(fmt, fila, 4));
+
+                String carreraArchivo = celda(fmt, fila, 4);
+                String carreraCatalogo = carrerasService.reconocer(carreraArchivo);
+                if (carreraCatalogo != null) {
+                    r.setCarrera(carreraCatalogo);
+                    if (!carreraCatalogo.equalsIgnoreCase(carreraArchivo.trim())) {
+                        carrerasAjustadas.add(carreraArchivo.trim() + " → " + carreraCatalogo);
+                    }
+                } else {
+                    r.setCarrera(carreraArchivo);
+                    if (!carreraArchivo.isBlank()) carrerasSinReconocer.add(carreraArchivo.trim());
+                }
 
                 r.setPabellon(preceptor != null ? preceptor.getPabellon() : null);
                 r.setCuarto(celda(fmt, fila, 5));
@@ -180,6 +213,31 @@ public class ExcelService {
         if (actualizados > 0) {
             resumen.append(" ").append(actualizados)
                     .append(" ya existían y se actualizaron con los datos del archivo.");
+        }
+        if (!fechasAdelantadas.isEmpty()) {
+            resumen.append(" Inicio de estancia adelantado a hoy porque venía en el pasado: ")
+                    .append(String.join("; ", fechasAdelantadas)).append(".");
+        }
+        if (!historialesBorrados.isEmpty()) {
+            resumen.append(" OJO: a estos residentes les cambió el inicio de estancia, así que")
+                    .append(" SE BORRÓ TODO SU HISTORIAL anterior (asistencias, reservas, justificaciones,")
+                    .append(" eventos y raciones especiales): ")
+                    .append(String.join("; ", historialesBorrados)).append(".");
+        }
+        if (columnaInicioFaltante) {
+            resumen.append(" OJO: el archivo no trae una columna de INICIO DE ESTANCIA reconocible,")
+                    .append(" así que a los residentes nuevos se les puso la fecha de hoy y el fin del semestre.")
+                    .append(" Si las fechas debían ser otras, usa la plantilla del sistema y vuelve a importar.");
+        }
+        if (!carrerasAjustadas.isEmpty()) {
+            resumen.append(" Carreras ajustadas al catálogo: ")
+                    .append(String.join("; ", carrerasAjustadas)).append(".");
+        }
+        if (!carrerasSinReconocer.isEmpty()) {
+            resumen.append(" OJO: no se reconocieron estas carreras y quedaron tal cual, así que el residente")
+                    .append(" aparecerá sin carrera marcada al editarlo: ")
+                    .append(String.join("; ", carrerasSinReconocer))
+                    .append(". Corrígelas en el archivo o desde la ficha del residente.");
         }
         if (!omitidos.isEmpty()) {
             resumen.append(" Omitidos ").append(omitidos.size()).append(": ")
@@ -278,11 +336,14 @@ public class ExcelService {
         if (cabecera != null) {
             int estado = -1, pago = -1, fin = -1, ini = -1;
             for (int i = 0; i < 20; i++) {
-                String texto = celda(fmt, cabecera, i).trim().toLowerCase();
-                if (texto.startsWith("estado de pago")) pago = i;
-                else if (texto.equals("estado")) estado = i;
-                else if (texto.startsWith("fin estancia")) fin = i;
-                else if (texto.startsWith("inicio estancia")) ini = i;
+                String texto = CarrerasService.simplificar(celda(fmt, cabecera, i));
+                if (texto.isEmpty()) continue;
+
+                if (texto.contains("pago")) pago = i;
+                else if (texto.contains("estancia") || texto.contains("fecha")) {
+                    if (texto.contains("fin") || texto.contains("hasta") || texto.contains("termino")) fin = i;
+                    else if (texto.contains("inicio") || texto.contains("desde") || texto.contains("ingreso")) ini = i;
+                } else if (texto.equals("estado") || texto.startsWith("estado ")) estado = i;
             }
             if (estado >= 0 && pago >= 0) return new int[]{estado, pago, fin, ini};
         }

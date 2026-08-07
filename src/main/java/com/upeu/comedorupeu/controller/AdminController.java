@@ -76,6 +76,20 @@ public class AdminController {
         this.turnoRepo = turnoRepo;
     }
 
+    private com.upeu.comedorupeu.services.AgendaService agendaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAgendaService(com.upeu.comedorupeu.services.AgendaService agendaService) {
+        this.agendaService = agendaService;
+    }
+
+    private com.upeu.comedorupeu.repository.AusenciaDetalleRepository ausenciaDetalleRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAusenciaDetalleRepo(com.upeu.comedorupeu.repository.AusenciaDetalleRepository repo) {
+        this.ausenciaDetalleRepo = repo;
+    }
+
     public AdminController(UsuarioRepository usuarioRepo, ResidenteRepository residenteRepo,
                            PuntoAtencionRepository puntoRepo, MarcacionRepository marcacionRepo,
                            EventoEspecialRepository eventoRepo, IncidenciaRepository incidenciaRepo,
@@ -100,18 +114,52 @@ public class AdminController {
         return usuarioRepo.findByCorreo(auth.getName());
     }
 
-    private String textoAgendaDelDia(List<com.upeu.comedorupeu.models.ProgramacionHorario> celdasHoy) {
-        List<String> partes = new java.util.ArrayList<>();
+    private List<Map<String, Object>> filasAgendaDelDia(
+            List<com.upeu.comedorupeu.models.ProgramacionHorario> celdasDelPunto,
+            List<com.upeu.comedorupeu.models.ProgramacionHorario> celdasDeTodos,
+            Long idPunto, LocalTime ahora) {
+
+        List<Map<String, Object>> filas = new java.util.ArrayList<>();
         for (String tipoT : TurnoService.TIPOS) {
-            for (var c : celdasHoy) {
-                if (!tipoT.equals(c.getTipoTurno())) continue;
-                if (c.getHoraInicio() == null && c.getHoraFin() == null) continue;
-                String ini = c.getHoraInicio() == null ? "--:--" : c.getHoraInicio().toString();
-                String fin = c.getHoraFin() == null ? "--:--" : c.getHoraFin().toString();
-                partes.add(tipoT.charAt(0) + tipoT.substring(1).toLowerCase() + " " + ini + " - " + fin);
+            var celda = celdasDelPunto.stream()
+                    .filter(c -> tipoT.equals(c.getTipoTurno()))
+                    .filter(c -> c.getHoraInicio() != null || c.getHoraFin() != null)
+                    .findFirst().orElse(null);
+
+            Map<String, Object> fila = new HashMap<>();
+            fila.put("turno", tipoT.charAt(0) + tipoT.substring(1).toLowerCase());
+            if (celda == null) {
+                fila.put("horas", "—");
+                fila.put("cajero", "—");
+                fila.put("vigente", false);
+                fila.put("aviso", null);
+                filas.add(fila);
+                continue;
             }
+
+            LocalTime ini = celda.getHoraInicio();
+            LocalTime fin = celda.getHoraFin();
+            fila.put("horas", (ini == null ? "--:--" : ini.toString()) + " – " + (fin == null ? "--:--" : fin.toString()));
+            fila.put("cajero", celda.getCajero() != null ? celda.getCajero().getNombreCompleto() : "Sin asignar");
+            fila.put("vigente", ini != null && fin != null && !ahora.isBefore(ini) && !ahora.isAfter(fin));
+
+            String aviso = null;
+            if (celda.getCajero() != null) {
+                var otra = celdasDeTodos.stream()
+                        .filter(c -> c.getPunto() != null && !idPunto.equals(c.getPunto().getIdPunto()))
+                        .filter(c -> c.getCajero() != null
+                                && c.getCajero().getIdUsuario().equals(celda.getCajero().getIdUsuario()))
+                        .findFirst().orElse(null);
+                if (otra != null) {
+                    aviso = "Este operador también atiende el "
+                            + otra.getTipoTurno().toLowerCase() + " en " + otra.getPunto().getNombre()
+                            + ". Se reasigna solo cuando llega cada turno.";
+                }
+            }
+            fila.put("aviso", aviso);
+            filas.add(fila);
         }
-        return partes.isEmpty() ? "Sin horario" : String.join(" · ", partes);
+        return filas;
     }
 
     @GetMapping("/puntos")
@@ -132,11 +180,14 @@ public class AdminController {
         Map<Long, Boolean> reprogPendiente = new HashMap<>();
         Map<Long, Boolean> abiertoAMano = new HashMap<>();
         Map<Long, Boolean> tieneAgendaHoy = new HashMap<>();
-        Map<Long, String> horarioDelDia = new HashMap<>();
+        List<Map<String, Object>> sinTurno = new java.util.ArrayList<>();
+        Map<Long, List<Map<String, Object>>> agendaDelDia = new HashMap<>();
+        List<com.upeu.comedorupeu.models.ProgramacionHorario> celdasDeTodos = agendaService
+                .listaDe(LocalDate.now())
+                .stream().filter(c -> !Boolean.FALSE.equals(c.getActivo())).toList();
         for (PuntoAtencion p : puntoRepo.vigentes()) {
 
-            var celdasHoy = programacionRepo.findByObjetivoAndPuntoIdPuntoAndDiaSemana(
-                            "TURNO_PUNTO", p.getIdPunto(), diaHoy.getValue())
+            var celdasHoy = agendaService.listaDe(LocalDate.now(), p.getIdPunto())
                     .stream().filter(c -> !Boolean.FALSE.equals(c.getActivo())).toList();
             com.upeu.comedorupeu.models.ProgramacionHorario celdaCubre = null;
             for (var c : celdasHoy) {
@@ -145,7 +196,8 @@ public class AdminController {
             necesitaTurno.put(p.getIdPunto(), true);
             abiertoAMano.put(p.getIdPunto(), p.isOperativo() && p.getTurnoManual() != null);
             tieneAgendaHoy.put(p.getIdPunto(), !celdasHoy.isEmpty());
-            horarioDelDia.put(p.getIdPunto(), textoAgendaDelDia(celdasHoy));
+            agendaDelDia.put(p.getIdPunto(),
+                    filasAgendaDelDia(celdasHoy, celdasDeTodos, p.getIdPunto(), ahora));
 
             boolean pendiente = false;
             if (p.isOperativo() && p.getTurnoManual() != null) {
@@ -157,6 +209,9 @@ public class AdminController {
             } else if (!p.isOperativo()) {
 
                 pendiente = celdaCubre != null;
+            } else {
+
+                pendiente = !celdasHoy.isEmpty();
             }
             reprogPendiente.put(p.getIdPunto(), pendiente);
 
@@ -171,14 +226,22 @@ public class AdminController {
                         "nombre", p.getNombre(),
                         "horario", "activado manualmente",
                         "cajero", p.getCajero() != null ? p.getCajero().getNombreCompleto() : "Sin asignar"));
+            } else {
+
+                sinTurno.add(Map.of(
+                        "nombre", p.getNombre(),
+                        "horario", p.getHorarioTexto(),
+                        "cajero", p.getCajero() != null ? p.getCajero().getNombreCompleto() : "Sin asignar"));
             }
         }
+        model.addAttribute("puntosSinTurno", sinTurno);
         model.addAttribute("vistaTurnos", vistaTurnos);
         model.addAttribute("necesitaTurno", necesitaTurno);
         model.addAttribute("reprogPendiente", reprogPendiente);
         model.addAttribute("abiertoAMano", abiertoAMano);
         model.addAttribute("tieneAgendaHoy", tieneAgendaHoy);
-        model.addAttribute("horarioDelDia", horarioDelDia);
+        model.addAttribute("agendaDelDia", agendaDelDia);
+        model.addAttribute("cajeros", usuarioRepo.findByRol("CAJERO"));
         model.addAttribute("hayActividad", vistaTurnos.values().stream().anyMatch(l -> !l.isEmpty()));
 
         long turnosActivos = vistaTurnos.values().stream().filter(l -> !l.isEmpty()).count();
@@ -194,9 +257,18 @@ public class AdminController {
         long racionesPosibles = residentesActivos * (panelTodos ? TurnoService.TIPOS.size() : 1);
         long atendidos = 0, bloqueados = 0;
         for (Turno t : turnosPanel) {
-            atendidos += marcacionRepo.countByTurnoIdTurnoAndEstado(t.getIdTurno(), "PERMITIDO")
-                    + marcacionRepo.countByTurnoIdTurnoAndEstado(t.getIdTurno(), "JUSTIFICADO");
+            atendidos += marcacionRepo.countByTurnoIdTurnoAndEstado(t.getIdTurno(), "PERMITIDO");
             bloqueados += marcacionRepo.countByTurnoIdTurnoAndEstado(t.getIdTurno(), "DENEGADO");
+        }
+
+        LocalDate hoyFecha = LocalDate.now();
+        List<String> comidasPanel = panelTodos ? TurnoService.TIPOS : List.of(panel);
+        long justificados = 0, reservas = 0;
+        for (String comida : comidasPanel) {
+            justificados += ausenciaDetalleRepo.findByFechaAndTipoComida(hoyFecha, comida).size();
+            reservas += solicitudRepo.findByFechaOrderByTipoComidaAsc(hoyFecha).stream()
+                    .filter(s -> comida.equals(s.getTipoComida()) && "PENDIENTE".equals(s.getEstado()))
+                    .count();
         }
         model.addAttribute("turnoPanel", panel);
         model.addAttribute("residentesActivos", residentesActivos);
@@ -208,31 +280,33 @@ public class AdminController {
         model.addAttribute("habilitados", habilitados);
         model.addAttribute("racionesPosibles", racionesPosibles);
         model.addAttribute("atendidos", atendidos);
-        model.addAttribute("pendientes", Math.max(0, racionesPosibles - atendidos));
+        model.addAttribute("justificados", justificados);
+        model.addAttribute("reservas", reservas);
+        model.addAttribute("pendientes", Math.max(0, racionesPosibles - atendidos - justificados));
         model.addAttribute("bloqueados", bloqueados);
         model.addAttribute("avisos", apunteRepo.findTop10ByTipoOrderByFechaHoraDesc("AVISO"));
         model.addAttribute("avisosPrec", apunteRepo.findTop10ByTipoOrderByFechaHoraDesc("PRECEPTOR"));
         model.addAttribute("notasPersonales", apunteRepo.findTop10ByTipoOrderByFechaHoraDesc("PERSONAL"));
 
-        model.addAttribute("racionesServidas", atendidos);
-        model.addAttribute("racionesReservadas", solicitudRepo.countByFechaAndEstado(LocalDate.now(), "PENDIENTE"));
-        model.addAttribute("racionesPorServir", Math.max(0, racionesPosibles - atendidos));
-
-        var eventosHoy = eventoRepo.findByEstadoAndFechaEvento("APROBADO", LocalDate.now());
-        if (!eventosHoy.isEmpty()) {
-            EventoEspecial ev = eventosHoy.get(0);
-            long participantes = residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO").stream()
+        var eventosHoy = eventoRepo.findByEstadoAndFechaEvento("APROBADO", hoyFecha).stream()
+                .filter(e -> panelTodos || panel.equals(e.getComida()))
+                .toList();
+        long racionesEvento = 0;
+        for (EventoEspecial ev : eventosHoy) {
+            racionesEvento += residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO").stream()
                     .filter(r -> !ev.getExcluidosLista().contains(r.getCodigoAcceso())).count();
-            model.addAttribute("eventoHoy", ev);
-            model.addAttribute("eventoHoyRaciones", participantes);
         }
+        model.addAttribute("eventosHoy", eventosHoy);
+        model.addAttribute("eventoHoyRaciones", racionesEvento);
         return "admin/puntos";
     }
 
     @PostMapping("/puntos/{id}/toggle")
     public String togglePunto(@PathVariable Long id,
                               @RequestParam(required = false) String turnoManual,
-                              Authentication auth) {
+                              @RequestParam(required = false) Long idCajeroManual,
+                              Authentication auth, RedirectAttributes flash) {
+        final String[] conflicto = new String[1];
         puntoRepo.findById(id).ifPresent(p -> {
             boolean estabaOperativo = p.isOperativo();
             p.setModo("MANUAL");
@@ -242,6 +316,20 @@ public class AdminController {
                 if (turnoManual == null || turnoManual.isBlank()) {
                     p.setActivo(false);
                     return;
+                }
+                if (idCajeroManual != null) {
+                    PuntoAtencion ocupado = puntoRepo.vigentes().stream()
+                            .filter(otro -> !otro.getIdPunto().equals(p.getIdPunto()))
+                            .filter(PuntoAtencion::isOperativo)
+                            .filter(otro -> otro.getCajero() != null
+                                    && otro.getCajero().getIdUsuario().equals(idCajeroManual))
+                            .findFirst().orElse(null);
+                    if (ocupado != null) {
+                        p.setActivo(false);
+                        conflicto[0] = ocupado.getNombre();
+                        return;
+                    }
+                    usuarioRepo.findById(idCajeroManual).ifPresent(p::setCajero);
                 }
                 p.setTurnoManual(turnoManual);
                 turnoService.turnosDeHoy().stream()
@@ -279,6 +367,11 @@ public class AdminController {
             p.setUltimaAccionManual(LocalDateTime.now());
             puntoRepo.save(p);
         });
+        if (conflicto[0] != null) {
+            flash.addFlashAttribute("error", "Ese operador ya está atendiendo en " + conflicto[0]
+                    + " ahora mismo: no puede estar en dos entradas a la vez. "
+                    + "Cierra la otra entrada o elige a otra persona.");
+        }
         return "redirect:/admin/puntos";
     }
 
@@ -748,16 +841,9 @@ public class AdminController {
 
     @PostMapping("/eventos/{id}/eliminar")
     public String eliminarEvento(@PathVariable Long id, RedirectAttributes flash) {
-        eventoRepo.findById(id).ifPresent(e -> {
-            List<EventoEspecial> grupo = comidasDelEvento(e);
-            for (EventoEspecial comida : grupo) {
-                entregaRepo.deleteAll(entregaRepo.findByEventoIdEvento(comida.getIdEvento()));
-                eventoRepo.delete(comida);
-            }
-            flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" eliminado" + textoComidas(grupo)
-                    + " junto con su pase de lista.");
-        });
-        return "redirect:/admin/eventos";
+        flash.addFlashAttribute("error", "Los eventos solo los puede eliminar el preceptor que los envió. "
+                + "El administrador puede aprobarlos o rechazarlos, no borrarlos.");
+        return "redirect:/admin/eventos/" + id;
     }
 
     @PostMapping("/eventos/{id}/excluir")

@@ -31,4 +31,11 @@ public class Ausencia {
 
     @OneToMany(mappedBy = "ausencia", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<AusenciaDetalle> detalles = new ArrayList<>();
+
+    private String canceladaPor;
+
+    @Column(length = 300)
+    private String motivoCancelacion;
+
+    private java.time.LocalDateTime fechaCancelacion;
 }

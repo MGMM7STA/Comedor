@@ -40,15 +40,26 @@ public class AlcancePorResidencia implements AlcanceDatos {
     }
 
     @Override
+    public List<Residente> residentesParaHistorial() {
+        return residenteRepo.findByPabellonOrderByApellidoAsc(residencia);
+    }
+
+    @Override
     public List<SolicitudExtemporanea> reservas(LocalDate desde, LocalDate hasta) {
-        return solicitudRepo.findByFechaBetweenAndResidentePabellonOrderByFechaAscTipoComidaAsc(desde, hasta, residencia);
+        return solicitudRepo.findByFechaBetweenAndResidentePabellonOrderByFechaAscTipoComidaAsc(desde, hasta, residencia)
+                .stream()
+                .filter(s -> AlcanceDatos.vigenteEn(s.getResidente(), s.getFecha()))
+                .toList();
     }
 
     @Override
     public List<Ausencia> justificaciones(LocalDate desde, LocalDate hasta) {
         return ausenciaRepo
                 .findByFechaInicioLessThanEqualAndFechaFinGreaterThanEqualAndResidentePabellonOrderByFechaInicioAsc(
-                        hasta, desde, residencia);
+                        hasta, desde, residencia)
+                .stream()
+                .filter(a -> AlcanceDatos.vigenteEn(a.getResidente(), a.getFechaFin()))
+                .toList();
     }
 
     @Override

@@ -27,7 +27,7 @@ public class ValidacionResultado {
 
     private com.upeu.comedorupeu.models.Marcacion marcacionPrevia;
 
-    private Map<String, Boolean> consumoDia = new LinkedHashMap<>();
+    private Map<String, String> consumoDia = new LinkedHashMap<>();
 
     private List<String> checks = new ArrayList<>();
 

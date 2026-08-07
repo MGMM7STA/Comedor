@@ -30,6 +30,13 @@ public class EventoEspecial {
 
     private String grupoEvento;
 
+    private String canceladoPor;
+
+    @Column(length = 300)
+    private String motivoCancelacion;
+
+    private LocalDateTime fechaCancelacion;
+
     public String getComidaTexto() {
         if (comida == null || comida.isBlank()) return "Ración adicional";
         return comida.charAt(0) + comida.substring(1).toLowerCase();

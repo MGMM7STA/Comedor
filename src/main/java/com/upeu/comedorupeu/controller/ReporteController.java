@@ -312,6 +312,36 @@ public class ReporteController {
         }
         model.addAttribute("justificacionesCompleto", justifComp);
 
+        java.util.Map<Long, String> turnosJustificacion = new java.util.HashMap<>();
+        java.util.Map<Long, String> detalleJustificacion = new java.util.HashMap<>();
+        java.time.format.DateTimeFormatter fDia = java.time.format.DateTimeFormatter.ofPattern("dd/MM");
+        for (var a : justifComp) {
+            java.util.LinkedHashSet<String> tipos = new java.util.LinkedHashSet<>();
+            java.util.Map<java.time.LocalDate, java.util.List<String>> porDia = new java.util.TreeMap<>();
+            for (var d : a.getDetalles()) {
+                tipos.add(d.getTipoComida());
+                porDia.computeIfAbsent(d.getFecha(), x -> new java.util.ArrayList<>())
+                        .add(d.getTipoComida().charAt(0) + d.getTipoComida().substring(1).toLowerCase());
+            }
+            String textoTipos;
+            if (tipos.containsAll(List.of("DESAYUNO", "ALMUERZO", "CENA"))) {
+                textoTipos = "Todos (D + A + C)";
+            } else if (tipos.isEmpty()) {
+                textoTipos = "—";
+            } else {
+                textoTipos = String.join(" + ", tipos.stream()
+                        .map(t -> t.charAt(0) + t.substring(1).toLowerCase()).toList());
+            }
+            turnosJustificacion.put(a.getIdAusencia(), textoTipos);
+
+            java.util.List<String> lineas = new java.util.ArrayList<>();
+            porDia.forEach((dia, comidas) -> lineas.add(fDia.format(dia) + ": " + String.join(", ", comidas)));
+            detalleJustificacion.put(a.getIdAusencia(),
+                    lineas.isEmpty() ? "sin turnos registrados" : String.join(" | ", lineas));
+        }
+        model.addAttribute("turnosJustificacion", turnosJustificacion);
+        model.addAttribute("detalleJustificacion", detalleJustificacion);
+
         var eventosComp = "EVENTOS".equals(seccion)
                 ? eventosDelRango(desde, hasta, pab) : List.<java.util.Map<String, Object>>of();
         if ("CON".equals(evPase)) {

@@ -75,6 +75,10 @@
                             title="Envía un mensaje directo a la bandeja de peticiones del administrador">
                         <i class="fa-solid fa-paper-plane me-1"></i>Aviso al admin
                     </button>
+                    <a th:href="@{/preceptor/residentes/exportar(q=${q})}" class="btn btn-light border btn-sm-flat"
+                       title="Descarga en Excel todos los datos de los residentes de esta lista (la foto no se exporta)">
+                        <i class="fa-solid fa-file-export me-1"></i>Exportar
+                    </a>
                     <a href="/preceptor/residentes/plantilla" class="btn btn-light border btn-sm-flat"
                        title="Descarga el Excel con las columnas listas para llenar (sin residencia de género: se asigna sola)">
                         <i class="fa-solid fa-file-arrow-down me-1"></i>Plantilla

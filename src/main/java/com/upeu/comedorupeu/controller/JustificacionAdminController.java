@@ -21,6 +21,14 @@ public class JustificacionAdminController {
 
     private final AusenciaRepository ausenciaRepo;
     private final AlcanceService alcanceService;
+
+    private com.upeu.comedorupeu.repository.UsuarioRepository usuarioRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setUsuarioRepo(com.upeu.comedorupeu.repository.UsuarioRepository repo) {
+        this.usuarioRepo = repo;
+    }
+
     private final com.upeu.comedorupeu.services.JustificacionService justificacionService;
 
     private final com.upeu.comedorupeu.services.ExcelService excelService;
@@ -104,14 +112,17 @@ public class JustificacionAdminController {
         java.util.Map<Long, String> dia1PorAusencia = new java.util.HashMap<>();
         java.util.Map<Long, String> diaFinPorAusencia = new java.util.HashMap<>();
         java.util.Map<Long, String> estadoPorAusencia = new java.util.HashMap<>();
+        java.util.Map<Long, String> etiquetaPorAusencia = new java.util.HashMap<>();
         for (Ausencia a : lista) {
             dia1PorAusencia.put(a.getIdAusencia(), excepcionesDelDia(a, a.getFechaInicio()));
             diaFinPorAusencia.put(a.getIdAusencia(), excepcionesDelDia(a, a.getFechaFin()));
             estadoPorAusencia.put(a.getIdAusencia(), justificacionService.estadoDe(a));
+            etiquetaPorAusencia.put(a.getIdAusencia(), justificacionService.etiquetaEstado(a));
         }
         model.addAttribute("dia1PorAusencia", dia1PorAusencia);
         model.addAttribute("diaFinPorAusencia", diaFinPorAusencia);
         model.addAttribute("estadoPorAusencia", estadoPorAusencia);
+        model.addAttribute("etiquetaPorAusencia", etiquetaPorAusencia);
 
         model.addAttribute("justificaciones", lista);
         model.addAttribute("totalJustificaciones", total);
@@ -195,8 +206,19 @@ public class JustificacionAdminController {
                 .body(xlsx);
     }
 
+    private boolean esPreceptor(Authentication auth) {
+        return auth.getAuthorities().stream().anyMatch(g -> "ROLE_PRECEPTOR".equals(g.getAuthority()));
+    }
+
     @PostMapping("/{id}/eliminar")
-    public String eliminar(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
+    public String eliminar(@PathVariable Long id,
+                           @RequestParam(required = false) String motivoAccion,
+                           Authentication auth, RedirectAttributes flash) {
+        if (!esPreceptor(auth)) {
+            flash.addFlashAttribute("error", "Las justificaciones solo las puede eliminar el preceptor que "
+                    + "atiende a ese residente. El administrador puede consultarlas, no eliminarlas.");
+            return "redirect:/admin/justificaciones";
+        }
         ausenciaRepo.findById(id).ifPresent(a -> {
             if (!alcanceService.de(auth).alcanza(a.getResidente())) {
                 flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
@@ -217,12 +239,24 @@ public class JustificacionAdminController {
     }
 
     @PostMapping("/{id}/cancelar")
-    public String cancelar(@PathVariable Long id, Authentication auth, RedirectAttributes flash) {
+    public String cancelar(@PathVariable Long id,
+                           @RequestParam(required = false) String motivoAccion,
+                           Authentication auth, RedirectAttributes flash) {
+        if (!esPreceptor(auth)) {
+            flash.addFlashAttribute("error", "Las justificaciones solo las puede cancelar el preceptor que "
+                    + "atiende a ese residente. El administrador puede consultarlas, no cancelarlas.");
+            return "redirect:/admin/justificaciones";
+        }
         ausenciaRepo.findById(id).ifPresent(a -> {
             if (!alcanceService.de(auth).alcanza(a.getResidente())) {
                 flash.addFlashAttribute("error", "Ese residente no pertenece a tu residencia de género.");
                 return;
             }
+            var quien = usuarioRepo.findByCorreo(auth.getName());
+            a.setCanceladaPor(quien == null ? auth.getName() : quien.getNombreCompleto() + " (" + quien.getRol() + ")");
+            a.setMotivoCancelacion(motivoAccion == null || motivoAccion.isBlank() ? null : motivoAccion.trim());
+            a.setFechaCancelacion(java.time.LocalDateTime.now());
+
             String resultado = justificacionService.cierreAnticipado(a);
             if (resultado == null) {
                 flash.addFlashAttribute("error", "Esta justificación no está en curso: no aplica el cierre anticipado.");

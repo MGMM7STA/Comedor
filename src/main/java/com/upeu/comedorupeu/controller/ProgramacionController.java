@@ -73,17 +73,38 @@ public class ProgramacionController {
 
         List<PuntoAtencion> puntos = puntoRepo.vigentes();
 
-        Map<String, ProgramacionHorario> celdas = new HashMap<>();
-        for (ProgramacionHorario p : programacionRepo.findByObjetivoAndDiaSemana(CELDA, diaSel)) {
-            if (p.getPunto() != null && p.getTipoTurno() != null) {
-                celdas.put(p.getTipoTurno() + "-" + p.getPunto().getIdPunto(), p);
-            }
-        }
+        java.time.LocalDate fechaSel = java.time.LocalDate.now()
+                .minusDays(diaDeHoy() - 1L).plusWeeks(semana).plusDays(diaSel - 1L);
+        model.addAttribute("fechaSel", fechaSel);
+
+        Map<String, ProgramacionHorario> celdas = agendaService.celdasDe(fechaSel);
 
         Map<String, ProgramacionHorario> horariosTurno = new HashMap<>();
         for (ProgramacionHorario p : programacionRepo.findByObjetivoAndDiaSemana("TURNO", diaSel)) {
             if (p.getTipoTurno() != null) horariosTurno.put(p.getTipoTurno(), p);
         }
+
+        Map<String, Boolean> heredada = new HashMap<>();
+        celdas.forEach((k, c) -> heredada.put(k, agendaService.esHeredada(c)));
+        model.addAttribute("heredada", heredada);
+
+        Map<Long, String> turnoEnCurso = new HashMap<>();
+        if (semana == 0 && diaSel == diaDeHoy()) {
+            LocalTime ahora = LocalTime.now();
+            for (PuntoAtencion p : puntos) {
+                if (!p.isOperativo()) continue;
+                if (p.getTurnoManual() != null) {
+                    turnoEnCurso.put(p.getIdPunto(), p.getTurnoManual());
+                    continue;
+                }
+                agendaService.listaDe(fechaSel, p.getIdPunto()).stream()
+                        .filter(c -> c.getHoraInicio() != null || c.getHoraFin() != null)
+                        .filter(c -> !ahora.isBefore(iniDe(c)) && !ahora.isAfter(finDe(c)))
+                        .findFirst()
+                        .ifPresent(c -> turnoEnCurso.put(p.getIdPunto(), c.getTipoTurno()));
+            }
+        }
+        model.addAttribute("turnoEnCurso", turnoEnCurso);
 
         Map<Long, Boolean> conflictos = new HashMap<>();
 
@@ -170,29 +191,51 @@ public class ProgramacionController {
     public String excluirEntrada(@RequestParam Long idPunto,
                                  @RequestParam String tipoTurno,
                                  @RequestParam Integer diaSemana,
+                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate fecha,
                                  RedirectAttributes flash) {
         PuntoAtencion punto = puntoRepo.findById(idPunto).orElse(null);
         if (punto == null) return "redirect:/admin/programar";
-        ProgramacionHorario celda = programacionRepo
-                .findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndDiaSemana(CELDA, idPunto, tipoTurno, diaSemana)
-                .orElseGet(ProgramacionHorario::new);
-        celda.setObjetivo(CELDA);
-        celda.setPunto(punto);
-        celda.setTipoTurno(tipoTurno);
-        celda.setDiaSemana(diaSemana);
 
-        boolean quedaQuitada = !Boolean.FALSE.equals(celda.getActivo());
-        celda.setActivo(!quedaQuitada);
-        programacionRepo.save(celda);
-        flash.addFlashAttribute("ok", punto.getNombre() + (quedaQuitada
-                ? " quedó QUITADA del " + tipoTurno.toLowerCase() + " de los " + nombreDia(diaSemana)
-                  + ": el horario del turno ya no se le aplicará (no se eliminó nada)."
-                : " vuelve a estar incluida en el " + tipoTurno.toLowerCase() + " de los " + nombreDia(diaSemana) + "."));
-        return "redirect:/admin/programar?dia=" + diaSemana;
+        if (fecha != null) {
+            programacionRepo.findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndFecha(CELDA, idPunto, tipoTurno, fecha)
+                    .ifPresent(programacionRepo::delete);
+        } else {
+            programacionRepo.findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndDiaSemanaAndFechaIsNull(
+                            CELDA, idPunto, tipoTurno, diaSemana)
+                    .ifPresent(programacionRepo::delete);
+        }
+
+        flash.addFlashAttribute("ok", punto.getNombre() + " salió del " + tipoTurno.toLowerCase()
+                + (fecha != null ? " del " + fecha : " de los " + nombreDia(diaSemana))
+                + ". Puedes volver a añadirla con el botón +.");
+        return volverAlDia(diaSemana, fecha);
     }
 
     private static String textoHora(LocalTime h) {
         return h == null ? "--:--" : h.toString();
+    }
+
+    private String volverAlDia(Integer diaSemana, java.time.LocalDate fecha) {
+        if (fecha != null) return "redirect:/admin/programar?ir=" + fecha;
+        return "redirect:/admin/programar?dia=" + diaSemana;
+    }
+
+    private java.time.LocalDate proximaFechaDe(Integer diaSemana) {
+        java.time.LocalDate hoy = java.time.LocalDate.now();
+        java.time.LocalDate lunes = hoy.minusDays(diaDeHoy() - 1L);
+        java.time.LocalDate destino = lunes.plusDays(diaSemana - 1L);
+        return destino.isBefore(hoy) ? destino.plusWeeks(1) : destino;
+    }
+
+    private com.upeu.comedorupeu.services.AgendaService agendaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAgendaService(com.upeu.comedorupeu.services.AgendaService agendaService) {
+        this.agendaService = agendaService;
+    }
+
+    private static boolean seSolapan(LocalTime iniA, LocalTime finA, LocalTime iniB, LocalTime finB) {
+        return iniA.isBefore(finB) && iniB.isBefore(finA);
     }
 
     private static LocalTime iniDe(ProgramacionHorario c) {
@@ -204,8 +247,8 @@ public class ProgramacionController {
     }
 
     private boolean hayConflicto(PuntoAtencion punto) {
-        List<ProgramacionHorario> hoy = programacionRepo
-                .findByObjetivoAndPuntoIdPuntoAndDiaSemana(CELDA, punto.getIdPunto(), diaDeHoy())
+        List<ProgramacionHorario> hoy = agendaService
+                .listaDe(java.time.LocalDate.now(), punto.getIdPunto())
                 .stream().filter(c -> !Boolean.FALSE.equals(c.getActivo())).toList();
         if (hoy.isEmpty()) return false;
 
@@ -220,24 +263,10 @@ public class ProgramacionController {
 
         boolean aperturaDistinta = (vigente != null) != Boolean.TRUE.equals(punto.getActivo());
 
-        Usuario esperado = cajeroEsperadoAhora(hoy);
-        boolean cajeroDistinto = esperado != null
+        boolean cajeroDistinto = vigente != null && vigente.getCajero() != null
                 && (punto.getCajero() == null
-                || !esperado.getIdUsuario().equals(punto.getCajero().getIdUsuario()));
+                || !vigente.getCajero().getIdUsuario().equals(punto.getCajero().getIdUsuario()));
         return horarioDistinto || aperturaDistinta || cajeroDistinto;
-    }
-
-    private Usuario cajeroEsperadoAhora(List<ProgramacionHorario> celdasHoy) {
-        LocalTime ahora = LocalTime.now();
-        return celdasHoy.stream()
-                .filter(c -> c.getCajero() != null
-                        && !ahora.isBefore(iniDe(c)) && !ahora.isAfter(finDe(c)))
-                .map(ProgramacionHorario::getCajero)
-                .findFirst()
-                .orElseGet(() -> celdasHoy.stream()
-                        .filter(c -> c.getCajero() != null)
-                        .map(ProgramacionHorario::getCajero)
-                        .findFirst().orElse(null));
     }
 
     private ProgramacionHorario celdaVigente(List<ProgramacionHorario> celdas, LocalTime ahora) {
@@ -255,8 +284,8 @@ public class ProgramacionController {
     }
 
     private void aplicarAgendaDeHoy(PuntoAtencion punto) {
-        List<ProgramacionHorario> hoy = programacionRepo
-                .findByObjetivoAndPuntoIdPuntoAndDiaSemana(CELDA, punto.getIdPunto(), diaDeHoy())
+        List<ProgramacionHorario> hoy = agendaService
+                .listaDe(java.time.LocalDate.now(), punto.getIdPunto())
                 .stream().filter(c -> !Boolean.FALSE.equals(c.getActivo())).toList();
         if (hoy.isEmpty()) return;
         punto.setModo("HORARIO");
@@ -283,48 +312,87 @@ public class ProgramacionController {
                                @RequestParam(required = false) Long idCajero,
                                @RequestParam(required = false) @DateTimeFormat(pattern = "HH:mm") LocalTime horaInicio,
                                @RequestParam(required = false) @DateTimeFormat(pattern = "HH:mm") LocalTime horaFin,
+                               @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate fecha,
+                               @RequestParam(required = false) Boolean guardarPlantilla,
                                RedirectAttributes flash) {
         PuntoAtencion punto = puntoRepo.findById(idPunto).orElse(null);
         if (punto == null) return "redirect:/admin/programar";
 
-        ProgramacionHorario celda = programacionRepo
-                .findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndDiaSemana(CELDA, idPunto, tipoTurno, diaSemana)
+        boolean comoPlantilla = Boolean.TRUE.equals(guardarPlantilla) || fecha == null;
+        ProgramacionHorario celda = (comoPlantilla
+                ? programacionRepo.findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndDiaSemanaAndFechaIsNull(
+                        CELDA, idPunto, tipoTurno, diaSemana)
+                : programacionRepo.findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndFecha(
+                        CELDA, idPunto, tipoTurno, fecha))
                 .orElseGet(ProgramacionHorario::new);
         celda.setObjetivo(CELDA);
         celda.setPunto(punto);
         celda.setTipoTurno(tipoTurno);
         celda.setDiaSemana(diaSemana);
+        celda.setFecha(comoPlantilla ? null : fecha);
 
         if (horaInicio == null && horaFin == null) {
-            if (celda.getIdProgramacion() != null) programacionRepo.delete(celda);
-            flash.addFlashAttribute("ok", "Se quitó la programación de " + punto.getNombre()
-                    + " en el " + tipoTurno.toLowerCase() + " de los " + nombreDia(diaSemana) + ".");
-            return "redirect:/admin/programar?dia=" + diaSemana;
+
+            celda.setHoraInicio(null);
+            celda.setHoraFin(null);
+            celda.setCajero(null);
+            celda.setActivo(true);
+            programacionRepo.save(celda);
+            flash.addFlashAttribute("ok", "Se borró el horario de " + punto.getNombre()
+                    + " en el " + tipoTurno.toLowerCase() + " de los " + nombreDia(diaSemana)
+                    + ": la casilla sigue ahí, vacía, lista para volver a llenarla.");
+            return volverAlDia(diaSemana, fecha);
         }
         if (horaInicio != null && horaFin != null && horaFin.isBefore(horaInicio)) {
             flash.addFlashAttribute("error", "La hora de cierre debe ser posterior a la de apertura.");
-            return "redirect:/admin/programar?dia=" + diaSemana;
+            return volverAlDia(diaSemana, fecha);
+        }
+        if (idCajero == null) {
+            flash.addFlashAttribute("error", "Falta el personal de " + punto.getNombre() + " en el "
+                    + tipoTurno.toLowerCase() + " de los " + nombreDia(diaSemana)
+                    + ": un turno programado siempre tiene que decir quién atiende.");
+            return volverAlDia(diaSemana, fecha);
         }
 
         LocalTime miIni = (horaInicio != null) ? horaInicio : LocalTime.MIN;
         LocalTime miFin = (horaFin != null) ? horaFin : LocalTime.MAX;
 
+        java.time.LocalDate diaAValidar = (fecha != null) ? fecha : proximaFechaDe(diaSemana);
+
+        for (ProgramacionHorario otra : agendaService.listaDe(diaAValidar, idPunto)) {
+            if (Boolean.FALSE.equals(otra.getActivo())) continue;
+            if (otra.getIdProgramacion() != null
+                    && otra.getIdProgramacion().equals(celda.getIdProgramacion())) continue;
+            if (tipoTurno.equals(otra.getTipoTurno())) continue;
+            if (otra.getHoraInicio() == null && otra.getHoraFin() == null) continue;
+
+            if (seSolapan(miIni, miFin, iniDe(otra), finDe(otra))) {
+                flash.addFlashAttribute("error", "En " + punto.getNombre() + " ese horario se pisa con el "
+                        + otra.getTipoTurno().toLowerCase() + " (" + textoHora(otra.getHoraInicio())
+                        + " a " + textoHora(otra.getHoraFin()) + ") de los " + nombreDia(diaSemana)
+                        + ". Una misma entrada no puede atender dos turnos a la vez: ajusta las horas.");
+                return volverAlDia(diaSemana, fecha);
+            }
+        }
+
         Usuario cajeroElegido = (idCajero == null) ? null : usuarioRepo.findById(idCajero).orElse(null);
         if (cajeroElegido != null) {
-            for (ProgramacionHorario otra : programacionRepo.findByObjetivoAndDiaSemana(CELDA, diaSemana)) {
+            for (ProgramacionHorario otra : agendaService.listaDe(diaAValidar)) {
+                if (Boolean.FALSE.equals(otra.getActivo())) continue;
                 boolean mismaCelda = otra.getIdProgramacion() != null
                         && otra.getIdProgramacion().equals(celda.getIdProgramacion());
                 boolean otroPunto = otra.getPunto() != null
                         && !otra.getPunto().getIdPunto().equals(idPunto);
                 boolean mismaPersona = otra.getCajero() != null
                         && otra.getCajero().getIdUsuario().equals(cajeroElegido.getIdUsuario());
-                boolean seCruzan = !miFin.isBefore(iniDe(otra)) && !miIni.isAfter(finDe(otra));
-                if (!mismaCelda && otroPunto && mismaPersona && seCruzan) {
+                if (!mismaCelda && otroPunto && mismaPersona
+                        && seSolapan(miIni, miFin, iniDe(otra), finDe(otra))) {
                     flash.addFlashAttribute("error", cajeroElegido.getNombreCompleto()
                             + " ya está asignado en " + otra.getPunto().getNombre()
-                            + " de " + otra.getHoraInicio() + " a " + otra.getHoraFin()
-                            + " los " + nombreDia(diaSemana) + ": no puede estar en dos entradas a la vez.");
-                    return "redirect:/admin/programar?dia=" + diaSemana;
+                            + " de " + textoHora(otra.getHoraInicio()) + " a " + textoHora(otra.getHoraFin())
+                            + " los " + nombreDia(diaSemana) + ": no puede estar en dos entradas a la vez. "
+                            + "Sí puede atender ambas si los horarios no se pisan.");
+                    return volverAlDia(diaSemana, fecha);
                 }
             }
         }
@@ -340,38 +408,41 @@ public class ProgramacionController {
         flash.addFlashAttribute("ok", punto.getNombre() + " · " + tipoTurno.toLowerCase()
                 + " de los " + nombreDia(diaSemana) + ": " + textoHora(horaInicio) + " a " + textoHora(horaFin)
                 + (celda.getCajero() != null ? " con " + celda.getCajero().getNombreCompleto() : "") + ".");
-        return "redirect:/admin/programar?dia=" + diaSemana;
+        return volverAlDia(diaSemana, fecha);
     }
 
     @PostMapping("/copiar-dia")
     public String copiarDia(@RequestParam Integer diaSemana,
+                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate fecha,
                             jakarta.servlet.http.HttpSession session,
                             RedirectAttributes flash) {
-        boolean hayAlgo = !programacionRepo.findByObjetivoAndDiaSemana(CELDA, diaSemana).isEmpty()
+        java.time.LocalDate diaOrigen = (fecha != null) ? fecha : proximaFechaDe(diaSemana);
+        boolean hayAlgo = !agendaService.listaDe(diaOrigen).isEmpty()
                 || !programacionRepo.findByObjetivoAndDiaSemana("TURNO", diaSemana).isEmpty();
         if (!hayAlgo) {
             flash.addFlashAttribute("error", "Los " + nombreDia(diaSemana) + " no tienen nada programado que copiar.");
-            return "redirect:/admin/programar?dia=" + diaSemana;
+            return volverAlDia(diaSemana, fecha);
         }
         session.setAttribute("diaCopiado", diaSemana);
         flash.addFlashAttribute("ok", "Programación de los " + nombreDia(diaSemana)
                 + " copiada. Navega al día donde quieras pegarla y pulsa \"Pegar Día\".");
-        return "redirect:/admin/programar?dia=" + diaSemana;
+        return volverAlDia(diaSemana, fecha);
     }
 
     @PostMapping("/pegar-dia")
     public String pegarDia(@RequestParam Integer diaSemana,
+                           @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.time.LocalDate fecha,
                            jakarta.servlet.http.HttpSession session,
                            RedirectAttributes flash) {
         Object copiado = session.getAttribute("diaCopiado");
         if (copiado == null) {
             flash.addFlashAttribute("error", "Primero usa \"Copiar Día\" en el día que quieras duplicar.");
-            return "redirect:/admin/programar?dia=" + diaSemana;
+            return volverAlDia(diaSemana, fecha);
         }
         int origen = (Integer) copiado;
         if (origen == diaSemana) {
             flash.addFlashAttribute("error", "Estás en el mismo día que copiaste: navega a otro día para pegar.");
-            return "redirect:/admin/programar?dia=" + diaSemana;
+            return volverAlDia(diaSemana, fecha);
         }
         int pegadas = 0;
 
@@ -389,25 +460,30 @@ public class ProgramacionController {
             pegadas++;
         }
 
-        for (ProgramacionHorario o : programacionRepo.findByObjetivoAndDiaSemana(CELDA, origen)) {
+        java.time.LocalDate fechaOrigen = proximaFechaDe(origen);
+        java.time.LocalDate fechaDestino = (fecha != null) ? fecha : proximaFechaDe(diaSemana);
+
+        for (ProgramacionHorario o : agendaService.listaDe(fechaOrigen)) {
+            if (o.getPunto() == null) continue;
             ProgramacionHorario c = programacionRepo
-                    .findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndDiaSemana(
-                            CELDA, o.getPunto().getIdPunto(), o.getTipoTurno(), diaSemana)
+                    .findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndFecha(
+                            CELDA, o.getPunto().getIdPunto(), o.getTipoTurno(), fechaDestino)
                     .orElseGet(ProgramacionHorario::new);
             c.setObjetivo(CELDA);
             c.setPunto(o.getPunto());
             c.setTipoTurno(o.getTipoTurno());
             c.setDiaSemana(diaSemana);
+            c.setFecha(fechaDestino);
             c.setHoraInicio(o.getHoraInicio());
             c.setHoraFin(o.getHoraFin());
             c.setCajero(o.getCajero());
-            c.setActivo(o.getActivo());
+            c.setActivo(true);
             programacionRepo.save(c);
             pegadas++;
         }
         flash.addFlashAttribute("ok", "Pegado: la programación de los " + nombreDia(origen)
                 + " ahora también aplica a los " + nombreDia(diaSemana) + " (" + pegadas + " casilla(s)).");
-        return "redirect:/admin/programar?dia=" + diaSemana;
+        return volverAlDia(diaSemana, fecha);
     }
 
     @PostMapping("/reaplicar-turno")
@@ -429,8 +505,7 @@ public class ProgramacionController {
         String destino = "puntos".equals(volver) ? "redirect:/admin/puntos" : "redirect:/admin/programar";
         PuntoAtencion punto = puntoRepo.findById(idPunto).orElse(null);
         if (punto == null) return destino;
-        List<ProgramacionHorario> hoy = programacionRepo
-                .findByObjetivoAndPuntoIdPuntoAndDiaSemana(CELDA, idPunto, diaDeHoy());
+        List<ProgramacionHorario> hoy = agendaService.listaDe(java.time.LocalDate.now(), idPunto);
         if (hoy.isEmpty()) {
             flash.addFlashAttribute("error", "No hay programación guardada para hoy en " + punto.getNombre() + ".");
             return destino;
