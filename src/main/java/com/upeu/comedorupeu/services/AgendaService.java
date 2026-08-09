@@ -35,7 +35,13 @@ public class AgendaService {
         }
 
         for (ProgramacionHorario c : programacionRepo.findByObjetivoAndFecha(CELDA, fecha)) {
-            if (c.getPunto() != null && c.getTipoTurno() != null) efectivas.put(llave(c), c);
+            if (c.getPunto() == null || c.getTipoTurno() == null) continue;
+
+            if (Boolean.FALSE.equals(c.getActivo())) {
+                efectivas.remove(llave(c));
+            } else {
+                efectivas.put(llave(c), c);
+            }
         }
         return efectivas;
     }

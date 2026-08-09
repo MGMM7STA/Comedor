@@ -164,7 +164,15 @@ public class AdminController {
 
     @GetMapping("/puntos")
     public String puntos(@RequestParam(name = "turnoPanel", defaultValue = "TODOS") String turnoPanel,
+                         @RequestParam(required = false)
+                         @org.springframework.format.annotation.DateTimeFormat(
+                                 iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate desde,
                          Model model) {
+        LocalDate diaCifras = (desde != null) ? desde : LocalDate.now();
+        model.addAttribute("nav", com.upeu.comedorupeu.dto.SemanaNav.de(diaCifras));
+        model.addAttribute("diaCifras", diaCifras);
+        model.addAttribute("esHoy", diaCifras.equals(LocalDate.now()));
+
         List<Turno> turnos = turnoService.turnosDeHoy();
         Optional<Turno> activo = turnoService.turnoActivo();
 
@@ -249,8 +257,9 @@ public class AdminController {
         model.addAttribute("colTurnos", colTurnos);
 
         boolean panelTodos = "TODOS".equals(panel);
-        List<Turno> turnosPanel = panelTodos ? turnos
-                : turnos.stream().filter(t -> t.getTipo().equals(panel)).toList();
+        List<Turno> turnosDelDia = turnoRepo.findByFecha(diaCifras);
+        List<Turno> turnosPanel = panelTodos ? turnosDelDia
+                : turnosDelDia.stream().filter(t -> t.getTipo().equals(panel)).toList();
 
         long residentesActivos = residenteRepo.countByEstado("ACTIVO");
         long habilitados = residentesActivos;
@@ -261,7 +270,7 @@ public class AdminController {
             bloqueados += marcacionRepo.countByTurnoIdTurnoAndEstado(t.getIdTurno(), "DENEGADO");
         }
 
-        LocalDate hoyFecha = LocalDate.now();
+        LocalDate hoyFecha = diaCifras;
         List<String> comidasPanel = panelTodos ? TurnoService.TIPOS : List.of(panel);
         long justificados = 0, reservas = 0;
         for (String comida : comidasPanel) {

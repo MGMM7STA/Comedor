@@ -11,4 +11,6 @@ public class JustificacionInfo {
     private String autorizadoPor;
 
     private String fuente;
+
+    private String evidenciaUrl;
 }

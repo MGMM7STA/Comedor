@@ -197,8 +197,29 @@ public class ProgramacionController {
         if (punto == null) return "redirect:/admin/programar";
 
         if (fecha != null) {
-            programacionRepo.findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndFecha(CELDA, idPunto, tipoTurno, fecha)
-                    .ifPresent(programacionRepo::delete);
+            var plantilla = programacionRepo
+                    .findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndDiaSemanaAndFechaIsNull(
+                            CELDA, idPunto, tipoTurno, diaSemana);
+
+            var propia = programacionRepo
+                    .findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndFecha(CELDA, idPunto, tipoTurno, fecha);
+
+            if (plantilla.isPresent()) {
+
+                ProgramacionHorario anula = propia.orElseGet(ProgramacionHorario::new);
+                anula.setObjetivo(CELDA);
+                anula.setPunto(punto);
+                anula.setTipoTurno(tipoTurno);
+                anula.setDiaSemana(diaSemana);
+                anula.setFecha(fecha);
+                anula.setHoraInicio(null);
+                anula.setHoraFin(null);
+                anula.setCajero(null);
+                anula.setActivo(false);
+                programacionRepo.save(anula);
+            } else {
+                propia.ifPresent(programacionRepo::delete);
+            }
         } else {
             programacionRepo.findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndDiaSemanaAndFechaIsNull(
                             CELDA, idPunto, tipoTurno, diaSemana)
@@ -301,8 +322,29 @@ public class ProgramacionController {
         }
         punto.setActivo(vigente != null);
 
+        if (vigente != null && vigente.getCajero() != null) {
+            liberarOperador(punto, vigente.getCajero().getIdUsuario());
+        }
+        if (vigente != null) {
+            turnoService.abrirPorAgenda(vigente.getTipoTurno());
+        }
+
+        punto.setTurnoManual(null);
         punto.setUltimaAccionManual(null);
         puntoRepo.save(punto);
+    }
+
+    private void liberarOperador(PuntoAtencion queAbre, Long idCajero) {
+        for (PuntoAtencion otro : puntoRepo.vigentes()) {
+            if (otro.getIdPunto().equals(queAbre.getIdPunto())) continue;
+            if (!otro.isOperativo() || otro.getCajero() == null) continue;
+            if (!otro.getCajero().getIdUsuario().equals(idCajero)) continue;
+
+            otro.setActivo(false);
+            otro.setTurnoManual(null);
+            otro.setUltimaAccionManual(null);
+            puntoRepo.save(otro);
+        }
     }
 
     @PostMapping("/celda")

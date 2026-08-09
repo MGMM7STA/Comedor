@@ -40,6 +40,27 @@ public class ImagenService {
         return "/uploads/" + nombre;
     }
 
+    public String guardarEvidencia(MultipartFile file, String prefijo) throws IOException {
+        if (file == null || file.isEmpty()) return null;
+
+        String ext = obtenerExtension(file.getOriginalFilename());
+        if (!ext.matches("jpg|jpeg|png|webp")) {
+            throw new IllegalArgumentException("Solo se permiten imágenes JPG, PNG o WEBP.");
+        }
+
+        byte[] datos = file.getBytes();
+        if (!pareceImagen(datos)) {
+            throw new IllegalArgumentException("El archivo no es una imagen válida: elige una foto JPG, PNG o WEBP.");
+        }
+
+        Path dir = Paths.get(uploadDir).toAbsolutePath();
+        Files.createDirectories(dir);
+
+        String nombre = prefijo + "_" + System.currentTimeMillis() + "." + ext;
+        Files.write(dir.resolve(nombre), datos);
+        return "/uploads/" + nombre;
+    }
+
     public String corregirNombre(Residente residente) throws IOException {
         String url = residente.getFotoUrl();
         if (url == null || url.isBlank()) return null;

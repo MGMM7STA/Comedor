@@ -36,6 +36,12 @@ public class SemanaNav {
 
     public boolean isHaySiguiente() { return dias.get(6).isBefore(hoy); }
 
+    public LocalDate getSiguienteLibre() { return fecha.plusDays(7); }
+
+    public boolean isHaySiguienteLibre() { return dias.get(0).isBefore(hoy.plusYears(1)); }
+
+    public LocalDate getTopeLibre() { return hoy.plusYears(1); }
+
     public String getEtiqueta() {
         DateTimeFormatter f = DateTimeFormatter.ofPattern("dd/MM");
         return "Semana del " + dias.get(0).format(f) + " al " + dias.get(6).format(f);

@@ -70,7 +70,14 @@ public class ValidacionService {
         if (res.getResidente() != null && res.getTurnoActivo() != null) {
             racionEspecialRepo.findFirstByRacionEspecialResidenteIdResidenteAndFechaAndTipoComida(
                             res.getResidente().getIdResidente(), LocalDate.now(), res.getTurnoActivo().getTipo())
-                    .ifPresent(d -> res.setRacionEspecial(true));
+                    .ifPresent(d -> {
+                        res.setRacionEspecial(true);
+                        var re = d.getRacionEspecial();
+                        if (re != null) {
+                            res.setDietaIndicacion(re.getIndicacion());
+                            res.setDietaEvidenciaUrl(re.getEvidenciaUrl());
+                        }
+                    });
         }
         return res;
     }

@@ -14,6 +14,8 @@ public interface PuntoAtencionRepository extends JpaRepository<PuntoAtencion, Lo
 
     Optional<PuntoAtencion> findFirstByCajeroIdUsuario(Long idUsuario);
 
+    List<PuntoAtencion> findByCajeroIdUsuario(Long idUsuario);
+
     @org.springframework.data.jpa.repository.Query(
             "SELECT p FROM PuntoAtencion p WHERE p.eliminado IS NULL OR p.eliminado = false ORDER BY p.nombre")
     List<PuntoAtencion> vigentes();

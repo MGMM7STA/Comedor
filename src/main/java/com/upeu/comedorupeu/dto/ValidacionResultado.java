@@ -35,6 +35,10 @@ public class ValidacionResultado {
 
     private boolean racionEspecial;
 
+    private String dietaIndicacion;
+
+    private String dietaEvidenciaUrl;
+
     public boolean isPuedeDecidir() {
         return !"NO_ENCONTRADO".equals(tipo) && !"SIN_TURNO".equals(tipo);
     }

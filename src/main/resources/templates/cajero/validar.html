@@ -230,6 +230,22 @@
                         <span th:text="${turnoActivo != null} ? ${#strings.toLowerCase(turnoActivo.tipo)} : 'este turno'">almuerzo</span>.
                         Entrégale la ración que corresponde.
                     </div>
+
+                    <div th:if="${resultado.dietaIndicacion != null}" class="text-center mt-2 p-2 rounded"
+                         style="background:#fff; border:1px solid #f5cba7; font-size:0.82rem; color:#9a7d0a;">
+                        <i class="fa-solid fa-notes-medical me-1"></i>
+                        <span th:text="${resultado.dietaIndicacion}">Sin lácteos</span>
+                    </div>
+
+                    <div th:if="${resultado.dietaEvidenciaUrl != null}" class="text-center mt-2">
+                        <div style="font-size:0.74rem; color:#b9770e;" class="mb-1">
+                            <i class="fa-solid fa-paperclip me-1"></i>Indicación médica adjunta
+                        </div>
+                        <a th:href="${resultado.dietaEvidenciaUrl}" target="_blank" title="Abrir en grande">
+                            <img th:src="${resultado.dietaEvidenciaUrl}" alt="Indicación médica"
+                                 style="max-width:100%; max-height:220px; border-radius:8px; border:1px solid #f5cba7;">
+                        </a>
+                    </div>
                 </div>
 
                 <div th:if="${resultado.reservaExtra != null && resultado.tipo != 'RESERVA'}" class="card-panel mb-2"
@@ -391,6 +407,17 @@
                         <div><i class="fa-solid fa-calendar me-2"></i>Período: <span th:text="${resultado.justificacion.periodo}">15/06 – 17/06</span></div>
                         <div><i class="fa-solid fa-user-tie me-2"></i>Autoriza: <span th:text="${resultado.justificacion.autorizadoPor}">Preceptor Ríos</span></div>
                         <div><i class="fa-solid fa-circle-info me-2"></i>No se registra falta</div>
+                    </div>
+
+                    <div th:if="${resultado.justificacion.evidenciaUrl != null}" class="mt-2 text-center">
+                        <div style="font-size:0.74rem; color:#9a7d0a;" class="mb-1">
+                            <i class="fa-solid fa-paperclip me-1"></i>Evidencia adjunta
+                        </div>
+                        <a th:href="${resultado.justificacion.evidenciaUrl}" target="_blank"
+                           title="Abrir la evidencia en grande">
+                            <img th:src="${resultado.justificacion.evidenciaUrl}" alt="Evidencia de la ausencia"
+                                 style="max-width:100%; max-height:220px; border-radius:8px; border:1px solid #f5cba7;">
+                        </a>
                     </div>
                 </div>
 

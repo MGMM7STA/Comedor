@@ -131,6 +131,7 @@
                                          data-fecha=${#temporals.format(s.fecha, 'dd/MM/yyyy')},
                                          data-turno=${#strings.capitalize(#strings.toLowerCase(s.tipoComida))},
                                          data-motivo=${s.motivo},
+                                         data-taper=${s.traeTaper != null && s.traeTaper} ? 'Trae su propio táper' : 'Sin táper — el comedor se lo provee',
                                          data-preceptor=${s.usuario != null} ? ${s.usuario.nombreCompleto} : '—',
                                          data-programada=${s.horaRecojo} ?: '—',
                                          data-real=${s.fechaHoraEntrega != null} ? ${#temporals.format(s.fechaHoraEntrega, 'HH:mm')} : 'Aún no recogida',
@@ -186,6 +187,7 @@
         <div style="font-size:0.84rem; color:#5d6d7b;">
             <div class="mb-1"><strong>Residente:</strong> <span id="rResidente"></span> (<span id="rCodigo"></span>)</div>
             <div class="mb-1"><strong>Fecha y turno:</strong> <span id="rFecha"></span> · <span id="rTurno"></span></div>
+            <div class="mb-1"><strong>Táper:</strong> <span id="rTaper">—</span></div>
             <div class="mb-1"><strong>Reservó:</strong> <span id="rPreceptor"></span></div>
             <div class="mb-1"><strong>Hora programada de recojo:</strong> <span id="rProgramada"></span></div>
             <div class="mb-1"><strong>Hora real en que vino:</strong> <span id="rReal"></span></div>
@@ -222,6 +224,7 @@
         document.getElementById('rReal').textContent = d.real;
         document.getElementById('rEntregado').textContent = d.entregado;
         document.getElementById('rMotivo').textContent = d.motivo;
+        document.getElementById('rTaper').textContent = d.taper || '—';
 
         const zona = document.getElementById('rZonaCancel');
         if (d.cancelo) {

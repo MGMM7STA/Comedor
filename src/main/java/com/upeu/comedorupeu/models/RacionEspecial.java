@@ -28,6 +28,11 @@ public class RacionEspecial {
 
     private java.time.LocalDateTime fechaHora = java.time.LocalDateTime.now();
 
+    private String evidenciaUrl;
+
+    @Column(length = 300)
+    private String indicacion;
+
     @OneToMany(mappedBy = "racionEspecial", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RacionEspecialDetalle> detalles = new ArrayList<>();
 }

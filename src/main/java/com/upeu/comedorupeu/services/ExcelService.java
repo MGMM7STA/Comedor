@@ -66,6 +66,7 @@ public class ExcelService {
         int actualizados = 0;
         List<String> omitidos = new ArrayList<>();
         java.util.LinkedHashSet<String> fechasAdelantadas = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<String> fechasConservadas = new java.util.LinkedHashSet<>();
         java.util.LinkedHashSet<String> historialesBorrados = new java.util.LinkedHashSet<>();
         java.util.LinkedHashSet<String> carrerasAjustadas = new java.util.LinkedHashSet<>();
         java.util.LinkedHashSet<String> carrerasSinReconocer = new java.util.LinkedHashSet<>();
@@ -145,8 +146,17 @@ public class ExcelService {
                 java.time.LocalDate ingresoFila = (cols[3] >= 0)
                         ? fechaDeCelda(fmt, fila, cols[3], ingresoPorDefecto) : ingresoPorDefecto;
                 if (ingresoFila.isBefore(hoy)) {
-                    fechasAdelantadas.add("fila " + (fila.getRowNum() + 1) + " (" + ingresoFila + ")");
-                    ingresoFila = hoy;
+                    if (actualizar && ingresoPrevio != null) {
+
+                        if (!ingresoFila.equals(ingresoPrevio)) {
+                            fechasConservadas.add("fila " + (fila.getRowNum() + 1) + ": se dejó su "
+                                    + ingresoPrevio + " en vez del " + ingresoFila + " del archivo");
+                        }
+                        ingresoFila = ingresoPrevio;
+                    } else {
+                        fechasAdelantadas.add("fila " + (fila.getRowNum() + 1) + " (" + ingresoFila + ")");
+                        ingresoFila = hoy;
+                    }
                 }
 
                 Residente r = actualizar ? porCodigo.get() : new Residente();
@@ -217,6 +227,11 @@ public class ExcelService {
         if (!fechasAdelantadas.isEmpty()) {
             resumen.append(" Inicio de estancia adelantado a hoy porque venía en el pasado: ")
                     .append(String.join("; ", fechasAdelantadas)).append(".");
+        }
+        if (!fechasConservadas.isEmpty()) {
+            resumen.append(" Se respetó el inicio de estancia que ya tenían (el archivo traía una fecha")
+                    .append(" pasada y no se puede retroceder): ")
+                    .append(String.join("; ", fechasConservadas)).append(".");
         }
         if (!historialesBorrados.isEmpty()) {
             resumen.append(" OJO: a estos residentes les cambió el inicio de estancia, así que")

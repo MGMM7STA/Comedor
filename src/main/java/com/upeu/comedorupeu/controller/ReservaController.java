@@ -59,7 +59,9 @@ public class ReservaController {
     @GetMapping("/preceptor/reservas")
     public String reservasPreceptor(Model model, Authentication auth) {
         AlcanceDatos alcance = alcanceService.de(auth);
-        model.addAttribute("residentes", alcance.residentesActivos());
+        model.addAttribute("residentes", alcance.residentesActivos().stream()
+                .filter(r -> !r.estaBorrado())
+                .toList());
         model.addAttribute("hoy", LocalDate.now());
 
         model.addAttribute("comidasBloqueadas", turnoService.comidasBloqueadasHoy());
@@ -96,13 +98,19 @@ public class ReservaController {
             for (String c : conTaper.split(",")) traenTaper.add(c.trim());
         }
 
-        int creadas = 0, repetidas = 0, justificados = 0;
+        int creadas = 0, repetidas = 0, justificados = 0, sinIngresar = 0;
         for (String cod : codigos.split(",")) {
             String codigo = cod.trim();
             if (codigo.isEmpty()) continue;
             Residente r = residenteRepo.findByCodigoAcceso(codigo).orElse(null);
 
             if (r == null || !alcance.alcanza(r)) continue;
+
+            if (r.estaBorrado()
+                    || !com.upeu.comedorupeu.services.alcance.AlcanceDatos.vigenteEn(r, fecha)) {
+                sinIngresar++;
+                continue;
+            }
 
             boolean yaTiene = solicitudRepo
                     .findFirstByResidenteIdResidenteAndFechaAndTipoComidaAndEstado(
@@ -139,6 +147,9 @@ public class ReservaController {
         if (justificados > 0) {
             msg += " " + justificados + " se omitieron porque están EN AUSENCIA JUSTIFICADA "
                     + "en ese turno: no tiene sentido reservarles comida.";
+        }
+        if (sinIngresar > 0) {
+            msg += " " + sinIngresar + " se omitieron porque en esa fecha todavía no empieza su estancia.";
         }
         flash.addFlashAttribute("ok", msg);
         return "redirect:/preceptor/reservas";

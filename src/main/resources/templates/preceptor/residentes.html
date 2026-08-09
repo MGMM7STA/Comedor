@@ -197,12 +197,12 @@
                                          data-estancia=(${r.fechaIngreso != null} ? ${#temporals.format(r.fechaIngreso, 'dd/MM/yyyy')} : '—') + ' → ' + (${r.fechaFinEstancia != null} ? ${#temporals.format(r.fechaFinEstancia, 'dd/MM/yyyy')} : 'actualidad')">
                             <i class="fa-solid fa-eye"></i> Ver
                         </button>
-                        <a sec:authorize="hasRole('PRECEPTOR')"
-                           th:href="@{'/preceptor/residentes/' + ${r.idResidente} + '?racion=1'}"
-                           class="btn btn-warning btn-sm" style="font-size:0.72rem;"
-                           title="Asignar una ración especial a este residente">
+                        <button type="button" sec:authorize="hasRole('PRECEPTOR')"
+                                class="btn btn-warning btn-sm" style="font-size:0.72rem;"
+                                title="Asignar una dieta especial a este residente"
+                                th:attr="onclick='abrirDieta(' + ${r.idResidente} + ', \'' + ${r.nombreCompleto} + '\', \'' + (${r.fechaIngreso} ?: '') + '\')'">
                             <i class="fa-solid fa-bowl-food"></i>
-                        </a>
+                        </button>
                         <a sec:authorize="hasRole('PRECEPTOR')" th:href="@{'/preceptor/residentes/' + ${r.idResidente} + '/editar'}"
                            class="btn btn-success btn-sm" style="font-size:0.72rem;">Editar</a>
                         <form sec:authorize="hasRole('PRECEPTOR')" th:action="@{'/preceptor/residentes/' + ${r.idResidente} + '/eliminar'}"
@@ -323,7 +323,158 @@
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') document.getElementById('modalResidente').style.display = 'none';
     });
+
+    let dietaMinimo = '';
+
+    function abrirDieta(id, nombre, ingreso) {
+        const modal = document.getElementById('modalDieta');
+        const form = document.getElementById('formDieta');
+        form.reset();
+        document.getElementById('dietaNombre').textContent = nombre;
+        form.action = '/preceptor/residentes/' + id + '/racion-especial';
+
+        const hoy = document.getElementById('dietaHoy').value;
+        dietaMinimo = (ingreso && ingreso > hoy) ? ingreso : hoy;
+        const aviso = document.getElementById('dietaAvisoIngreso');
+        aviso.style.display = (ingreso && ingreso > hoy) ? '' : 'none';
+        document.getElementById('dietaFechaIngreso').textContent = ingreso;
+
+        const desde = document.getElementById('dietaDesde');
+        desde.min = dietaMinimo;
+        desde.value = dietaMinimo;
+        document.getElementById('dietaModoRango').checked = true;
+        dietaCambiarModo();
+
+        modal.style.display = 'flex';
+        modal.onclick = (e) => { if (e.target === modal) cerrarDieta(); };
+    }
+
+    function dietaEsDia() { return document.getElementById('dietaModoDia').checked; }
+
+    function dietaCambiarModo() {
+        const dia = dietaEsDia();
+        document.getElementById('dietaZonaHasta').style.display = dia ? 'none' : '';
+        document.getElementById('dietaZonaUltimo').style.display = dia ? 'none' : '';
+        document.getElementById('dietaNotaIntermedios').style.display = dia ? 'none' : '';
+        document.getElementById('dietaLblDesde').textContent = dia ? 'Fecha' : 'Desde';
+        document.getElementById('dietaCabPrimero').textContent = dia ? 'Comidas del día' : 'Comidas del primer día';
+        if (dia) {
+            document.querySelectorAll('#dietaZonaUltimo input[type=checkbox]').forEach(c => c.checked = false);
+        }
+        dietaSincronizar();
+    }
+
+    function dietaSincronizar() {
+        const desde = document.getElementById('dietaDesde');
+        const hasta = document.getElementById('dietaHasta');
+        if (desde.value && desde.value < dietaMinimo) desde.value = dietaMinimo;
+        if (!desde.value) return;
+
+        if (dietaEsDia()) {
+            hasta.min = desde.value;
+            hasta.value = desde.value;
+            return;
+        }
+
+        const siguiente = new Date(desde.value + 'T00:00:00');
+        siguiente.setDate(siguiente.getDate() + 1);
+        const minimo = siguiente.getFullYear() + '-'
+            + String(siguiente.getMonth() + 1).padStart(2, '0') + '-'
+            + String(siguiente.getDate()).padStart(2, '0');
+        hasta.min = minimo;
+        if (!hasta.value || hasta.value <= desde.value) hasta.value = minimo;
+    }
+
+    function cerrarDieta() {
+        document.getElementById('modalDieta').style.display = 'none';
+        document.getElementById('formDieta').reset();
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarDieta(); });
 </script>
+
+<div id="modalDieta" class="modal-sistema" style="display:none;">
+    <div class="modal-caja modal-ancha">
+        <div class="modal-titulo">
+            <i class="fa-solid fa-bowl-food" style="color:#e67e22;"></i>
+            Dieta especial · <span id="dietaNombre">Residente</span>
+        </div>
+        <div class="modal-texto">
+            Indica el período y las comidas en las que este residente recibe una dieta distinta.
+            El cajero verá el aviso al buscarlo.
+        </div>
+
+        <form id="formDieta" method="post" enctype="multipart/form-data" action="#">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" id="dietaHoy" th:value="${hoy}">
+
+            <div class="lbl">Duración de la dieta</div>
+            <div class="d-flex gap-2 mb-2">
+                <input type="radio" class="btn-check" name="modoDieta" id="dietaModoRango" checked onchange="dietaCambiarModo()">
+                <label class="btn btn-outline-dark btn-sm flex-fill" for="dietaModoRango">
+                    <i class="fa-solid fa-calendar-week me-1"></i>Rango de fechas</label>
+                <input type="radio" class="btn-check" name="modoDieta" id="dietaModoDia" onchange="dietaCambiarModo()">
+                <label class="btn btn-outline-dark btn-sm flex-fill" for="dietaModoDia">
+                    <i class="fa-solid fa-calendar-day me-1"></i>Un solo día</label>
+            </div>
+
+            <div class="row g-2 mb-2">
+                <div class="col-6">
+                    <div class="lbl" id="dietaLblDesde">Desde</div>
+                    <input type="date" name="desde" id="dietaDesde" class="form-control" th:value="${hoy}"
+                           th:min="${hoy}" required onchange="dietaSincronizar()">
+                </div>
+                <div class="col-6" id="dietaZonaHasta">
+                    <div class="lbl">Hasta</div>
+                    <input type="date" name="hasta" id="dietaHasta" class="form-control" th:value="${hoy}"
+                           th:min="${hoy}" required>
+                </div>
+            </div>
+            <div id="dietaAvisoIngreso" class="p-2 rounded mb-2" style="display:none;
+                 background:#eaf3fb; border:1px solid #aed6f1; font-size:0.72rem; color:#21618c;">
+                <i class="fa-solid fa-circle-info me-1"></i>
+                Este residente empieza su estancia el <strong id="dietaFechaIngreso">—</strong>:
+                la dieta no puede arrancar antes de ese día.
+            </div>
+
+            <div class="lbl" id="dietaCabPrimero">Comidas del primer día</div>
+            <div class="d-flex gap-3 mb-2" style="font-size:0.82rem;">
+                <label><input type="checkbox" name="pD" class="form-check-input me-1">Desayuno</label>
+                <label><input type="checkbox" name="pA" class="form-check-input me-1">Almuerzo</label>
+                <label><input type="checkbox" name="pC" class="form-check-input me-1">Cena</label>
+            </div>
+
+            <div id="dietaZonaUltimo">
+                <div class="lbl">Comidas del último día</div>
+                <div class="d-flex gap-3 mb-2" style="font-size:0.82rem;">
+                    <label><input type="checkbox" name="uD" class="form-check-input me-1">Desayuno</label>
+                    <label><input type="checkbox" name="uA" class="form-check-input me-1">Almuerzo</label>
+                    <label><input type="checkbox" name="uC" class="form-check-input me-1">Cena</label>
+                </div>
+            </div>
+            <div id="dietaNotaIntermedios" style="font-size:0.7rem; color:#8a97a3;" class="mb-2">
+                Si el período dura más de dos días, los días intermedios llevan dieta en las tres comidas.
+            </div>
+
+            <div class="lbl">Indicación (opcional)</div>
+            <input type="text" name="indicacion" class="form-control mb-2" maxlength="300"
+                   placeholder="Ej. sin lácteos por indicación médica">
+
+            <div class="lbl">Indicación médica en foto (opcional)</div>
+            <input type="file" name="evidencia" accept="image/*" class="form-control mb-1">
+            <div style="font-size:0.7rem; color:#8a97a3;" class="mb-3">
+                La verá el cajero junto al aviso de dieta especial.
+            </div>
+
+            <div class="modal-botones">
+                <button type="button" class="btn btn-light border btn-sm-flat" onclick="cerrarDieta()">Cancelar</button>
+                <button type="submit" class="btn btn-navy btn-sm-flat">
+                    <i class="fa-solid fa-check me-1"></i>Asignar dieta
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 
 </body>
 </html>

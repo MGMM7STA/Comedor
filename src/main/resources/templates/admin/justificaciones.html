@@ -125,7 +125,8 @@
                                          data-preceptor=${a.usuario != null} ? ${a.usuario.nombreCompleto} : '—',
                                          data-turnos=${turnosPorAusencia.get(a.idAusencia)},
                                          data-dia1=${dia1PorAusencia.get(a.idAusencia)},
-                                         data-diafin=${diaFinPorAusencia.get(a.idAusencia)}">
+                                         data-diafin=${diaFinPorAusencia.get(a.idAusencia)},
+                                         data-evidencia=${a.evidenciaUrl} ?: ''">
                             <i class="fa-solid fa-eye"></i> Ver detalles
                         </button>
 
@@ -203,6 +204,14 @@
             <div class="lbl mt-2 mb-1"><i class="fa-solid fa-quote-left me-1"></i>Motivo / Justificación</div>
             <div class="p-2 rounded" style="background:#f7f9fb; border:1px solid #e3e9ee; white-space:pre-wrap;"
                  id="jMotivo">Motivo</div>
+
+            <div id="jZonaEvidencia" style="display:none;" class="mt-2">
+                <div class="lbl mb-1"><i class="fa-solid fa-paperclip me-1"></i>Evidencia adjunta</div>
+                <a id="jEvidenciaLink" href="#" target="_blank" title="Abrir la evidencia en grande">
+                    <img id="jEvidencia" src="" alt="Evidencia de la ausencia"
+                         style="max-width:100%; max-height:260px; border-radius:8px; border:1px solid #e3e9ee;">
+                </a>
+            </div>
         </div>
         <div class="modal-botones mt-3">
             <button type="button" class="btn btn-light border btn-sm-flat"
@@ -224,6 +233,16 @@
         document.getElementById('jDiaFin').textContent = d.diafin;
         document.getElementById('jPreceptor').textContent = d.preceptor;
         document.getElementById('jMotivo').textContent = d.motivo;
+
+        const zona = document.getElementById('jZonaEvidencia');
+        if (d.evidencia) {
+            document.getElementById('jEvidencia').src = d.evidencia;
+            document.getElementById('jEvidenciaLink').href = d.evidencia;
+            zona.style.display = '';
+        } else {
+            zona.style.display = 'none';
+        }
+
         const modal = document.getElementById('modalJustif');
         modal.style.display = 'flex';
         modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };

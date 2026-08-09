@@ -89,8 +89,15 @@ public class PreceptorController {
 
     private List<Residente> residentesActivosDe(Authentication auth) {
         String pab = pabellonDe(auth);
-        return pab == null ? residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO")
+        List<Residente> lista = pab == null ? residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO")
                 : residenteRepo.findByEstadoAndPabellonOrderByApellidoAsc("ACTIVO", pab);
+        return lista.stream().filter(r -> !r.estaBorrado()).toList();
+    }
+
+    private List<Residente> residentesYaIngresados(Authentication auth) {
+        return residentesActivosDe(auth).stream()
+                .filter(com.upeu.comedorupeu.services.alcance.AlcanceDatos::yaEnVigencia)
+                .toList();
     }
 
     private com.upeu.comedorupeu.services.VigenciaService vigenciaService;
@@ -250,49 +257,10 @@ public class PreceptorController {
     }
 
     @GetMapping("/residentes/{id}")
-    public String verResidente(@PathVariable Long id,
-
-                               @RequestParam(required = false) LocalDate fDesde,
-                               @RequestParam(required = false) LocalDate fHasta,
-                               Model model, Authentication auth) {
-
-        Residente r = residenteRepo.findById(id).orElse(null);
-        if (r == null) return "redirect:/preceptor/residentes";
-        if (fueraDeSuResidencia(r, auth)) return "redirect:/preceptor/residentes";
-        model.addAttribute("residente", r);
-
-        var ausencias = ausenciaRepo.findByResidenteIdResidenteOrderByFechaInicioDesc(id).stream()
-                .filter(a -> fDesde == null || !a.getFechaFin().isBefore(fDesde))
-                .filter(a -> fHasta == null || !a.getFechaInicio().isAfter(fHasta))
-                .toList();
-        var solicitudes = solicitudRepo.findByResidenteIdResidenteOrderByFechaHoraDesc(id).stream()
-                .filter(s -> fDesde == null || !s.getFecha().isBefore(fDesde))
-                .filter(s -> fHasta == null || !s.getFecha().isAfter(fHasta))
-                .toList();
-
-        var eventosParticipo = entregaRepo.findByResidenteIdResidente(id).stream()
-                .filter(en -> en.getEvento() != null && en.getEvento().getFechaEvento() != null)
-                .filter(en -> fDesde == null || !en.getEvento().getFechaEvento().isBefore(fDesde))
-                .filter(en -> fHasta == null || !en.getEvento().getFechaEvento().isAfter(fHasta))
-                .sorted((a, b) -> b.getEvento().getFechaEvento().compareTo(a.getEvento().getFechaEvento()))
-                .toList();
-
-        var racionesEspeciales = racionEspecialRepo.findByResidenteIdResidenteOrderByFechaInicioDesc(id).stream()
-                .filter(re -> fDesde == null || !re.getFechaFin().isBefore(fDesde))
-                .filter(re -> fHasta == null || !re.getFechaInicio().isAfter(fHasta))
-                .toList();
-
-        model.addAttribute("ausencias", ausencias);
-        model.addAttribute("solicitudes", solicitudes);
-        model.addAttribute("racionesEspeciales", racionesEspeciales);
-        model.addAttribute("eventosParticipo", eventosParticipo);
-        model.addAttribute("fDesde", fDesde);
-        model.addAttribute("fHasta", fHasta);
-        model.addAttribute("hoy", LocalDate.now());
-
-        model.addAttribute("comidasBloqueadas", turnoService.comidasBloqueadasHoy());
-        return "preceptor/residente_ver";
+    public String verResidente(@PathVariable Long id, Authentication auth) {
+        return "redirect:/preceptor/residentes";
     }
+
 
     @PostMapping("/reservas")
     public String reservaRapida(@RequestParam String codigo,
@@ -349,7 +317,7 @@ public class PreceptorController {
         solicitudRepo.save(s);
         flash.addFlashAttribute("ok", "Ración reservada para " + r.getNombreCompleto() + " (" +
                 tipoComida.toLowerCase() + " del " + fecha + "). El cajero podrá atenderlo aunque el turno haya cerrado.");
-        return "redirect:/preceptor/residentes/" + id;
+        return "redirect:/preceptor/residentes";
     }
 
     @PostMapping("/ausencias/{id}/eliminar")
@@ -362,12 +330,12 @@ public class PreceptorController {
             flash.addFlashAttribute("error", "EN_CURSO".equals(estado)
                     ? "Esta ausencia ya está en curso: usa \"Cancelar\" en el módulo de Ausencias para el cierre anticipado."
                     : "Esta ausencia ya transcurrió: su historial se conserva y no puede eliminarse.");
-            return "redirect:/preceptor/residentes/" + idResidente;
+            return "redirect:/preceptor/residentes";
         }
         ausenciaRepo.delete(a);
         flash.addFlashAttribute("ok", "Ausencia del " + a.getFechaInicio() + " al " + a.getFechaFin()
                 + " eliminada. El residente ya no figura justificado en esas fechas.");
-        return "redirect:/preceptor/residentes/" + idResidente;
+        return "redirect:/preceptor/residentes";
     }
 
     @PostMapping("/ausencias/{id}/cancelar")
@@ -415,7 +383,7 @@ public class PreceptorController {
             flash.addFlashAttribute("ok", "Reserva de " + s.getTipoComida().toLowerCase()
                     + " del " + s.getFecha() + " cancelada por " + s.getCanceladaPor() + ".");
         }
-        return "redirect:/preceptor/residentes/" + idResidente;
+        return "redirect:/preceptor/residentes";
     }
 
     @PostMapping("/eventos/{id}/eliminar")
@@ -612,7 +580,7 @@ public class PreceptorController {
 
     @GetMapping("/ausencias")
     public String ausencias(Model model, Authentication auth) {
-        model.addAttribute("residentes", residentesActivosDe(auth));
+        model.addAttribute("residentes", residentesYaIngresados(auth));
         model.addAttribute("hoy", LocalDate.now());
 
         model.addAttribute("comidasBloqueadas", turnoService.comidasBloqueadasHoy());
@@ -635,6 +603,7 @@ public class PreceptorController {
                                   @RequestParam LocalDate desde,
                                   @RequestParam LocalDate hasta,
                                   @RequestParam String motivo,
+                                  @RequestParam(required = false) MultipartFile evidencia,
                                   HttpServletRequest request,
                                   Authentication auth,
                                   RedirectAttributes flash) {
@@ -656,9 +625,28 @@ public class PreceptorController {
         int registrados = 0;
         final int[] reservasAnuladas = {0};
 
+        String evidenciaUrl = null;
+        if (evidencia != null && !evidencia.isEmpty()) {
+            try {
+                evidenciaUrl = imagenService.guardarEvidencia(evidencia, "ausencia");
+            } catch (Exception e) {
+                flash.addFlashAttribute("error", "No se pudo guardar la evidencia: " + e.getMessage());
+                return "redirect:/preceptor/ausencias";
+            }
+        }
+
+        java.util.List<String> aunNoIngresan = new java.util.ArrayList<>();
+
         for (Long idRes : ids) {
             Residente r = residenteRepo.findById(idRes).orElse(null);
             if (r == null || fueraDeSuResidencia(r, auth)) continue;
+
+            if (r.estaBorrado()
+                    || !com.upeu.comedorupeu.services.alcance.AlcanceDatos.yaEnVigencia(r)) {
+                aunNoIngresan.add(r.getNombreCompleto()
+                        + (r.getFechaIngreso() != null ? " (ingresa el " + r.getFechaIngreso() + ")" : ""));
+                continue;
+            }
 
             Ausencia ausencia = new Ausencia();
             ausencia.setResidente(r);
@@ -666,6 +654,7 @@ public class PreceptorController {
             ausencia.setFechaInicio(desde);
             ausencia.setFechaFin(hasta);
             ausencia.setMotivo(motivo);
+            ausencia.setEvidenciaUrl(evidenciaUrl);
 
             for (LocalDate f = desde; !f.isAfter(hasta); f = f.plusDays(1)) {
                 boolean primero = f.equals(desde);
@@ -707,9 +696,15 @@ public class PreceptorController {
                         });
             }
         }
+        String aviso = aunNoIngresan.isEmpty() ? ""
+                : " Se omitió a " + String.join(", ", aunNoIngresan)
+                  + ": todavía no empieza su estancia, así que no hay nada que justificar.";
+
         if (registrados == 0) {
-            flash.addFlashAttribute("error", "No se registró ninguna ausencia: "
-                    + "revisa que los residentes seleccionados pertenezcan a tu residencia de género.");
+            flash.addFlashAttribute("error", "No se registró ninguna ausencia."
+                    + (aunNoIngresan.isEmpty()
+                       ? " Revisa que los residentes seleccionados pertenezcan a tu residencia de género."
+                       : aviso));
         } else {
             String msg = "Ausencia registrada para " + registrados + " residente(s) del "
                     + desde + " al " + hasta + ".";
@@ -717,7 +712,7 @@ public class PreceptorController {
                 msg += " Se cancelaron " + reservasAnuladas[0] + " reserva(s) que coincidían con "
                         + "las comidas justificadas: la justificación manda sobre la reserva.";
             }
-            flash.addFlashAttribute("ok", msg);
+            flash.addFlashAttribute("ok", msg + aviso);
         }
         return "redirect:/preceptor/ausencias";
     }
@@ -726,6 +721,8 @@ public class PreceptorController {
     public String guardarRacionEspecial(@PathVariable Long id,
                                         @RequestParam LocalDate desde,
                                         @RequestParam LocalDate hasta,
+                                        @RequestParam(required = false) String indicacion,
+                                        @RequestParam(required = false) MultipartFile evidencia,
                                         HttpServletRequest request,
                                         Authentication auth,
                                         RedirectAttributes flash) {
@@ -737,7 +734,26 @@ public class PreceptorController {
         }
         if (hasta.isBefore(desde)) {
             flash.addFlashAttribute("error", "El rango de fechas no es válido.");
-            return "redirect:/preceptor/residentes/" + id;
+            return "redirect:/preceptor/residentes";
+        }
+        if (desde.isBefore(LocalDate.now())) {
+            flash.addFlashAttribute("error", "La dieta no puede empezar en un día que ya pasó.");
+            return "redirect:/preceptor/residentes";
+        }
+        if (r.getFechaIngreso() != null && desde.isBefore(r.getFechaIngreso())) {
+            flash.addFlashAttribute("error", r.getNombreCompleto() + " empieza su estancia el "
+                    + r.getFechaIngreso() + ": la dieta no puede arrancar antes de ese día.");
+            return "redirect:/preceptor/residentes";
+        }
+
+        String evidenciaUrl = null;
+        if (evidencia != null && !evidencia.isEmpty()) {
+            try {
+                evidenciaUrl = imagenService.guardarEvidencia(evidencia, "dieta");
+            } catch (Exception e) {
+                flash.addFlashAttribute("error", "No se pudo guardar la indicación médica: " + e.getMessage());
+                return "redirect:/preceptor/residentes";
+            }
         }
 
         RacionEspecial re = new RacionEspecial();
@@ -745,6 +761,8 @@ public class PreceptorController {
         re.setUsuario(usuarioActual(auth));
         re.setFechaInicio(desde);
         re.setFechaFin(hasta);
+        re.setEvidenciaUrl(evidenciaUrl);
+        re.setIndicacion((indicacion == null || indicacion.isBlank()) ? null : indicacion.trim());
 
         for (LocalDate f = desde; !f.isAfter(hasta); f = f.plusDays(1)) {
             boolean primero = f.equals(desde);
@@ -773,12 +791,12 @@ public class PreceptorController {
 
         if (re.getDetalles().isEmpty()) {
             flash.addFlashAttribute("error", "Marca al menos una comida para asignar la ración especial.");
-            return "redirect:/preceptor/residentes/" + id;
+            return "redirect:/preceptor/residentes";
         }
         racionEspecialRepo.save(re);
         flash.addFlashAttribute("ok", "Ración especial asignada a " + r.getNombreCompleto()
                 + " (" + re.getDetalles().size() + " comida(s) del " + desde + " al " + hasta + ").");
-        return "redirect:/preceptor/residentes/" + id;
+        return "redirect:/preceptor/residentes";
     }
 
     @PostMapping("/raciones-especiales/{id}/eliminar")
@@ -788,7 +806,7 @@ public class PreceptorController {
         Long idRes = re.getResidente().getIdResidente();
         racionEspecialRepo.delete(re);
         flash.addFlashAttribute("ok", "Ración especial eliminada.");
-        return "redirect:/preceptor/residentes/" + idRes;
+        return "redirect:/preceptor/residentes";
     }
 
     @GetMapping("/eventos")

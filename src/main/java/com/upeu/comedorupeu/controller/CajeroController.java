@@ -70,7 +70,12 @@ public class CajeroController {
     }
 
     private PuntoAtencion puntoDelCajero(Usuario cajero) {
-        return puntoRepo.findFirstByCajeroIdUsuario(cajero.getIdUsuario()).orElse(null);
+        List<PuntoAtencion> suyos = puntoRepo.findByCajeroIdUsuario(cajero.getIdUsuario()).stream()
+                .filter(p -> !Boolean.TRUE.equals(p.getEliminado()))
+                .toList();
+        if (suyos.isEmpty()) return null;
+
+        return suyos.stream().filter(PuntoAtencion::isOperativo).findFirst().orElse(suyos.get(0));
     }
 
     private boolean puntoCerrado(Usuario cajero) {

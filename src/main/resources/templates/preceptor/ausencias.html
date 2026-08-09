@@ -13,7 +13,8 @@
     <div class="contenido">
         <div th:replace="~{fragments/base :: flash}"></div>
 
-        <form th:action="@{/preceptor/ausencias/guardar}" method="post" id="formAusencia">
+        <form th:action="@{/preceptor/ausencias/guardar}" method="post" id="formAusencia"
+              enctype="multipart/form-data">
             <div class="row g-3">
 
                 <div class="col-md-5">
@@ -55,13 +56,21 @@
                         <textarea name="motivo" class="form-control mb-3" rows="3"
                                   placeholder="Ej. Viaje académico – Congreso de Ingeniería, Lima" required maxlength="300"></textarea>
 
+                        <div class="lbl">Evidencia (opcional)</div>
+                        <input type="file" name="evidencia" accept="image/*" class="form-control mb-1"
+                               title="Adjunta una foto que respalde la ausencia: constancia médica, permiso, carta. La verá el cajero y quedará en el detalle.">
+                        <div style="font-size:0.7rem; color:#8a97a3;" class="mb-3">
+                            Imagen JPG, PNG o WEBP. La verán el cajero al validar y quien abra el detalle.
+                        </div>
+
                         <div class="p-2 rounded mb-3" style="background:#eaf3fb; border:1px solid #aed6f1; font-size:0.76rem; color:#21618c;">
                             <i class="fa-solid fa-circle-info me-1"></i>
-                            Días intermedios se bloquean automáticamente (D+A+C). Solo 1er y último día manual.
+                            En los días intermedios no come nada (desayuno, almuerzo y cena quedan justificados
+                            automáticamente). Solo eliges a mano el primer y el último día.
                             <div class="mt-1">
-                                Las comidas se marcan en orden: el <strong>primer día</strong> desde el desayuno
-                                hacia la cena (sale del comedor) y el <strong>último día</strong> desde la cena
-                                hacia el desayuno (regresa). Cada casilla se habilita al marcar la anterior.
+                                Se marcan en orden: el <strong>primer día</strong> desde el desayuno hacia la cena
+                                (según a qué hora se va) y el <strong>último día</strong> desde la cena hacia el
+                                desayuno (según a qué hora vuelve). Cada casilla se habilita al marcar la anterior.
                             </div>
                         </div>
 
@@ -78,7 +87,14 @@
 
                 <div class="col-md-7">
                     <div class="card-panel">
-                        <h6 class="fw-bold mb-2" style="color:#2c3e50;">Residentes Seleccionados</h6>
+                        <h6 class="fw-bold mb-1" style="color:#2c3e50;">Residentes Seleccionados</h6>
+                        <div class="p-2 rounded mb-2"
+                             style="background:#fef5e7; border:1px solid #f5cba7; font-size:0.78rem; color:#9a7d0a;">
+                            <i class="fa-solid fa-circle-exclamation me-1"></i>
+                            <strong>Marca la comida a la que NO va a venir.</strong>
+                            Lo que marques queda <strong>justificado</strong>: no se le sirve ración y no cuenta como falta.
+                            Lo que dejes sin marcar significa que <strong>sí come</strong> con normalidad.
+                        </div>
 
                         <div style="overflow-x:auto;">
                         <table class="tabla-dark" id="tablaSel">
@@ -271,11 +287,11 @@
         let texto = seleccionados.size + ' residente(s) seleccionado(s)';
         if (esModoDia()) {
             if (d) texto = 'Un solo día: ' + d + '<br>' +
-                'Solo se justifican las comidas marcadas (D/A/C)<br>' + texto;
+                'No comerá las comidas que marques; las demás las come normal<br>' + texto;
         } else if (d && h) {
             const dias = Math.round((new Date(h) - new Date(d)) / 86400000) + 1;
             if (dias > 0) texto = 'Período: ' + d + ' al ' + h + ' · ' + dias + ' día(s)<br>' +
-                'Días intermedios: bloqueo auto D+A+C<br>' + texto;
+                'En los días intermedios no come nada<br>' + texto;
         }
         document.getElementById('resumenTexto').innerHTML = texto;
         mostrarFechasEnCabecera();

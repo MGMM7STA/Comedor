@@ -21,6 +21,13 @@ public class ReparadorDatos implements CommandLineRunner {
     private final MarcacionRepository marcacionRepo;
     private final ImagenService imagenService;
 
+    private com.upeu.comedorupeu.services.CarrerasService carrerasService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setCarrerasService(com.upeu.comedorupeu.services.CarrerasService carrerasService) {
+        this.carrerasService = carrerasService;
+    }
+
     public ReparadorDatos(ResidenteRepository residenteRepo, MarcacionRepository marcacionRepo,
                           ImagenService imagenService) {
         this.residenteRepo = residenteRepo;
@@ -35,6 +42,45 @@ public class ReparadorDatos implements CommandLineRunner {
 
         sellarFechasDeRegistro(todos);
         renombrarFotos(todos);
+        normalizarCarreras(todos);
+    }
+
+    private void normalizarCarreras(List<Residente> todos) {
+        if (carrerasService == null) {
+            System.out.println(">> Revisión de carreras omitida: el catálogo no estaba disponible.");
+            return;
+        }
+        java.util.List<String> catalogo = carrerasService.todas();
+        System.out.println(">> Revisando carreras de " + todos.size() + " residente(s) contra "
+                + catalogo.size() + " del catálogo.");
+        int corregidos = 0;
+        java.util.List<String> sinReconocer = new java.util.ArrayList<>();
+
+        for (Residente r : todos) {
+            String actual = r.getCarrera();
+            if (actual == null || actual.isBlank()) continue;
+            if (catalogo.contains(actual)) continue;
+
+            String reconocida = carrerasService.reconocer(actual);
+            if (reconocida != null) {
+                System.out.println(">> Carrera corregida: \"" + actual + "\" -> \"" + reconocida
+                        + "\" (" + r.getCodigoAcceso() + ")");
+                r.setCarrera(reconocida);
+                residenteRepo.save(r);
+                corregidos++;
+            } else {
+                sinReconocer.add(r.getCodigoAcceso() + ": " + actual);
+            }
+        }
+
+        if (corregidos > 0) {
+            System.out.println(">> " + corregidos + " residente(s) tenían la carrera escrita de otra forma "
+                    + "y se ajustaron al catálogo del sistema.");
+        }
+        if (!sinReconocer.isEmpty()) {
+            System.out.println(">> OJO: estas carreras no se pudieron reconocer y quedan sin marcar "
+                    + "al editar al residente: " + String.join(" | ", sinReconocer));
+        }
     }
 
     private void sellarFechasDeRegistro(List<Residente> todos) {

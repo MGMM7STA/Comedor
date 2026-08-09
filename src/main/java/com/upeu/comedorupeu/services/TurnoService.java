@@ -140,6 +140,31 @@ public class TurnoService {
         return turnosDeHoy().stream().filter(this::estaAtendiendo).findFirst();
     }
 
+    @Transactional
+    public boolean abrirPorAgenda(String tipo) {
+        for (Turno t : turnosDeHoy()) {
+            if (!t.getTipo().equals(tipo)) continue;
+            if ("ACTIVO".equals(t.getEstado())) return false;
+            t.setEstado("ACTIVO");
+            turnoRepo.save(t);
+            return true;
+        }
+        return false;
+    }
+
+    @Transactional
+    public boolean cerrarPorAgenda(String tipo) {
+        for (Turno t : turnosDeHoy()) {
+            if (!t.getTipo().equals(tipo)) continue;
+            if (!"ACTIVO".equals(t.getEstado())) return false;
+            if (t.getUltimaAccionManual() != null) return false;
+            t.setEstado("CERRADO");
+            turnoRepo.save(t);
+            return true;
+        }
+        return false;
+    }
+
     public boolean estaAtendiendo(Turno turno) {
         var ventana = ventanaDe(turno.getTipo());
         if (ventana.isPresent()) {

@@ -55,13 +55,15 @@ public class JustificacionAdminController {
             if (dia.equals(d.getFecha())) justificados.add(d.getTipoComida());
         }
         List<String> todos = List.of("DESAYUNO", "ALMUERZO", "CENA");
-        if (justificados.containsAll(todos)) return "Completo (D + A + C)";
-        if (justificados.isEmpty()) return "Sin turnos justificados";
-        List<String> faltantes = todos.stream().filter(t -> !justificados.contains(t)).toList();
         java.util.function.Function<List<String>, String> nombres = lista -> String.join(" y ",
                 lista.stream().map(t -> t.charAt(0) + t.substring(1).toLowerCase()).toList());
-        return "Solo " + nombres.apply(justificados.stream().toList())
-                + " — excluye " + nombres.apply(faltantes);
+
+        if (justificados.containsAll(todos)) return "NO come nada ese día (desayuno, almuerzo y cena justificados)";
+        if (justificados.isEmpty()) return "Come normal todo el día";
+
+        List<String> siComen = todos.stream().filter(t -> !justificados.contains(t)).toList();
+        return "NO come: " + nombres.apply(justificados.stream().toList())
+                + "  ·  SÍ come: " + nombres.apply(siComen);
     }
 
     @GetMapping

@@ -84,7 +84,8 @@ public class JustificacionService {
             var a = detalle.get().getAusencia();
             String periodo = FECHA.format(a.getFechaInicio()) + " – " + FECHA.format(a.getFechaFin());
             String autoriza = a.getUsuario() != null ? a.getUsuario().getNombreCompleto() : "Preceptoría";
-            return Optional.of(new JustificacionInfo(a.getMotivo(), periodo, autoriza, "AUSENCIA"));
+            return Optional.of(new JustificacionInfo(a.getMotivo(), periodo, autoriza, "AUSENCIA",
+                    a.getEvidenciaUrl()));
         }
         return Optional.empty();
     }

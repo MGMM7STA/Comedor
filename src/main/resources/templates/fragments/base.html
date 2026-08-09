@@ -835,9 +835,13 @@
               hoyIso=${#temporals.format(nav.hoy, 'yyyy-MM-dd')},
               fechaIso=${#temporals.format(nav.fecha, 'yyyy-MM-dd')},
               semIniIso=${semIni != null ? #temporals.format(semIni, 'yyyy-MM-dd') : null},
-              topeIso=${semFin != null && semFin.isBefore(nav.hoy)
-                        ? #temporals.format(semFin, 'yyyy-MM-dd')
-                        : #temporals.format(nav.hoy, 'yyyy-MM-dd')},
+              permiteFuturo=${ruta == '/admin/puntos'},
+              sigIsoLibre=${#temporals.format(nav.siguienteLibre, 'yyyy-MM-dd')},
+              topeIso=${ruta == '/admin/puntos'
+                        ? #temporals.format(nav.topeLibre, 'yyyy-MM-dd')
+                        : (semFin != null && semFin.isBefore(nav.hoy)
+                           ? #temporals.format(semFin, 'yyyy-MM-dd')
+                           : #temporals.format(nav.hoy, 'yyyy-MM-dd'))},
               pendientesDeEstaPantalla=${ruta == '/admin/peticiones' ? diasIncidencias
                         : (ruta == '/admin/eventos' ? diasEventos : null)}">
     <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
@@ -857,12 +861,17 @@
         </a>
         <span class="fw-bold" style="font-size:0.86rem; color:#2c3e50;"
               th:text="${nav.etiqueta}">Semana del 19/07 al 25/07</span>
-        <a th:if="${nav.haySiguiente}" class="btn btn-light border btn-sm-flat"
-           th:href="${ruta + '?' + pDesde + '=' + sigIso + '&' + pHasta + '=' + sigIso + extra}"
-           title="Ir a la semana siguiente">
+        <a th:if="${permiteFuturo ? nav.haySiguienteLibre : nav.haySiguiente}"
+           class="btn btn-light border btn-sm-flat"
+           th:href="${ruta + '?' + pDesde + '=' + (permiteFuturo ? sigIsoLibre : sigIso)
+                     + '&' + pHasta + '=' + (permiteFuturo ? sigIsoLibre : sigIso) + extra}"
+           th:title="${permiteFuturo}
+                     ? 'Ir a la semana siguiente (puedes adelantarte para ver cuánto preparar)'
+                     : 'Ir a la semana siguiente'">
             Siguiente<i class="fa-solid fa-chevron-right ms-1"></i>
         </a>
-        <span th:unless="${nav.haySiguiente}" class="btn btn-light border btn-sm-flat"
+        <span th:unless="${permiteFuturo ? nav.haySiguienteLibre : nav.haySiguiente}"
+              class="btn btn-light border btn-sm-flat"
               style="opacity:0.45; pointer-events:none;" title="Ya estás en la semana actual">
             Siguiente<i class="fa-solid fa-chevron-right ms-1"></i>
         </span>
@@ -880,7 +889,7 @@
     <div class="d-flex gap-1 flex-wrap">
         <th:block th:each="d, it : ${nav.dias}"
                   th:with="dIso=${#temporals.format(d, 'yyyy-MM-dd')},
-                           dentro=${!d.isAfter(nav.hoy)
+                           dentro=${(permiteFuturo or !d.isAfter(nav.hoy))
                                     and (semIni == null or (!d.isBefore(semIni) and !d.isAfter(semFin)))}">
             <a th:if="${dentro}" class="tab-seccion"
                th:classappend="${d.equals(nav.fecha)} ? 'activa'"

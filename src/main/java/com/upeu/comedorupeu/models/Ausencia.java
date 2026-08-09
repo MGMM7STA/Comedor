@@ -32,6 +32,8 @@ public class Ausencia {
     @OneToMany(mappedBy = "ausencia", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<AusenciaDetalle> detalles = new ArrayList<>();
 
+    private String evidenciaUrl;
+
     private String canceladaPor;
 
     @Column(length = 300)

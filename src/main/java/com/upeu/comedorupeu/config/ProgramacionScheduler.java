@@ -135,6 +135,7 @@ public class ProgramacionScheduler {
             if (celdas.isEmpty()) continue;
 
             ProgramacionHorario actual = null;
+            ProgramacionHorario celdaPasada = null;
             LocalTime ultimoFinPasado = null;
             for (ProgramacionHorario c : celdas) {
                 LocalTime vFin = (c.getHoraFin() != null) ? c.getHoraFin() : LocalTime.MAX;
@@ -143,6 +144,7 @@ public class ProgramacionScheduler {
                 } else if (c.getHoraFin() != null && ahora.isAfter(c.getHoraFin())
                         && (ultimoFinPasado == null || c.getHoraFin().isAfter(ultimoFinPasado))) {
                     ultimoFinPasado = c.getHoraFin();
+                    celdaPasada = c;
                 }
             }
 
@@ -159,6 +161,24 @@ public class ProgramacionScheduler {
 
             if (debeAbrir && !punto.isOperativo()) {
 
+                if (actual.getCajero() != null) {
+                    for (PuntoAtencion otro : puntoRepo.vigentes()) {
+                        if (otro.getIdPunto().equals(punto.getIdPunto())) continue;
+                        if (!otro.isOperativo() || otro.getCajero() == null) continue;
+                        if (!otro.getCajero().getIdUsuario().equals(actual.getCajero().getIdUsuario())) continue;
+
+                        otro.setActivo(false);
+                        otro.setTurnoManual(null);
+                        otro.setUltimaAccionManual(null);
+                        puntoRepo.save(otro);
+                        System.out.println(">> " + otro.getNombre() + " se cerró: su operador pasa a "
+                                + punto.getNombre() + " por la programación de las "
+                                + actual.getHoraInicio() + ".");
+                    }
+                }
+
+                turnoService.abrirPorAgenda(actual.getTipoTurno());
+
                 punto.setModo("HORARIO");
                 punto.setActivo(true);
                 punto.setTurnoManual(null);
@@ -173,9 +193,34 @@ public class ProgramacionScheduler {
                 punto.setActivo(false);
                 punto.setTurnoManual(null);
                 puntoRepo.save(punto);
+
+                if (celdaPasada != null && celdaPasada.getTipoTurno() != null
+                        && nadieMasAtiende(celdaPasada.getTipoTurno(), punto.getIdPunto(), ahora)) {
+                    turnoService.cerrarPorAgenda(celdaPasada.getTipoTurno());
+                }
                 cambio = true;
             }
         }
         return cambio;
+    }
+
+    private boolean nadieMasAtiende(String tipo, Long idPuntoQueCierra, LocalTime ahora) {
+        for (PuntoAtencion otro : puntoRepo.vigentes()) {
+            if (otro.getIdPunto().equals(idPuntoQueCierra)) continue;
+            if (!otro.isOperativo()) continue;
+
+            boolean cubiertoPorAgenda = false;
+            for (ProgramacionHorario c : agendaService.listaDe(LocalDate.now(), otro.getIdPunto())) {
+                if (Boolean.FALSE.equals(c.getActivo()) || c.getHoraInicio() == null) continue;
+                LocalTime vFin = (c.getHoraFin() != null) ? c.getHoraFin() : LocalTime.MAX;
+                if (ahora.isBefore(c.getHoraInicio()) || ahora.isAfter(vFin)) continue;
+                cubiertoPorAgenda = true;
+                if (tipo.equals(c.getTipoTurno())) return false;
+            }
+            if (cubiertoPorAgenda) continue;
+
+            if (otro.getTurnoManual() == null || tipo.equals(otro.getTurnoManual())) return false;
+        }
+        return true;
     }
 }
