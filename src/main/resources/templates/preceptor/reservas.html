@@ -17,6 +17,19 @@
     <div class="contenido">
         <div th:replace="~{fragments/base :: flash}"></div>
 
+        <div th:if="${editando != null}" class="card-panel mb-3"
+             style="background:#fef9e7; border:1px solid #f7dc6f;">
+            <div style="font-size:0.86rem; color:#9a7d0a;">
+                <i class="fa-solid fa-pen me-1"></i>
+                Estás <strong>corrigiendo</strong> la reserva de
+                <strong th:text="${editando.residente.nombreCompleto}">Residente</strong>.
+                Cambia lo que haga falta y guarda: no se creará una reserva nueva, se actualiza esta.
+            </div>
+            <a href="/admin/reservas" class="btn btn-light border btn-sm-flat mt-2">
+                <i class="fa-solid fa-arrow-left me-1"></i>Dejarlo como estaba
+            </a>
+        </div>
+
         <form th:action="@{/preceptor/reservas/guardar}" method="post" id="formReserva"
               data-titulo="Registrar las reservas"
               data-confirmar="Se reservará la ración del turno elegido para todos los residentes de la lista, con el mismo motivo."
@@ -29,19 +42,44 @@
                         <span class="titulo-seccion">Datos de la reserva</span>
 
                         <div class="lbl">Fecha</div>
-                        <input type="date" name="fecha" id="fecha" class="form-control mb-3" required
-                               th:value="${hoy}" th:min="${hoy}" onchange="marcarTurnosBloqueados()"
+                        <input type="date" name="fecha" id="fecha" class="form-control mb-2" required
+                               th:value="${editando != null ? editando.fecha : hoy}" th:min="${hoy}"
+                               onchange="marcarTurnosBloqueados(); pintarDias()"
                                title="Las reservas se registran de hoy en adelante">
+
+                        <div id="zonaDiasExtra">
+                            <div class="lbl" title="La misma lista de residentes y el mismo táper se repiten en cada día">
+                                Repetir en otros días (opcional)</div>
+                            <div class="d-flex gap-1 mb-2">
+                                <input type="date" id="diaExtra" class="form-control" th:min="${hoy}"
+                                       title="Elige otro día en el que se repita exactamente esta misma reserva">
+                                <button type="button" class="btn btn-light border btn-sm-flat" onclick="agregarDia()"
+                                        title="Añadir ese día a la reserva">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                            </div>
+                            <div id="listaDias" class="d-flex gap-1 flex-wrap mb-2"></div>
+                            <div style="font-size:0.7rem; color:#8a97a3;" class="mb-3">
+                                Se guardará la misma reserva en cada día elegido: mismos residentes,
+                                mismo turno, mismo táper y mismo motivo.
+                            </div>
+                        </div>
+                        <input type="hidden" name="fechasExtra" id="diasHidden">
+                        <input type="hidden" name="idEditar" th:if="${editando != null}"
+                               th:value="${editando.idSolicitud}">
 
                         <div class="lbl">Turno (uno solo)</div>
                         <div class="d-flex gap-2 mb-1">
-                            <input type="radio" class="btn-check" name="tipoComida" value="DESAYUNO" id="tD" required>
+                            <input type="radio" class="btn-check" name="tipoComida" value="DESAYUNO" id="tD" required
+                                   th:checked="${editando != null and editando.tipoComida == 'DESAYUNO'}">
                             <label class="btn btn-outline-dark btn-sm flex-fill" for="tD" id="lblD"
                                    title="Reservar el desayuno">Desayuno</label>
-                            <input type="radio" class="btn-check" name="tipoComida" value="ALMUERZO" id="tA">
+                            <input type="radio" class="btn-check" name="tipoComida" value="ALMUERZO" id="tA"
+                                   th:checked="${editando != null and editando.tipoComida == 'ALMUERZO'}">
                             <label class="btn btn-outline-dark btn-sm flex-fill" for="tA" id="lblA"
                                    title="Reservar el almuerzo">Almuerzo</label>
-                            <input type="radio" class="btn-check" name="tipoComida" value="CENA" id="tC">
+                            <input type="radio" class="btn-check" name="tipoComida" value="CENA" id="tC"
+                                   th:checked="${editando != null and editando.tipoComida == 'CENA'}">
                             <label class="btn btn-outline-dark btn-sm flex-fill" for="tC" id="lblC"
                                    title="Reservar la cena">Cena</label>
                         </div>
@@ -49,12 +87,14 @@
 
                         <div class="lbl" title="Hora aproximada en que pasarán a recoger">Hora de recojo (opcional)</div>
                         <input type="time" name="horaRecojo" class="form-control mb-3"
+                               th:value="${editando != null ? editando.horaRecojo : ''}"
                                title="Hora aproximada en que pasarán a recoger la ración">
 
                         <div class="lbl">Motivo o justificación (para toda la lista)</div>
                         <textarea name="motivo" class="form-control mb-1" rows="4" required
                                   placeholder="Motivo que aplica a todos los residentes agregados"
-                                  title="Este mismo motivo se guardará en cada una de las reservas" maxlength="300"></textarea>
+                                  title="Este mismo motivo se guardará en cada una de las reservas" maxlength="300"
+                                  th:text="${editando != null ? editando.motivo : ''}"></textarea>
                         <div style="font-size:0.7rem; color:#8a97a3;" class="mb-3">
                             Se aplicará el mismo motivo a todos los residentes de la lista.
                         </div>
@@ -96,11 +136,12 @@
                             <thead>
                             <tr><th>N°</th><th>Código</th><th>Residente</th><th>Cuarto</th>
                                 <th class="text-center" title="Marca si el residente trae su propio táper">Táper</th>
+                                <th title="Si lo dejas vacío se usa el motivo general de la izquierda">Motivo propio</th>
                                 <th>Quitar</th></tr>
                             </thead>
                             <tbody id="cuerpoLista">
                             <tr id="filaVacia">
-                                <td colspan="6" class="text-center text-muted py-3">
+                                <td colspan="7" class="text-center text-muted py-3">
                                     Aún no has agregado residentes. Usa el buscador de arriba.
                                 </td>
                             </tr>
@@ -170,8 +211,24 @@
     const comidasBloqueadas = /*[[${comidasBloqueadas}]]*/ [] || [];
     const fechaHoy = /*[[${hoy != null ? #temporals.format(hoy, 'yyyy-MM-dd') : ''}]]*/ '';
 
+    const edicion = /*[[${editando != null
+            ? {'codigo': editando.residente.codigoAcceso, 'taper': editando.traeTaper}
+            : null}]]*/ null;
+
     const lista = [];
     const conTaper = new Set();
+    const motivosPropios = {};
+
+    function guardarMotivo(campo, codigo) {
+        const texto = campo.value.trim();
+        if (texto) motivosPropios[codigo] = texto;
+        else delete motivosPropios[codigo];
+    }
+
+    function textoSeguro(t) {
+        return String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
 
     function marcarTaper(chk) {
         if (chk.checked) conTaper.add(chk.dataset.codigo);
@@ -204,6 +261,57 @@
             : '';
     }
 
+    const diasExtra = [];
+
+    function agregarDia() {
+        const campo = document.getElementById('diaExtra');
+        const dia = campo.value;
+        if (!dia) return;
+        if (dia < fechaHoy) {
+            avisoSistema('Ese día ya pasó: solo puedes reservar de hoy en adelante.', 'Día no válido');
+            return;
+        }
+        if (dia === document.getElementById('fecha').value) {
+            avisoSistema('Ese ya es el día principal de la reserva.', 'Día repetido');
+            campo.value = '';
+            return;
+        }
+        if (diasExtra.includes(dia)) {
+            avisoSistema('Ese día ya está en la lista.', 'Día repetido');
+            campo.value = '';
+            return;
+        }
+        diasExtra.push(dia);
+        diasExtra.sort();
+        campo.value = '';
+        pintarDias();
+    }
+
+    function quitarDia(dia) {
+        const i = diasExtra.indexOf(dia);
+        if (i >= 0) diasExtra.splice(i, 1);
+        pintarDias();
+    }
+
+    function pintarDias() {
+        const principal = document.getElementById('fecha').value;
+        for (let i = diasExtra.length - 1; i >= 0; i--) {
+            if (diasExtra[i] === principal) diasExtra.splice(i, 1);
+        }
+        const caja = document.getElementById('listaDias');
+        caja.innerHTML = '';
+        diasExtra.forEach(dia => {
+            const chip = document.createElement('span');
+            chip.className = 'badge-estado bg-permitido';
+            chip.style.cursor = 'default';
+            chip.innerHTML = dia + ' <a href="#" style="color:inherit; text-decoration:none;" '
+                + 'title="Quitar este día" onclick="event.preventDefault(); quitarDia(\'' + dia + '\')">&times;</a>';
+            caja.appendChild(chip);
+        });
+        document.getElementById('diasHidden').value = diasExtra.join(',');
+        actualizarConfirmacionLote();
+    }
+
     function agregar() {
         const campo = document.getElementById('buscador');
         const texto = campo.value.trim();
@@ -224,13 +332,22 @@
     }
 
     function quitar(codigo) {
+        if (edicion) {
+            avisoSistema('Al corregir una reserva no se cambia de residente. '
+                + 'Si querías otro, vuelve al historial y edita la suya.', 'No se puede quitar');
+            return;
+        }
         const i = lista.indexOf(codigo);
         if (i >= 0) lista.splice(i, 1);
+        conTaper.delete(codigo);
+        delete motivosPropios[codigo];
         pintarLista();
     }
 
     function vaciarLista() {
         lista.length = 0;
+        conTaper.clear();
+        Object.keys(motivosPropios).forEach(k => delete motivosPropios[k]);
         pintarLista();
     }
 
@@ -239,7 +356,7 @@
         cuerpo.innerHTML = '';
         if (lista.length === 0) {
 
-            cuerpo.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">'
+            cuerpo.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">'
                 + 'Aún no has agregado residentes. Usa el buscador de arriba.</td></tr>';
         } else {
             lista.forEach((cod, i) => {
@@ -253,6 +370,12 @@
                     + 'data-codigo="' + cod + '"' + (conTaper.has(cod) ? ' checked' : '')
                     + ' title="Marcado: el residente trae su propio táper" '
                     + 'onchange="marcarTaper(this)"></td>'
+                    + '<td><input type="text" class="form-control form-control-sm" '
+                    + 'style="font-size:0.72rem; min-width:150px;" maxlength="300" '
+                    + 'name="motivoInd_' + cod + '" value="' + textoSeguro(motivosPropios[cod] || '') + '" '
+                    + 'placeholder="Usa el motivo general" '
+                    + 'title="Motivo solo para este residente. Vacío = se usa el motivo general" '
+                    + 'onchange="guardarMotivo(this, \'' + cod + '\')"></td>'
                     + '<td><button type="button" class="btn btn-danger btn-sm" style="font-size:0.7rem;" '
                     + 'title="Quitar de la lista" onclick="quitar(\'' + cod + '\')">Quitar</button></td>';
                 cuerpo.appendChild(tr);
@@ -267,8 +390,24 @@
 
     function actualizarConfirmacionLote() {
         const form = document.getElementById('formReserva');
+        if (edicion) {
+            form.dataset.titulo = 'Actualizar esta reserva';
+            form.dataset.confirmar = 'Estás a punto de actualizar los datos de esta reserva. '
+                + 'No se creará una nueva: se reemplazan los datos actuales por los que acabas de poner. ¿Seguro?';
+            form.dataset.boton = 'Sí, actualizar';
+            form.dataset.estilo = 'exito';
+            return;
+        }
+        const dias = 1 + diasExtra.length;
+        let texto = 'Se reservará la ración del turno elegido para todos los residentes de la lista, con el mismo motivo.';
+        if (dias > 1) {
+            texto = 'Se repetirá la misma reserva en ' + dias + ' días: '
+                + [document.getElementById('fecha').value].concat(diasExtra).sort().join(', ')
+                + '. Son ' + lista.length + ' residente(s) por día, ' + (dias * lista.length)
+                + ' reserva(s) en total.';
+        }
         form.dataset.titulo = 'Registrar las reservas';
-        form.dataset.confirmar = 'Se reservará la ración del turno elegido para todos los residentes de la lista, con el mismo motivo.';
+        form.dataset.confirmar = texto;
         form.dataset.boton = 'Sí, reservar';
         form.dataset.estilo = 'exito';
     }
@@ -276,7 +415,18 @@
 
     radiosDesmarcables('tipoComida');
 
+    if (edicion) {
+        lista.push(edicion.codigo);
+        if (edicion.taper) conTaper.add(edicion.codigo);
+        document.getElementById('buscador').disabled = true;
+        document.getElementById('buscador').placeholder = 'Al corregir no se cambia de residente';
+        document.getElementById('zonaDiasExtra').style.display = 'none';
+        document.getElementById('btnGuardar').innerHTML =
+            '<i class="fa-solid fa-check me-1"></i>Guardar los cambios';
+    }
+
     marcarTurnosBloqueados();
+    pintarDias();
     pintarLista();
 
     window.alRefrescar = marcarTurnosBloqueados;

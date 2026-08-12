@@ -13,8 +13,23 @@
     <div class="contenido">
         <div th:replace="~{fragments/base :: flash}"></div>
 
+        <div th:if="${editando != null}" class="card-panel mb-3"
+             style="background:#fef9e7; border:1px solid #f7dc6f;">
+            <div style="font-size:0.86rem; color:#9a7d0a;">
+                <i class="fa-solid fa-pen me-1"></i>
+                Estás <strong>corrigiendo</strong> la justificación de
+                <strong th:text="${editando.residente.nombreCompleto}">Residente</strong>.
+                Al guardar se reemplazan sus datos: no se crea una justificación nueva.
+            </div>
+            <a href="/admin/justificaciones" class="btn btn-light border btn-sm-flat mt-2">
+                <i class="fa-solid fa-arrow-left me-1"></i>Dejarlo como estaba
+            </a>
+        </div>
+
         <form th:action="@{/preceptor/ausencias/guardar}" method="post" id="formAusencia"
               enctype="multipart/form-data">
+            <input type="hidden" name="idEditar" th:if="${editando != null}"
+                   th:value="${editando.idAusencia}">
             <div class="row g-3">
 
                 <div class="col-md-5">
@@ -40,13 +55,15 @@
                         <div class="row g-2 mb-3">
                             <div class="col-6">
                                 <div style="font-size:0.72rem; color:#8a97a3;" id="lblDesde">Desde</div>
-                                <input type="date" name="desde" id="desde" class="form-control" th:value="${hoy}" required
+                                <input type="date" name="desde" id="desde" class="form-control" required
+                                       th:value="${editando != null ? editando.fechaInicio : hoy}"
                                        th:min="${hoy}"
                                        onchange="sincronizarFechas(); aplicarBloqueoPrimerDia(); actualizarResumen()">
                             </div>
                             <div class="col-6" id="zonaHasta">
                                 <div style="font-size:0.72rem; color:#8a97a3;">Hasta</div>
-                                <input type="date" name="hasta" id="hasta" class="form-control" th:value="${hoy}" required
+                                <input type="date" name="hasta" id="hasta" class="form-control" required
+                                       th:value="${editando != null ? editando.fechaFin : hoy}"
                                        th:min="${hoy}"
                                        onchange="actualizarResumen()" title="Último día del período de ausencia">
                             </div>
@@ -54,7 +71,8 @@
 
                         <div class="lbl">Motivo / Justificación</div>
                         <textarea name="motivo" class="form-control mb-3" rows="3"
-                                  placeholder="Ej. Viaje académico – Congreso de Ingeniería, Lima" required maxlength="300"></textarea>
+                                  placeholder="Ej. Viaje académico – Congreso de Ingeniería, Lima" required maxlength="300"
+                                  th:text="${editando != null ? editando.motivo : ''}"></textarea>
 
                         <div class="lbl">Evidencia (opcional)</div>
                         <input type="file" name="evidencia" accept="image/*" class="form-control mb-1"
@@ -259,10 +277,29 @@
             + '<button type="button" class="btn btn-outline-dark btn-sm btn-fila-todo me-1" style="font-size:0.66rem;"'
             + ' title="Marcar o quitar todas las comidas de este residente"'
             + ' onclick="alternarFila(' + r.id + ', this)">Marcar todo</button>'
+            + '<button type="button" class="btn btn-outline-dark btn-sm me-1" style="font-size:0.66rem;"'
+            + ' title="Ponerle a este residente un motivo y una foto distintos a los del grupo"'
+            + ' onclick="alternarPropio(' + r.id + ', this)">Motivo propio</button>'
             + '<button type="button" class="btn btn-danger btn-sm" style="font-size:0.66rem;"'
             + ' onclick="quitar(' + r.id + ')">Quitar</button></td>';
         fila.innerHTML = celdas;
         document.getElementById('cuerpoSel').appendChild(fila);
+
+        const propia = document.createElement('tr');
+        propia.id = 'prop_' + r.id;
+        propia.style.display = 'none';
+        propia.innerHTML = '<td colspan="9" style="background:#f7f9fb;">'
+            + '<div class="d-flex gap-2 flex-wrap align-items-center">'
+            + '<span style="font-size:0.72rem; color:#5d6d7b;">Solo para ' + r.nombre + ':</span>'
+            + '<input type="text" class="form-control form-control-sm" style="font-size:0.72rem; max-width:280px;"'
+            + ' name="motivoInd_' + r.id + '" maxlength="300"'
+            + ' placeholder="Motivo propio (vacío = el motivo general)"'
+            + ' title="Si lo dejas vacío se guarda el motivo general del formulario">'
+            + '<input type="file" class="form-control form-control-sm" style="font-size:0.72rem; max-width:280px;"'
+            + ' name="evidenciaInd_' + r.id + '" accept="image/*"'
+            + ' title="Si no subes nada se guarda la evidencia general del formulario">'
+            + '</div></td>';
+        document.getElementById('cuerpoSel').appendChild(propia);
 
         document.getElementById('buscador').value = '';
         aplicarBloqueoPrimerDia();
@@ -274,7 +311,17 @@
         seleccionados.delete(id);
         const fila = document.getElementById('sel_' + id);
         if (fila) fila.remove();
+        const propia = document.getElementById('prop_' + id);
+        if (propia) propia.remove();
         actualizarResumen();
+    }
+
+    function alternarPropio(id, boton) {
+        const propia = document.getElementById('prop_' + id);
+        if (!propia) return;
+        const abierta = propia.style.display !== 'none';
+        propia.style.display = abierta ? 'none' : '';
+        boton.textContent = abierta ? 'Motivo propio' : 'Ocultar';
     }
 
     function actualizarResumen() {
@@ -310,6 +357,51 @@
     }
 
     alPresionarEnter(document.getElementById('buscador'), agregarResidente);
+
+    const edicion = /*[[${editando != null
+            ? {'id': editando.residente.idResidente, 'marcadas': comidasMarcadas,
+               'desde': editando.fechaInicio.toString(), 'hasta': editando.fechaFin.toString()}
+            : null}]]*/ null;
+
+    function precargarEdicion() {
+        if (!edicion) return;
+        const r = residentes.find(x => x.id === edicion.id);
+        if (!r) {
+            avisoSistema('El residente de esa justificación no está en tu lista actual.', 'No se pudo cargar');
+            return;
+        }
+
+        const desde = edicion.desde;
+        const hasta = edicion.hasta;
+        if (desde === hasta) document.getElementById('modoDia').checked = true;
+        cambiarModo();
+        document.getElementById('desde').value = desde;
+        document.getElementById('hasta').value = hasta;
+
+        document.getElementById('buscador').value = r.codigo;
+        agregarResidente();
+
+        const letras = { 'DESAYUNO': 'D', 'ALMUERZO': 'A', 'CENA': 'C' };
+        edicion.marcadas.forEach(t => {
+            const [fecha, comida] = t.split('|');
+            const pref = (fecha === desde) ? 'p' : ((fecha === hasta) ? 'u' : null);
+            if (!pref) return;
+            const c = document.querySelector('input[name="' + pref + letras[comida] + '_' + edicion.id + '"]');
+            if (c && !c.disabled) c.checked = true;
+        });
+
+        document.getElementById('buscador').value = '';
+        document.getElementById('buscador').disabled = true;
+        document.getElementById('buscador').placeholder = 'Al corregir no se cambia de residente';
+        document.getElementById('btnConfirmar').innerHTML =
+            '<i class="fa-solid fa-check me-1"></i>Guardar los cambios';
+        const form = document.getElementById('formAusencia');
+        form.dataset.titulo = 'Actualizar esta justificación';
+        form.dataset.confirmar = 'Estás a punto de actualizar los datos de esta justificación. '
+            + 'No se creará una nueva: se reemplazan las fechas y las comidas por las que acabas de marcar. ¿Seguro?';
+        form.dataset.boton = 'Sí, actualizar';
+        actualizarResumen();
+    }
 
     function esModoDia() { return document.getElementById('modoDia').checked; }
 
@@ -373,6 +465,7 @@
     });
 
     cambiarModo();
+    precargarEdicion();
 </script>
 
 <div id="modalAusencia" class="modal-sistema" style="display:none;">

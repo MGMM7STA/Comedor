@@ -218,6 +218,13 @@ public class PreceptorController {
         return "preceptor/residente_form";
     }
 
+    private com.upeu.comedorupeu.services.ReglasComidaService reglasComidaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setReglasComidaService(com.upeu.comedorupeu.services.ReglasComidaService reglasComidaService) {
+        this.reglasComidaService = reglasComidaService;
+    }
+
     private boolean fueraDeSuResidencia(Residente r, Authentication auth) {
         if (r == null) return true;
         Usuario u = usuarioActual(auth);
@@ -579,9 +586,29 @@ public class PreceptorController {
     }
 
     @GetMapping("/ausencias")
-    public String ausencias(Model model, Authentication auth) {
+    public String ausencias(@RequestParam(required = false) Long editar,
+                            Model model, Authentication auth, RedirectAttributes flash) {
         model.addAttribute("residentes", residentesYaIngresados(auth));
         model.addAttribute("hoy", LocalDate.now());
+
+        if (editar != null) {
+            Ausencia a = ausenciaRepo.findById(editar).orElse(null);
+            if (a == null || fueraDeSuResidencia(a.getResidente(), auth)) {
+                flash.addFlashAttribute("error", "Esa justificación no existe o no pertenece a tu residencia.");
+                return "redirect:/admin/justificaciones";
+            }
+            if (!"FUTURA".equals(justificacionService.estadoDe(a))) {
+                flash.addFlashAttribute("error", "Esa justificación ya empezó: no se puede editar "
+                        + "porque parte del historial ya está escrito. Usa el cierre anticipado.");
+                return "redirect:/admin/justificaciones";
+            }
+            model.addAttribute("editando", a);
+            java.util.List<String> marcadas = new java.util.ArrayList<>();
+            for (AusenciaDetalle d : a.getDetalles()) {
+                marcadas.add(d.getFecha() + "|" + d.getTipoComida());
+            }
+            model.addAttribute("comidasMarcadas", marcadas);
+        }
 
         model.addAttribute("comidasBloqueadas", turnoService.comidasBloqueadasHoy());
 
@@ -598,18 +625,100 @@ public class PreceptorController {
         return "preceptor/ausencias";
     }
 
+    private String actualizarAusencia(Long idEditar, LocalDate desde, LocalDate hasta, String motivo,
+                                      MultipartFile evidencia, HttpServletRequest request,
+                                      Authentication auth, RedirectAttributes flash) {
+        Ausencia a = ausenciaRepo.findById(idEditar).orElse(null);
+        if (a == null || fueraDeSuResidencia(a.getResidente(), auth)) {
+            flash.addFlashAttribute("error", "Esa justificación no existe o no pertenece a tu residencia.");
+            return "redirect:/admin/justificaciones";
+        }
+        if (!"FUTURA".equals(justificacionService.estadoDe(a))) {
+            flash.addFlashAttribute("error", "Esa justificación ya empezó: no se puede editar.");
+            return "redirect:/admin/justificaciones";
+        }
+        if (desde.isBefore(LocalDate.now())) {
+            flash.addFlashAttribute("error", "No se puede justificar un día que ya pasó.");
+            return "redirect:/preceptor/ausencias?editar=" + idEditar;
+        }
+
+        Residente r = a.getResidente();
+        Long idRes = r.getIdResidente();
+        java.util.List<AusenciaDetalle> nuevos = new java.util.ArrayList<>();
+        int yaComidas = 0;
+
+        for (LocalDate f = desde; !f.isAfter(hasta); f = f.plusDays(1)) {
+            boolean primero = f.equals(desde);
+            boolean ultimo = f.equals(hasta);
+            for (String tipo : List.of("DESAYUNO", "ALMUERZO", "CENA")) {
+                boolean incluir;
+                if (!primero && !ultimo) {
+                    incluir = true;
+                } else {
+                    String letra = tipo.substring(0, 1);
+                    String pref = primero ? "p" : "u";
+                    incluir = request.getParameter(pref + letra + "_" + idRes) != null;
+                    if (primero && ultimo && !incluir) {
+                        incluir = request.getParameter("u" + letra + "_" + idRes) != null;
+                    }
+                }
+                if (!incluir) continue;
+                if (reglasComidaService.yaIngreso(r, f, tipo)) { yaComidas++; continue; }
+
+                AusenciaDetalle d = new AusenciaDetalle();
+                d.setAusencia(a);
+                d.setFecha(f);
+                d.setTipoComida(tipo);
+                nuevos.add(d);
+            }
+        }
+
+        if (nuevos.isEmpty()) {
+            flash.addFlashAttribute("error", "No marcaste ninguna comida: la justificación se quedó como estaba.");
+            return "redirect:/preceptor/ausencias?editar=" + idEditar;
+        }
+
+        if (evidencia != null && !evidencia.isEmpty()) {
+            try {
+                a.setEvidenciaUrl(imagenService.guardarEvidencia(evidencia, "ausencia"));
+            } catch (Exception e) {
+                flash.addFlashAttribute("error", "No se pudo guardar la nueva evidencia: " + e.getMessage());
+                return "redirect:/preceptor/ausencias?editar=" + idEditar;
+            }
+        }
+
+        a.getDetalles().clear();
+        a.getDetalles().addAll(nuevos);
+        a.setFechaInicio(desde);
+        a.setFechaFin(hasta);
+        if (motivo != null && !motivo.isBlank()) a.setMotivo(motivo.trim());
+        ausenciaRepo.save(a);
+
+        String msg = "Justificación de " + r.getNombreCompleto() + " actualizada: del " + desde
+                + " al " + hasta + ", " + nuevos.size() + " comida(s).";
+        if (yaComidas > 0) {
+            msg += " " + yaComidas + " comida(s) quedaron fuera porque el residente ya ingresó a ese turno.";
+        }
+        flash.addFlashAttribute("ok", msg);
+        return "redirect:/admin/justificaciones";
+    }
+
     @PostMapping("/ausencias/guardar")
     public String guardarAusencia(@RequestParam("ids") List<Long> ids,
                                   @RequestParam LocalDate desde,
                                   @RequestParam LocalDate hasta,
                                   @RequestParam String motivo,
                                   @RequestParam(required = false) MultipartFile evidencia,
+                                  @RequestParam(required = false) Long idEditar,
                                   HttpServletRequest request,
                                   Authentication auth,
                                   RedirectAttributes flash) {
         if (hasta.isBefore(desde)) {
             flash.addFlashAttribute("error", "El rango de fechas no es válido.");
             return "redirect:/preceptor/ausencias";
+        }
+        if (idEditar != null) {
+            return actualizarAusencia(idEditar, desde, hasta, motivo, evidencia, request, auth, flash);
         }
         if (desde.isBefore(LocalDate.now())) {
             flash.addFlashAttribute("error", "No se puede justificar un día que ya pasó. "
@@ -636,6 +745,10 @@ public class PreceptorController {
         }
 
         java.util.List<String> aunNoIngresan = new java.util.ArrayList<>();
+        java.util.List<String> sinNadaQueJustificar = new java.util.ArrayList<>();
+        final int[] comidasYaJustificadas = {0};
+        final int[] comidasYaComidas = {0};
+        java.util.List<String> evidenciasFallidas = new java.util.ArrayList<>();
 
         for (Long idRes : ids) {
             Residente r = residenteRepo.findById(idRes).orElse(null);
@@ -653,8 +766,23 @@ public class PreceptorController {
             ausencia.setUsuario(preceptor);
             ausencia.setFechaInicio(desde);
             ausencia.setFechaFin(hasta);
-            ausencia.setMotivo(motivo);
-            ausencia.setEvidenciaUrl(evidenciaUrl);
+
+            String motivoPropio = request.getParameter("motivoInd_" + idRes);
+            ausencia.setMotivo((motivoPropio != null && !motivoPropio.isBlank())
+                    ? motivoPropio.trim() : motivo);
+
+            String urlPropia = evidenciaUrl;
+            if (request instanceof org.springframework.web.multipart.MultipartHttpServletRequest multi) {
+                MultipartFile suya = multi.getFile("evidenciaInd_" + idRes);
+                if (suya != null && !suya.isEmpty()) {
+                    try {
+                        urlPropia = imagenService.guardarEvidencia(suya, "ausencia");
+                    } catch (Exception e) {
+                        evidenciasFallidas.add(r.getNombreCompleto());
+                    }
+                }
+            }
+            ausencia.setEvidenciaUrl(urlPropia);
 
             for (LocalDate f = desde; !f.isAfter(hasta); f = f.plusDays(1)) {
                 boolean primero = f.equals(desde);
@@ -672,15 +800,28 @@ public class PreceptorController {
                             incluir = request.getParameter("u" + letra + "_" + idRes) != null;
                         }
                     }
-                    if (incluir) {
-                        AusenciaDetalle d = new AusenciaDetalle();
-                        d.setAusencia(ausencia);
-                        d.setFecha(f);
-                        d.setTipoComida(tipo);
-                        ausencia.getDetalles().add(d);
+                    if (!incluir) continue;
+
+                    if (reglasComidaService.yaIngreso(r, f, tipo)) {
+                        comidasYaComidas[0]++;
+                        continue;
                     }
+                    if (reglasComidaService.yaJustificado(r, f, tipo)) {
+                        comidasYaJustificadas[0]++;
+                    }
+
+                    AusenciaDetalle d = new AusenciaDetalle();
+                    d.setAusencia(ausencia);
+                    d.setFecha(f);
+                    d.setTipoComida(tipo);
+                    ausencia.getDetalles().add(d);
                 }
             }
+            if (ausencia.getDetalles().isEmpty()) {
+                sinNadaQueJustificar.add(r.getNombreCompleto());
+                continue;
+            }
+
             ausenciaRepo.save(ausencia);
             registrados++;
 
@@ -699,10 +840,26 @@ public class PreceptorController {
         String aviso = aunNoIngresan.isEmpty() ? ""
                 : " Se omitió a " + String.join(", ", aunNoIngresan)
                   + ": todavía no empieza su estancia, así que no hay nada que justificar.";
+        if (comidasYaJustificadas[0] > 0) {
+            aviso += " Aviso: " + comidasYaJustificadas[0] + " comida(s) ya estaban justificadas por otra"
+                    + " ausencia anterior. Se registraron igual en esta, así que quedan cubiertas por las dos.";
+        }
+        if (comidasYaComidas[0] > 0) {
+            aviso += " " + comidasYaComidas[0] + " comida(s) no se justificaron porque el residente"
+                    + " YA INGRESÓ a ese turno: la ración ya se entregó.";
+        }
+        if (!sinNadaQueJustificar.isEmpty()) {
+            aviso += " No se creó justificación para " + String.join(", ", sinNadaQueJustificar)
+                    + ": todas las comidas elegidas ya se habían consumido.";
+        }
+        if (!evidenciasFallidas.isEmpty()) {
+            aviso += " No se pudo guardar la foto propia de " + String.join(", ", evidenciasFallidas)
+                    + ": quedaron con la evidencia general.";
+        }
 
         if (registrados == 0) {
             flash.addFlashAttribute("error", "No se registró ninguna ausencia."
-                    + (aunNoIngresan.isEmpty()
+                    + (aviso.isEmpty()
                        ? " Revisa que los residentes seleccionados pertenezcan a tu residencia de género."
                        : aviso));
         } else {

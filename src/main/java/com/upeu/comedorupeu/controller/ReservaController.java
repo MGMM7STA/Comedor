@@ -45,6 +45,13 @@ public class ReservaController {
         this.justificacionService = justificacionService;
     }
 
+    private com.upeu.comedorupeu.services.ReglasComidaService reglasComidaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setReglasComidaService(com.upeu.comedorupeu.services.ReglasComidaService reglasComidaService) {
+        this.reglasComidaService = reglasComidaService;
+    }
+
     public ReservaController(SolicitudExtemporaneaRepository solicitudRepo, ResidenteRepository residenteRepo,
                              UsuarioRepository usuarioRepo, TurnoService turnoService, AlcanceService alcanceService,
                              com.upeu.comedorupeu.services.ExcelService excelService) {
@@ -57,17 +64,102 @@ public class ReservaController {
     }
 
     @GetMapping("/preceptor/reservas")
-    public String reservasPreceptor(Model model, Authentication auth) {
+    public String reservasPreceptor(@RequestParam(required = false) Long editar,
+                                    Model model, Authentication auth, RedirectAttributes flash) {
         AlcanceDatos alcance = alcanceService.de(auth);
         model.addAttribute("residentes", alcance.residentesActivos().stream()
                 .filter(r -> !r.estaBorrado())
                 .toList());
         model.addAttribute("hoy", LocalDate.now());
 
+        if (editar != null) {
+            SolicitudExtemporanea s = solicitudRepo.findById(editar).orElse(null);
+            if (s == null || !alcance.alcanza(s.getResidente())) {
+                flash.addFlashAttribute("error", "Esa reserva no existe o no pertenece a tu residencia.");
+                return "redirect:/admin/reservas";
+            }
+            if (!"PENDIENTE".equals(s.getEstado()) || s.estaVencida()) {
+                flash.addFlashAttribute("error", "Esa reserva ya no se puede editar: "
+                        + "o fue entregada, o fue cancelada, o su turno ya pasó.");
+                return "redirect:/admin/reservas";
+            }
+            model.addAttribute("editando", s);
+        }
+
         model.addAttribute("comidasBloqueadas", turnoService.comidasBloqueadasHoy());
         model.addAttribute("residenciaFija", alcance.residenciaGenero());
         model.addAttribute("misReservas", ultimasReservas(alcance));
         return "preceptor/reservas";
+    }
+
+    private String actualizarReserva(Long idEditar, LocalDate fecha, String tipoComida, String motivo,
+                                     java.time.LocalTime horaRecojo, String conTaper,
+                                     jakarta.servlet.http.HttpServletRequest request,
+                                     Authentication auth, RedirectAttributes flash) {
+        AlcanceDatos alcance = alcanceService.de(auth);
+        SolicitudExtemporanea s = solicitudRepo.findById(idEditar).orElse(null);
+        if (s == null || !alcance.alcanza(s.getResidente())) {
+            flash.addFlashAttribute("error", "Esa reserva no existe o no pertenece a tu residencia.");
+            return "redirect:/admin/reservas";
+        }
+        if (!"PENDIENTE".equals(s.getEstado()) || s.estaVencida()) {
+            flash.addFlashAttribute("error", "Esa reserva ya no se puede editar: "
+                    + "o fue entregada, o fue cancelada, o su turno ya pasó.");
+            return "redirect:/admin/reservas";
+        }
+
+        Residente r = s.getResidente();
+        boolean cambiaDeSitio = !fecha.equals(s.getFecha()) || !tipoComida.equals(s.getTipoComida());
+        if (cambiaDeSitio) {
+            if (fecha.isBefore(LocalDate.now())) {
+                flash.addFlashAttribute("error", "No puedes mover la reserva a un día que ya pasó.");
+                return "redirect:/preceptor/reservas?editar=" + idEditar;
+            }
+            if (fecha.equals(LocalDate.now()) && turnoService.comidasBloqueadasHoy().contains(tipoComida)) {
+                flash.addFlashAttribute("error", "El turno de " + tipoComida.toLowerCase()
+                        + " de hoy ya no admite reservas.");
+                return "redirect:/preceptor/reservas?editar=" + idEditar;
+            }
+            if (reglasComidaService.yaIngreso(r, fecha, tipoComida)) {
+                flash.addFlashAttribute("error", r.getNombreCompleto() + " ya ingresó a ese turno: "
+                        + "la ración ya se entregó y no se puede mover la reserva ahí.");
+                return "redirect:/preceptor/reservas?editar=" + idEditar;
+            }
+            if (reglasComidaService.yaTieneReserva(r, fecha, tipoComida)) {
+                flash.addFlashAttribute("error", r.getNombreCompleto()
+                        + " ya tiene otra reserva en ese día y turno.");
+                return "redirect:/preceptor/reservas?editar=" + idEditar;
+            }
+            if (reglasComidaService.yaJustificado(r, fecha, tipoComida)) {
+                flash.addFlashAttribute("error", r.getNombreCompleto()
+                        + " está en ausencia justificada en ese turno: no tiene sentido reservarle comida.");
+                return "redirect:/preceptor/reservas?editar=" + idEditar;
+            }
+        }
+
+        String codigo = r.getCodigoAcceso();
+        boolean traeTaper = false;
+        if (conTaper != null && !conTaper.isBlank()) {
+            for (String c : conTaper.split(",")) {
+                if (c.trim().equals(codigo)) traeTaper = true;
+            }
+        }
+        String motivoPropio = request.getParameter("motivoInd_" + codigo);
+        String motivoFinal = (motivoPropio != null && !motivoPropio.isBlank())
+                ? motivoPropio.trim()
+                : ((motivo == null || motivo.isBlank()) ? "Reserva registrada por preceptoría" : motivo.trim());
+
+        s.setFecha(fecha);
+        s.setTipoComida(tipoComida);
+        s.setHoraRecojo(horaRecojo);
+        s.setTraeTaper(traeTaper);
+        s.setMotivo(motivoFinal);
+        solicitudRepo.save(s);
+
+        flash.addFlashAttribute("ok", "Reserva de " + r.getNombreCompleto() + " actualizada: "
+                + tipoComida.toLowerCase() + " del " + fecha
+                + (traeTaper ? ", con táper." : ", sin táper."));
+        return "redirect:/admin/reservas";
     }
 
     @PostMapping("/preceptor/reservas/guardar")
@@ -77,15 +169,53 @@ public class ReservaController {
                               @RequestParam(required = false) java.time.LocalTime horaRecojo,
                               @RequestParam(required = false) String codigos,
                               @RequestParam(required = false) String conTaper,
+                              @RequestParam(required = false) String fechasExtra,
+                              @RequestParam(required = false) Long idEditar,
+                              jakarta.servlet.http.HttpServletRequest request,
                               Authentication auth, RedirectAttributes flash) {
 
-        if (fecha.equals(LocalDate.now()) && turnoService.comidasBloqueadasHoy().contains(tipoComida)) {
-            flash.addFlashAttribute("error", "El turno de "
-                    + tipoComida.toLowerCase() + " de hoy ya no admite reservas (su hora ya pasó o fue cerrado).");
-            return "redirect:/preceptor/reservas";
+        if (idEditar != null) {
+            return actualizarReserva(idEditar, fecha, tipoComida, motivo, horaRecojo,
+                    conTaper, request, auth, flash);
         }
+
         if (codigos == null || codigos.isBlank()) {
             flash.addFlashAttribute("error", "Agrega al menos un residente a la lista antes de guardar.");
+            return "redirect:/preceptor/reservas";
+        }
+
+        java.util.List<LocalDate> pedidas = new java.util.ArrayList<>();
+        pedidas.add(fecha);
+        if (fechasExtra != null && !fechasExtra.isBlank()) {
+            for (String texto : fechasExtra.split(",")) {
+                String iso = texto.trim();
+                if (iso.isEmpty()) continue;
+                LocalDate d;
+                try {
+                    d = LocalDate.parse(iso);
+                } catch (RuntimeException e) {
+                    continue;
+                }
+                if (!pedidas.contains(d)) pedidas.add(d);
+            }
+        }
+        pedidas.sort(java.util.Comparator.naturalOrder());
+
+        LocalDate hoy = LocalDate.now();
+        java.util.List<LocalDate> fechas = new java.util.ArrayList<>();
+        java.util.List<String> diasDescartados = new java.util.ArrayList<>();
+        for (LocalDate d : pedidas) {
+            if (d.isBefore(hoy)) {
+                diasDescartados.add(d + " (ya pasó)");
+            } else if (d.equals(hoy) && turnoService.comidasBloqueadasHoy().contains(tipoComida)) {
+                diasDescartados.add(d + " (ese turno de hoy ya cerró)");
+            } else {
+                fechas.add(d);
+            }
+        }
+        if (fechas.isEmpty()) {
+            flash.addFlashAttribute("error", "Ninguno de los días elegidos admite reservas de "
+                    + tipoComida.toLowerCase() + ": " + String.join(", ", diasDescartados) + ".");
             return "redirect:/preceptor/reservas";
         }
 
@@ -98,58 +228,79 @@ public class ReservaController {
             for (String c : conTaper.split(",")) traenTaper.add(c.trim());
         }
 
-        int creadas = 0, repetidas = 0, justificados = 0, sinIngresar = 0;
-        for (String cod : codigos.split(",")) {
-            String codigo = cod.trim();
-            if (codigo.isEmpty()) continue;
-            Residente r = residenteRepo.findByCodigoAcceso(codigo).orElse(null);
+        int creadas = 0, repetidas = 0, justificados = 0, sinIngresar = 0, yaComieron = 0;
+        for (LocalDate dia : fechas) {
+            for (String cod : codigos.split(",")) {
+                String codigo = cod.trim();
+                if (codigo.isEmpty()) continue;
+                Residente r = residenteRepo.findByCodigoAcceso(codigo).orElse(null);
 
-            if (r == null || !alcance.alcanza(r)) continue;
+                if (r == null || !alcance.alcanza(r)) continue;
 
-            if (r.estaBorrado()
-                    || !com.upeu.comedorupeu.services.alcance.AlcanceDatos.vigenteEn(r, fecha)) {
-                sinIngresar++;
-                continue;
+                if (r.estaBorrado()
+                        || !com.upeu.comedorupeu.services.alcance.AlcanceDatos.vigenteEn(r, dia)) {
+                    sinIngresar++;
+                    continue;
+                }
+
+                if (reglasComidaService.yaIngreso(r, dia, tipoComida)) {
+                    yaComieron++;
+                    continue;
+                }
+
+                if (reglasComidaService.yaTieneReserva(r, dia, tipoComida)) { repetidas++; continue; }
+
+                if (reglasComidaService.yaJustificado(r, dia, tipoComida)) {
+                    justificados++;
+                    continue;
+                }
+
+                SolicitudExtemporanea s = new SolicitudExtemporanea();
+                s.setResidente(r);
+                s.setUsuario(quien);
+                s.setFecha(dia);
+                s.setTipoComida(tipoComida);
+                s.setHoraRecojo(horaRecojo);
+
+                String motivoPropio = request.getParameter("motivoInd_" + codigo);
+                if (motivoPropio != null && !motivoPropio.isBlank()) {
+                    s.setMotivo(motivoPropio.trim());
+                } else {
+                    s.setMotivo((motivo == null || motivo.isBlank())
+                            ? "Reserva registrada por preceptoría" : motivo.trim());
+                }
+                s.setEstado("PENDIENTE");
+                s.setGrupoLote(grupo);
+                s.setTraeTaper(traenTaper.contains(codigo));
+                solicitudRepo.save(s);
+                creadas++;
             }
-
-            boolean yaTiene = solicitudRepo
-                    .findFirstByResidenteIdResidenteAndFechaAndTipoComidaAndEstado(
-                            r.getIdResidente(), fecha, tipoComida, "PENDIENTE").isPresent();
-            if (yaTiene) { repetidas++; continue; }
-
-            if (justificacionService.buscar(r, fecha, tipoComida).isPresent()) {
-                justificados++;
-                continue;
-            }
-
-            SolicitudExtemporanea s = new SolicitudExtemporanea();
-            s.setResidente(r);
-            s.setUsuario(quien);
-            s.setFecha(fecha);
-            s.setTipoComida(tipoComida);
-            s.setHoraRecojo(horaRecojo);
-
-            s.setMotivo((motivo == null || motivo.isBlank()) ? "Reserva registrada por preceptoría" : motivo.trim());
-            s.setEstado("PENDIENTE");
-            s.setGrupoLote(grupo);
-            s.setTraeTaper(traenTaper.contains(codigo));
-            solicitudRepo.save(s);
-            creadas++;
         }
-        String msg = creadas + " ración(es) reservada(s) para el " + fecha + " (" + tipoComida.toLowerCase() + ")";
+        String dondeVa = (fechas.size() == 1)
+                ? "para el " + fechas.get(0)
+                : "repartidas en " + fechas.size() + " días (" + fechas.stream()
+                        .map(LocalDate::toString).collect(java.util.stream.Collectors.joining(", ")) + ")";
+        String msg = creadas + " ración(es) reservada(s) " + dondeVa + " (" + tipoComida.toLowerCase() + ")";
         if (grupo != null) {
             msg += " — RESERVA MASIVA, grupo " + grupo + ". Al escanear a cualquiera del grupo,"
                     + " el cajero podrá entregar todas sus raciones de un solo clic.";
         } else {
             msg += " como reservas individuales (el cajero las entrega una por una).";
         }
-        if (repetidas > 0) msg += " " + repetidas + " ya tenían reserva y se omitieron.";
+        if (repetidas > 0) msg += " " + repetidas + " ya tenían reserva en ese turno y se omitieron.";
+        if (yaComieron > 0) {
+            msg += " " + yaComieron + " se omitieron porque YA INGRESARON a ese turno: "
+                    + "la ración ya se les entregó y no se puede reservar encima.";
+        }
         if (justificados > 0) {
             msg += " " + justificados + " se omitieron porque están EN AUSENCIA JUSTIFICADA "
                     + "en ese turno: no tiene sentido reservarles comida.";
         }
         if (sinIngresar > 0) {
             msg += " " + sinIngresar + " se omitieron porque en esa fecha todavía no empieza su estancia.";
+        }
+        if (!diasDescartados.isEmpty()) {
+            msg += " No se reservó en " + String.join(", ", diasDescartados) + ".";
         }
         flash.addFlashAttribute("ok", msg);
         return "redirect:/preceptor/reservas";

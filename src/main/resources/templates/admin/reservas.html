@@ -13,6 +13,12 @@
     <div class="contenido">
         <div th:replace="~{fragments/base :: flash}"></div>
 
+        <a sec:authorize="hasRole('PRECEPTOR')" href="/preceptor/reservas"
+           class="btn btn-light border btn-sm-flat mb-3"
+           title="Volver a la pantalla donde se registran las reservas">
+            <i class="fa-solid fa-arrow-left me-1"></i>Volver a registrar reservas
+        </a>
+
         <div class="row g-3 mb-3">
             <div class="col-md-3">
                 <div class="stat-box bg-white">
@@ -140,6 +146,14 @@
                                          data-motivocancel=${s.motivoCancelacion} ?: ''">
                             <i class="fa-solid fa-eye"></i> Ver detalles
                         </button>
+
+                        <a sec:authorize="hasRole('PRECEPTOR')"
+                           th:if="${s.estado == 'PENDIENTE' and !s.estaVencida()}"
+                           th:href="@{'/preceptor/reservas?editar=' + ${s.idSolicitud}}"
+                           class="btn btn-success btn-sm" style="font-size:0.7rem;"
+                           title="Corregir esta reserva sin tener que cancelarla y volver a crearla">
+                            <i class="fa-solid fa-pen"></i> Editar
+                        </a>
 
                         <form sec:authorize="hasRole('PRECEPTOR')"
                               th:if="${s.estado == 'PENDIENTE' and !s.estaVencida()}"
