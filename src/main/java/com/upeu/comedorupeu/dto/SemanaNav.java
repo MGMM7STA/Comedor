@@ -38,8 +38,6 @@ public class SemanaNav {
 
     public LocalDate getSiguienteLibre() { return fecha.plusDays(7); }
 
-    public boolean isHaySiguienteLibre() { return dias.get(0).isBefore(hoy.plusYears(1)); }
-
     public LocalDate getTopeLibre() { return hoy.plusYears(1); }
 
     public String getEtiqueta() {

@@ -8,7 +8,6 @@ import java.util.List;
 public interface AusenciaRepository extends JpaRepository<Ausencia, Long> {
     List<Ausencia> findByResidenteIdResidenteOrderByFechaInicioDesc(Long idResidente);
     List<Ausencia> findAllByOrderByFechaInicioDesc();
-    List<Ausencia> findTop10ByOrderByIdAusenciaDesc();
 
     List<Ausencia> findByFechaInicioLessThanEqualAndFechaFinGreaterThanEqualOrderByFechaInicioAsc(
             java.time.LocalDate hasta, java.time.LocalDate desde);

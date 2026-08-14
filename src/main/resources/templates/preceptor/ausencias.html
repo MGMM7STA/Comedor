@@ -21,6 +21,12 @@
                 <strong th:text="${editando.residente.nombreCompleto}">Residente</strong>.
                 Al guardar se reemplazan sus datos: no se crea una justificación nueva.
             </div>
+            <div th:if="${yaEmpezo}" class="mt-2" style="font-size:0.78rem; color:#9a7d0a;">
+                <i class="fa-solid fa-lock me-1"></i>
+                Esta justificación <strong>ya empezó</strong>: las comidas cuyo turno ya pasó quedan
+                bloqueadas y se conservan tal cual, y la fecha de inicio no se puede mover.
+                Solo cambias lo que aún no ocurre.
+            </div>
             <a href="/admin/justificaciones" class="btn btn-light border btn-sm-flat mt-2">
                 <i class="fa-solid fa-arrow-left me-1"></i>Dejarlo como estaba
             </a>
@@ -360,6 +366,7 @@
 
     const edicion = /*[[${editando != null
             ? {'id': editando.residente.idResidente, 'marcadas': comidasMarcadas,
+               'intocables': comidasIntocables, 'yaEmpezo': yaEmpezo,
                'desde': editando.fechaInicio.toString(), 'hasta': editando.fechaFin.toString()}
             : null}]]*/ null;
 
@@ -375,7 +382,13 @@
         const hasta = edicion.hasta;
         if (desde === hasta) document.getElementById('modoDia').checked = true;
         cambiarModo();
-        document.getElementById('desde').value = desde;
+        const campoDesde = document.getElementById('desde');
+        if (edicion.yaEmpezo) {
+            campoDesde.min = desde;
+            campoDesde.readOnly = true;
+            campoDesde.title = 'Esta justificación ya empezó: su fecha de inicio no se puede mover';
+        }
+        campoDesde.value = desde;
         document.getElementById('hasta').value = hasta;
 
         document.getElementById('buscador').value = r.codigo;
@@ -388,6 +401,17 @@
             if (!pref) return;
             const c = document.querySelector('input[name="' + pref + letras[comida] + '_' + edicion.id + '"]');
             if (c && !c.disabled) c.checked = true;
+        });
+        (edicion.intocables || []).forEach(t => {
+            const [fecha, comida] = t.split('|');
+            const pref = (fecha === desde) ? 'p' : ((fecha === hasta) ? 'u' : null);
+            if (!pref) return;
+            const c = document.querySelector('input[name="' + pref + letras[comida] + '_' + edicion.id + '"]');
+            if (!c) return;
+            c.checked = true;
+            c.disabled = true;
+            c.title = 'Ese turno ya pasó: se conserva tal cual y no se puede cambiar';
+            c.closest('td').style.opacity = '0.55';
         });
 
         document.getElementById('buscador').value = '';

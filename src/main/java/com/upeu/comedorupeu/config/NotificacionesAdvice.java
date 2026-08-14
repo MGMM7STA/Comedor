@@ -31,10 +31,8 @@ public class NotificacionesAdvice {
         model.addAttribute("relojServidorMs", System.currentTimeMillis());
 
         model.addAttribute("semestres", semestreService.disponibles());
-        model.addAttribute("semestreActual", semestreService.actual());
 
         model.addAttribute("diasIncidencias", pendientesService.incidencias());
-        model.addAttribute("diasReservas", pendientesService.reservas());
         model.addAttribute("diasEventos", pendientesService.eventos());
     }
 }

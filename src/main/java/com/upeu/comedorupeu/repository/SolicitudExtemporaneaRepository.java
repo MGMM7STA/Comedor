@@ -14,10 +14,6 @@ public interface SolicitudExtemporaneaRepository extends JpaRepository<Solicitud
 
     List<SolicitudExtemporanea> findByResidenteIdResidenteOrderByFechaHoraDesc(Long idResidente);
 
-    long countByFechaAndEstado(LocalDate fecha, String estado);
-
-    List<SolicitudExtemporanea> findTop20ByOrderByFechaHoraDesc();
-
     List<SolicitudExtemporanea> findByFechaOrderByTipoComidaAsc(LocalDate fecha);
 
     Optional<SolicitudExtemporanea> findFirstByResidenteIdResidenteAndFechaAndEstado(Long idResidente, LocalDate fecha, String estado);
@@ -28,10 +24,6 @@ public interface SolicitudExtemporaneaRepository extends JpaRepository<Solicitud
 
     List<SolicitudExtemporanea> findByFechaBetweenAndResidentePabellonOrderByFechaAscTipoComidaAsc(
             LocalDate desde, LocalDate hasta, String pabellon);
-
-    List<SolicitudExtemporanea> findByFechaAndEstadoAndGrupoLoteNotNull(LocalDate fecha, String estado);
-
-    List<SolicitudExtemporanea> findByGrupoLoteAndFechaAndEstado(String grupoLote, LocalDate fecha, String estado);
 
     @org.springframework.data.jpa.repository.Query("SELECT s.fecha FROM SolicitudExtemporanea s "
             + "WHERE s.estado = 'PENDIENTE' AND s.fecha >= :desde")

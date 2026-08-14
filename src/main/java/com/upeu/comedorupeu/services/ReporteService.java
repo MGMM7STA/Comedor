@@ -339,7 +339,7 @@ public class ReporteService {
         if (!turnoService.turnoYaOcurrio(tipo, fecha)) return "PEND";
 
         if (vigenciaService != null) {
-            String fuera = vigenciaService.estadoEn(residente, fecha, horaDeCierre(tipo, fecha));
+            String fuera = vigenciaService.estadoEnElDia(residente, fecha);
             if (fuera != null) {
                 agregarObservacion(fila, "BORRADO".equals(fuera)
                         ? "Residente borrado: ya no figuraba en el comedor"
@@ -348,10 +348,15 @@ public class ReporteService {
             }
         }
 
-        if (comioEnUnEvento(residente, fecha, tipo)) {
+        String porEntrega = estadoPorEntrega(residente, fecha, tipo);
+        if ("JUST".equals(porEntrega)) {
             agregarObservacion(fila, "Comió en un evento");
             setMotivoComida(fila, tipo, "Comió en un evento especial");
             return "JUST";
+        }
+        if ("PEND".equals(porEntrega)) {
+            agregarObservacion(fila, "Ración para llevar: su preceptoría aún no pasa lista");
+            return "PEND";
         }
         return "NO";
     }
@@ -363,20 +368,34 @@ public class ReporteService {
         this.vigenciaService = vigenciaService;
     }
 
-    private java.time.LocalTime horaDeCierre(String tipo, LocalDate fecha) {
-        return turnoService.ventanaDe(tipo)
-                .map(v -> (v.length > 1 && v[1] != null) ? v[1] : java.time.LocalTime.NOON)
-                .orElse(java.time.LocalTime.NOON);
-    }
-
-    private boolean comioEnUnEvento(Residente residente, LocalDate fecha, String tipo) {
-        if (eventoRepo == null) return false;
+    private String estadoPorEntrega(Residente residente, LocalDate fecha, String tipo) {
+        if (eventoRepo == null) return null;
         for (var ev : eventoRepo.findByEstadoAndFechaEvento("APROBADO", fecha)) {
             if (!ev.sustituye(tipo)) continue;
+            if (!alcanzaA(ev, residente)) continue;
             if (ev.getExcluidosLista().contains(residente.getCodigoAcceso())) continue;
-            return true;
+            if (entregaRepo == null) return "JUST";
+
+            var enLista = entregaRepo.findFirstByEventoIdEventoAndResidenteIdResidente(
+                    ev.getIdEvento(), residente.getIdResidente());
+            if (enLista.isEmpty()) {
+                return entregaRepo.findByEventoIdEvento(ev.getIdEvento()).isEmpty() ? "PEND" : "NO";
+            }
+            return Boolean.TRUE.equals(enLista.get().getRecibido()) ? "JUST" : "NO";
         }
-        return false;
+        return null;
+    }
+
+    private boolean alcanzaA(com.upeu.comedorupeu.models.EventoEspecial ev, Residente residente) {
+        String residencia = (ev.getUsuario() == null) ? null : ev.getUsuario().getPabellon();
+        return residencia == null || residencia.equals(residente.getPabellon());
+    }
+
+    private com.upeu.comedorupeu.repository.EventoEntregaRepository entregaRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setEntregaRepo(com.upeu.comedorupeu.repository.EventoEntregaRepository entregaRepo) {
+        this.entregaRepo = entregaRepo;
     }
 
     private com.upeu.comedorupeu.repository.EventoEspecialRepository eventoRepo;

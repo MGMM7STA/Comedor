@@ -286,20 +286,6 @@
                         </button>
                     </form>
 
-                    <form th:if="${grupoEscaneado != null}" th:action="@{/cajero/entregar-reserva-masiva}"
-                          method="post" class="d-grid mt-2"
-                          th:attr="data-titulo='Entregar el grupo ' + ${grupoEscaneado},
-                                   data-confirmar='Este residente pertenece a una RESERVA MASIVA: las ' + ${grupoCantidad} + ' raciones pendientes del grupo quedarán entregadas de una sola vez.',
-                                   data-estilo='exito',
-                                   data-boton='Sí, entregar todo el grupo'">
-                        <input type="hidden" name="grupo" th:value="${grupoEscaneado}">
-                        <button class="btn fw-bold" style="background:#16a085; color:#fff;"
-                                th:title="'Entregar de un clic las ' + ${grupoCantidad} + ' raciones del grupo'">
-                            <i class="fa-solid fa-people-carry-box me-1"></i>Entregar masivamente
-                            (<span th:text="${grupoCantidad}">5</span> raciones)
-                        </button>
-                    </form>
-
                     <div class="d-flex gap-2 mt-2">
                         <a href="/cajero/validar" class="btn btn-danger flex-fill" style="font-size:0.82rem;"
                            title="No entregar: no se registra nada y la reserva sigue pendiente">
@@ -453,20 +439,6 @@
                         <button class="btnPrincipal btn btn-lg fw-bold" style="background:#2980b9; color:#fff;"
                                 title="Registrar la entrega de esta ración reservada">
                             <i class="fa-solid fa-check me-2"></i>Entregar reserva
-                        </button>
-                    </form>
-
-                    <form th:if="${grupoEscaneado != null}" th:action="@{/cajero/entregar-reserva-masiva}"
-                          method="post" class="d-grid mt-2"
-                          th:attr="data-titulo='Entregar el grupo ' + ${grupoEscaneado},
-                                   data-confirmar='Este residente pertenece a una RESERVA MASIVA: las ' + ${grupoCantidad} + ' raciones pendientes del grupo quedarán entregadas de una sola vez.',
-                                   data-estilo='exito',
-                                   data-boton='Sí, entregar todo el grupo'">
-                        <input type="hidden" name="grupo" th:value="${grupoEscaneado}">
-                        <button class="btn fw-bold" style="background:#16a085; color:#fff;"
-                                th:title="'Entregar de un clic las ' + ${grupoCantidad} + ' raciones del grupo'">
-                            <i class="fa-solid fa-people-carry-box me-1"></i>Entregar masivamente
-                            (<span th:text="${grupoCantidad}">5</span> raciones)
                         </button>
                     </form>
 

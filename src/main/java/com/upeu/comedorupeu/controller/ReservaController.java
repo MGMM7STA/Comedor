@@ -78,7 +78,7 @@ public class ReservaController {
                 flash.addFlashAttribute("error", "Esa reserva no existe o no pertenece a tu residencia.");
                 return "redirect:/admin/reservas";
             }
-            if (!"PENDIENTE".equals(s.getEstado()) || s.estaVencida()) {
+            if (!reglasComidaService.sePuedeTocar(s)) {
                 flash.addFlashAttribute("error", "Esa reserva ya no se puede editar: "
                         + "o fue entregada, o fue cancelada, o su turno ya pasó.");
                 return "redirect:/admin/reservas";
@@ -88,7 +88,6 @@ public class ReservaController {
 
         model.addAttribute("comidasBloqueadas", turnoService.comidasBloqueadasHoy());
         model.addAttribute("residenciaFija", alcance.residenciaGenero());
-        model.addAttribute("misReservas", ultimasReservas(alcance));
         return "preceptor/reservas";
     }
 
@@ -102,7 +101,7 @@ public class ReservaController {
             flash.addFlashAttribute("error", "Esa reserva no existe o no pertenece a tu residencia.");
             return "redirect:/admin/reservas";
         }
-        if (!"PENDIENTE".equals(s.getEstado()) || s.estaVencida()) {
+        if (!reglasComidaService.sePuedeTocar(s)) {
             flash.addFlashAttribute("error", "Esa reserva ya no se puede editar: "
                     + "o fue entregada, o fue cancelada, o su turno ya pasó.");
             return "redirect:/admin/reservas";
@@ -222,7 +221,6 @@ public class ReservaController {
         Usuario quien = usuarioRepo.findByCorreo(auth.getName());
         AlcanceDatos alcance = alcanceService.de(auth);
 
-        String grupo = null;
         java.util.Set<String> traenTaper = new java.util.HashSet<>();
         if (conTaper != null && !conTaper.isBlank()) {
             for (String c : conTaper.split(",")) traenTaper.add(c.trim());
@@ -270,7 +268,6 @@ public class ReservaController {
                             ? "Reserva registrada por preceptoría" : motivo.trim());
                 }
                 s.setEstado("PENDIENTE");
-                s.setGrupoLote(grupo);
                 s.setTraeTaper(traenTaper.contains(codigo));
                 solicitudRepo.save(s);
                 creadas++;
@@ -280,13 +277,8 @@ public class ReservaController {
                 ? "para el " + fechas.get(0)
                 : "repartidas en " + fechas.size() + " días (" + fechas.stream()
                         .map(LocalDate::toString).collect(java.util.stream.Collectors.joining(", ")) + ")";
-        String msg = creadas + " ración(es) reservada(s) " + dondeVa + " (" + tipoComida.toLowerCase() + ")";
-        if (grupo != null) {
-            msg += " — RESERVA MASIVA, grupo " + grupo + ". Al escanear a cualquiera del grupo,"
-                    + " el cajero podrá entregar todas sus raciones de un solo clic.";
-        } else {
-            msg += " como reservas individuales (el cajero las entrega una por una).";
-        }
+        String msg = creadas + " ración(es) reservada(s) " + dondeVa + " (" + tipoComida.toLowerCase() + ")"
+                + ". El cajero las entrega una por una al escanear a cada residente.";
         if (repetidas > 0) msg += " " + repetidas + " ya tenían reserva en ese turno y se omitieron.";
         if (yaComieron > 0) {
             msg += " " + yaComieron + " se omitieron porque YA INGRESARON a ese turno: "
@@ -352,9 +344,7 @@ public class ReservaController {
 
         java.util.Map<Long, Boolean> puedeCancelar = new java.util.HashMap<>();
         for (SolicitudExtemporanea s : lista) {
-            boolean pendiente = "PENDIENTE".equals(s.getEstado());
-            boolean noPaso = !turnoService.turnoYaOcurrio(s.getTipoComida(), s.getFecha());
-            puedeCancelar.put(s.getIdSolicitud(), pendiente && noPaso);
+            puedeCancelar.put(s.getIdSolicitud(), reglasComidaService.sePuedeTocar(s));
         }
         model.addAttribute("puedeCancelar", puedeCancelar);
 

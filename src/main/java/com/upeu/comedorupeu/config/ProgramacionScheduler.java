@@ -48,6 +48,11 @@ public class ProgramacionScheduler {
         this.agendaService = agendaService;
     }
 
+    @Transactional
+    public void ponerAlDia() {
+        aplicarAgenda();
+    }
+
     @Scheduled(fixedRate = 60000, initialDelay = 15000)
     @Transactional
     public void aplicarAgenda() {
@@ -57,6 +62,9 @@ public class ProgramacionScheduler {
 
         huboCambios |= aplicarTurnos(hoyDia, ahora);
         huboCambios |= aplicarPuntos(hoyDia, ahora);
+        huboCambios |= cerrarManualesDelMismoOperador();
+        huboCambios |= cerrarTurnosHuerfanos(hoyDia, ahora);
+        huboCambios |= asegurarTurnoDeLosAbiertos();
 
         if (huboCambios) cambios.tick();
     }
@@ -106,6 +114,7 @@ public class ProgramacionScheduler {
                 cambio = true;
             } else if (!dentro && "ACTIVO".equals(turno.getEstado())) {
 
+                if (atendidoPorAlguienAbierto(tipo)) continue;
                 turno.setEstado("CERRADO");
                 turnoRepo.save(turno);
                 cambio = true;
@@ -161,22 +170,7 @@ public class ProgramacionScheduler {
 
             if (debeAbrir && !punto.isOperativo()) {
 
-                if (actual.getCajero() != null) {
-                    for (PuntoAtencion otro : puntoRepo.vigentes()) {
-                        if (otro.getIdPunto().equals(punto.getIdPunto())) continue;
-                        if (!otro.isOperativo() || otro.getCajero() == null) continue;
-                        if (!otro.getCajero().getIdUsuario().equals(actual.getCajero().getIdUsuario())) continue;
-
-                        otro.setActivo(false);
-                        otro.setTurnoManual(null);
-                        otro.setUltimaAccionManual(null);
-                        puntoRepo.save(otro);
-                        System.out.println(">> " + otro.getNombre() + " se cerró: su operador pasa a "
-                                + punto.getNombre() + " por la programación de las "
-                                + actual.getHoraInicio() + ".");
-                    }
-                }
-
+                liberarOtroPuntoDe(actual, punto);
                 turnoService.abrirPorAgenda(actual.getTipoTurno());
 
                 punto.setModo("HORARIO");
@@ -186,6 +180,29 @@ public class ProgramacionScheduler {
                 punto.setHoraFin(actual.getHoraFin());
                 if (actual.getCajero() != null) punto.setCajero(actual.getCajero());
                 puntoRepo.save(punto);
+                cambio = true;
+            } else if (debeAbrir && (cambiaDeTurno(punto, actual) || cambioDeOperador(punto, actual))) {
+
+                String servia = turnoService.turnoQueLeTocaA(punto);
+                liberarOtroPuntoDe(actual, punto);
+
+                punto.setModo("HORARIO");
+                punto.setTurnoManual(null);
+                punto.setUltimaAccionManual(null);
+                punto.setHoraInicio(actual.getHoraInicio());
+                punto.setHoraFin(actual.getHoraFin());
+                if (actual.getCajero() != null) punto.setCajero(actual.getCajero());
+                puntoRepo.save(punto);
+
+                turnoService.abrirPorAgenda(actual.getTipoTurno());
+                if (servia != null && !servia.equals(actual.getTipoTurno())
+                        && !atendidoPorAlguienAbierto(servia) && turnoService.cerrarPorRelevo(servia)) {
+                    System.out.println(">> Se cerró el " + servia.toLowerCase() + ": ya nadie lo atiende.");
+                }
+                System.out.println(">> " + punto.getNombre() + " ya estaba abierto y pasó a "
+                        + actual.getTipoTurno().toLowerCase() + " con "
+                        + (actual.getCajero() != null ? actual.getCajero().getNombreCompleto() : "su mismo operador")
+                        + " por la programación de las " + actual.getHoraInicio() + ".");
                 cambio = true;
             } else if (!debeAbrir && Boolean.TRUE.equals(punto.getActivo())) {
 
@@ -198,6 +215,132 @@ public class ProgramacionScheduler {
                         && nadieMasAtiende(celdaPasada.getTipoTurno(), punto.getIdPunto(), ahora)) {
                     turnoService.cerrarPorAgenda(celdaPasada.getTipoTurno());
                 }
+                cambio = true;
+            }
+        }
+        return cambio;
+    }
+
+    private boolean cambiaDeTurno(PuntoAtencion punto, ProgramacionHorario celda) {
+        if (celda.getTipoTurno() == null) return false;
+        return !celda.getTipoTurno().equals(turnoService.turnoQueLeTocaA(punto));
+    }
+
+    private boolean cambioDeOperador(PuntoAtencion punto, ProgramacionHorario celda) {
+        if (celda.getCajero() == null) return false;
+        if (punto.getCajero() == null) return true;
+        return !punto.getCajero().getIdUsuario().equals(celda.getCajero().getIdUsuario());
+    }
+
+    private void liberarOtroPuntoDe(ProgramacionHorario celda, PuntoAtencion destino) {
+        if (celda.getCajero() == null) return;
+        for (PuntoAtencion otro : puntoRepo.vigentes()) {
+            if (otro.getIdPunto().equals(destino.getIdPunto())) continue;
+            if (!otro.isOperativo() || otro.getCajero() == null) continue;
+            if (!otro.getCajero().getIdUsuario().equals(celda.getCajero().getIdUsuario())) continue;
+
+            String servia = turnoService.turnoQueLeTocaA(otro);
+            otro.setActivo(false);
+            otro.setTurnoManual(null);
+            otro.setUltimaAccionManual(null);
+            puntoRepo.save(otro);
+            System.out.println(">> " + otro.getNombre() + " se cerró: su operador pasa a "
+                    + destino.getNombre() + " por la programación de las " + celda.getHoraInicio() + ".");
+
+            if (servia != null && !servia.equals(celda.getTipoTurno()) && !atendidoPorAlguienAbierto(servia)
+                    && turnoService.cerrarPorRelevo(servia)) {
+                System.out.println(">> Se cerró el " + servia.toLowerCase()
+                        + ": ya nadie lo estaba atendiendo.");
+            }
+        }
+    }
+
+    private boolean atendidoPorAlguienAbierto(String tipo) {
+        for (PuntoAtencion p : puntoRepo.vigentes()) {
+            if (!p.isOperativo()) continue;
+            if (tipo.equals(turnoService.turnoQueLeTocaA(p))) return true;
+        }
+        return false;
+    }
+
+    private boolean cerrarManualesDelMismoOperador() {
+        boolean cambio = false;
+        for (PuntoAtencion porAgenda : puntoRepo.vigentes()) {
+            if (!porAgenda.isOperativo() || porAgenda.getCajero() == null) continue;
+            if (!"HORARIO".equals(porAgenda.getModo())) continue;
+
+            for (PuntoAtencion otro : puntoRepo.vigentes()) {
+                if (otro.getIdPunto().equals(porAgenda.getIdPunto())) continue;
+                if (!otro.isOperativo() || otro.getCajero() == null) continue;
+                if ("HORARIO".equals(otro.getModo())) continue;
+                if (!otro.getCajero().getIdUsuario().equals(porAgenda.getCajero().getIdUsuario())) continue;
+
+                String servia = turnoService.turnoQueLeTocaA(otro);
+                otro.setActivo(false);
+                otro.setTurnoManual(null);
+                otro.setUltimaAccionManual(null);
+                puntoRepo.save(otro);
+                System.out.println(">> " + otro.getNombre() + " se cerró: "
+                        + porAgenda.getCajero().getNombreCompleto() + " ya está atendiendo en "
+                        + porAgenda.getNombre() + " por la programación.");
+
+                if (servia != null && !atendidoPorAlguienAbierto(servia) && turnoService.cerrarPorRelevo(servia)) {
+                    System.out.println(">> Se cerró el " + servia.toLowerCase() + ": ya nadie lo atiende.");
+                }
+                cambio = true;
+            }
+        }
+        return cambio;
+    }
+
+    private boolean cerrarTurnosHuerfanos(int hoyDia, LocalTime ahora) {
+        boolean cambio = false;
+        for (Turno t : turnoService.turnosDeHoy()) {
+            if (!"ACTIVO".equals(t.getEstado())) continue;
+            if (atendidoPorAlguienAbierto(t.getTipo())) continue;
+            if (ventanaDelTurnoCubre(t.getTipo(), hoyDia, ahora)) continue;
+
+            if (turnoService.cerrarPorRelevo(t.getTipo())) {
+                System.out.println(">> Se cerró el " + t.getTipo().toLowerCase()
+                        + ": ninguna entrada lo está atendiendo.");
+                cambio = true;
+            }
+        }
+        return cambio;
+    }
+
+    private boolean ventanaDelTurnoCubre(String tipo, int hoyDia, LocalTime ahora) {
+        LocalTime ini = null, fin = null;
+        ProgramacionHorario celda = programacionRepo
+                .findFirstByObjetivoAndTipoTurnoAndDiaSemana("TURNO", tipo, hoyDia).orElse(null);
+        if (celda != null && (celda.getHoraInicio() != null || celda.getHoraFin() != null)) {
+            ini = celda.getHoraInicio();
+            fin = celda.getHoraFin();
+        } else {
+            ConfigTurno cfg = configRepo.findByTipo(tipo).orElse(null);
+            if (cfg != null && Boolean.TRUE.equals(cfg.getUsarHorario())
+                    && (cfg.getHoraInicio() != null || cfg.getHoraFin() != null)) {
+                ini = cfg.getHoraInicio();
+                fin = cfg.getHoraFin();
+            }
+        }
+        if (ini == null && fin == null) return false;
+        if (ini == null) return !ahora.isAfter(fin);
+        LocalTime vFin = (fin != null) ? fin : LocalTime.MAX;
+        return !ahora.isBefore(ini) && !ahora.isAfter(vFin);
+    }
+
+    private boolean asegurarTurnoDeLosAbiertos() {
+        boolean cambio = false;
+        for (PuntoAtencion punto : puntoRepo.vigentes()) {
+            if (!punto.isOperativo()) continue;
+            if (turnoService.turnoActivoDe(punto).isPresent()) continue;
+
+            String tipo = turnoService.turnoQueLeTocaA(punto);
+            if (tipo == null) continue;
+            if (turnoService.activarPorPuntoAbierto(tipo)) {
+                System.out.println(">> " + punto.getNombre() + " estaba abierto sin turno: se activó "
+                        + tipo.toLowerCase() + " para que su cajero pueda atender.");
                 cambio = true;
             }
         }

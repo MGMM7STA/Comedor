@@ -59,6 +59,19 @@ public class VigenciaService {
                 .findFirst().orElse(null);
     }
 
+    public String estadoEnElDia(Residente r, LocalDate fecha) {
+        if (r == null || r.getIdResidente() == null || fecha == null) return null;
+        String encontrado = null;
+        for (PeriodoInactivo p : periodoRepo.findByResidenteIdResidenteOrderByDesdeAsc(r.getIdResidente())) {
+            if (p.getDesde() == null) continue;
+            if (p.getDesde().toLocalDate().isAfter(fecha)) continue;
+            if (p.getHasta() != null && !p.getHasta().toLocalDate().isAfter(fecha)) continue;
+            if ("BORRADO".equals(p.getMotivo())) return "BORRADO";
+            encontrado = "INACTIVO";
+        }
+        return encontrado;
+    }
+
     public String estadoEn(Residente r, LocalDate fecha, java.time.LocalTime hora) {
         if (r == null || r.getIdResidente() == null) return null;
         LocalDateTime momento = fecha.atTime(hora == null ? java.time.LocalTime.NOON : hora);

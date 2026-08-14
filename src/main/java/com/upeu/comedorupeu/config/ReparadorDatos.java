@@ -35,14 +35,56 @@ public class ReparadorDatos implements CommandLineRunner {
         this.imagenService = imagenService;
     }
 
+    private com.upeu.comedorupeu.repository.ProgramacionHorarioRepository horarioRepo;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setHorarioRepo(com.upeu.comedorupeu.repository.ProgramacionHorarioRepository horarioRepo) {
+        this.horarioRepo = horarioRepo;
+    }
+
     @Override
     public void run(String... args) {
+        revisarCajerosDelHorario();
+
         List<Residente> todos = residenteRepo.findAll();
         if (todos.isEmpty()) return;
 
         sellarFechasDeRegistro(todos);
         renombrarFotos(todos);
         normalizarCarreras(todos);
+    }
+
+    private void revisarCajerosDelHorario() {
+        if (horarioRepo == null) return;
+        java.util.List<String> huerfanas = new java.util.ArrayList<>();
+
+        for (var celda : horarioRepo.findByObjetivo(com.upeu.comedorupeu.services.AgendaService.CELDA)) {
+            if (celda.getFecha() != null) continue;
+            if (!Boolean.TRUE.equals(celda.getActivo())) continue;
+            if (celda.getHoraInicio() == null || celda.getHoraFin() == null) continue;
+            if (celda.getCajero() != null) continue;
+            if (celda.getPunto() != null && celda.getPunto().getCajero() != null) continue;
+
+            huerfanas.add(nombreDia(celda.getDiaSemana()) + " "
+                    + (celda.getTipoTurno() == null ? "?" : celda.getTipoTurno()) + " "
+                    + celda.getRangoTexto() + " en "
+                    + (celda.getPunto() == null ? "(punto borrado)" : celda.getPunto().getNombre()));
+        }
+
+        if (huerfanas.isEmpty()) return;
+
+        System.out.println(">> OJO: " + huerfanas.size() + " casilla(s) del horario base abren el punto "
+                + "sin ningún cajero asignado, así que ese turno queda sin quien atienda:");
+        for (String h : huerfanas) {
+            System.out.println(">>   " + h);
+        }
+        System.out.println(">>   Entra a Programar, elige ese día y asígnale personal. "
+                + "No se tocó ningún dato: esto es solo un aviso.");
+    }
+
+    private String nombreDia(Integer dia) {
+        if (dia == null || dia < 1 || dia > 7) return "(día ?)";
+        return new String[]{"Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"}[dia - 1];
     }
 
     private void normalizarCarreras(List<Residente> todos) {

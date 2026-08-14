@@ -79,15 +79,15 @@
                         <i class="fa-solid fa-copy me-1"></i>Copiar Día
                     </button>
                 </form>
-                <form th:if="${diaCopiado != null && diaCopiado != diaSel}"
+                <form th:if="${fechaCopiada != null && fechaCopiada != fechaSel}"
                       th:action="@{/admin/programar/pegar-dia}" method="post" style="margin:0;"
-                      th:attr="data-titulo='Pegar la programación de los ' + ${dias[diaCopiado - 1]},
-                               data-confirmar='Los horarios y el personal de los ' + ${dias[diaCopiado - 1]} + ' se copiarán sobre los ' + ${dias[diaSel - 1]} + ', reemplazando lo que tengan programado.',
-                               data-boton='Sí, pegar aquí'">
+                      th:attr="data-titulo='Pegar el ' + ${fechaCopiada} + ' sobre el ' + ${fechaSel},
+                               data-confirmar='Este día quedará EXACTAMENTE igual al ' + ${fechaCopiada} + '. Las entradas que tenga aquí y no estén allá se quitarán de este día. El horario base de la semana no se toca.',
+                               data-boton='Sí, dejarlo igual'">
                     <input type="hidden" name="diaSemana" th:value="${diaSel}">
                             <input type="hidden" name="fecha" th:value="${fechaSel}">
                     <button class="btn btn-sm-flat" style="background:#16a085; color:#fff;"
-                            th:title="'Pegar aquí lo copiado de los ' + ${dias[diaCopiado - 1]}">
+                            th:title="'Dejar este día exactamente igual al ' + ${fechaCopiada}">
                         <i class="fa-solid fa-paste me-1"></i>Pegar Día
                         (<span th:text="${dias[diaCopiado - 1]}">Lunes</span>)
                     </button>
@@ -205,29 +205,45 @@
                         </div>
 
                         <div class="px-2 pt-2"
-                             th:with="esHeredada=${celda != null && heredada.get(tipo + '-' + p.idPunto)},
-                                      conHorario=${celda != null && celda.horaInicio != null && celda.horaFin != null}">
-                            <span class="badge-estado w-100 text-center d-block bg-ausente"
-                                  style="font-size:0.66rem;" th:unless="${conHorario}"
-                                  title="Todavía no hay horario guardado para esta entrada en este turno">
-                                <i class="fa-solid fa-circle-minus"></i> Sin guardar
+                             th:with="cAjuste=${ajuste.get(tipo + '-' + p.idPunto)},
+                                      cBase=${base.get(tipo + '-' + p.idPunto)},
+                                      fueQuitada=${quitadaEseDia.containsKey(tipo + '-' + p.idPunto)}">
+
+                            <span class="badge-estado w-100 text-center d-block bg-permitido"
+                                  style="font-size:0.66rem;"
+                                  th:if="${cAjuste != null and cAjuste.horaInicio != null}"
+                                  title="Lo cambiaste solo para este día. Este horario manda sobre el horario base.">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span th:text="'Cambiado este día · ' + ${#temporals.format(cAjuste.horaInicio, 'HH:mm')}
+                                               + ' a ' + ${#temporals.format(cAjuste.horaFin, 'HH:mm')}">Cambiado</span>
+                            </span>
+
+                            <span class="badge-estado w-100 text-center d-block bg-denegado"
+                                  style="font-size:0.66rem;" th:if="${fueQuitada}"
+                                  title="Quitaste esta entrada solo para este día: no abrirá, aunque el horario base la incluya.">
+                                <i class="fa-solid fa-ban"></i> Quitada este día
                             </span>
 
                             <span class="badge-estado w-100 text-center d-block bg-pendiente"
-                                  style="font-size:0.66rem;" th:if="${conHorario and esHeredada}"
-                                  title="Viene de la plantilla semanal. Si la guardas, quedará fijada solo para este día.">
-                                <i class="fa-solid fa-clone"></i>
-                                <span th:text="'De plantilla · ' + ${#temporals.format(celda.horaInicio, 'HH:mm')}
-                                               + ' a ' + ${#temporals.format(celda.horaFin, 'HH:mm')}">De plantilla</span>
+                                  style="font-size:0.66rem;"
+                                  th:if="${cAjuste == null and !fueQuitada and cBase != null and cBase.horaInicio != null}"
+                                  title="No hay ningún ajuste tuyo para este día: se aplica el horario base.">
+                                <i class="fa-solid fa-clone"></i> Sigue el horario base
                             </span>
 
-                            <span class="badge-estado w-100 text-center d-block bg-permitido"
-                                  style="font-size:0.66rem;" th:if="${conHorario and !esHeredada}"
-                                  title="Guardada solo para este día concreto">
-                                <i class="fa-solid fa-circle-check"></i>
-                                <span th:text="'Guardada este día · ' + ${#temporals.format(celda.horaInicio, 'HH:mm')}
-                                               + ' a ' + ${#temporals.format(celda.horaFin, 'HH:mm')}">Guardada</span>
+                            <span class="badge-estado w-100 text-center d-block bg-ausente estado-celda"
+                                  style="font-size:0.66rem;"
+                                  th:if="${cAjuste == null and !fueQuitada and (cBase == null or cBase.horaInicio == null)}"
+                                  title="Esta entrada no atiende este turno: ni hay horario base ni ajuste para este día.">
+                                <i class="fa-solid fa-circle-minus"></i> Sin programar
                             </span>
+
+                            <div th:if="${cAjuste == null and !fueQuitada and cBase != null and cBase.horaInicio != null}"
+                                 class="mt-1" style="font-size:0.66rem; color:#5d6d7b; line-height:1.35;">
+                                <strong>Ese día abrirá y cerrará con este horario.</strong>
+                                Sale del <span th:text="'horario base de los ' + ${diaPlural}">horario base</span>,
+                                el que fijaste con la casilla. Si lo cambias aquí, el cambio valdrá solo para ese día.
+                            </div>
                         </div>
 
                         <form th:action="@{/admin/programar/celda}" method="post" class="p-2">
@@ -236,14 +252,26 @@
                             <input type="hidden" name="diaSemana" th:value="${diaSel}">
                             <input type="hidden" name="fecha" th:value="${fechaSel}">
 
-                            <fieldset th:disabled="${diaPasado || quitada}" style="border:none; padding:0; margin:0;">
+                            <fieldset th:disabled="${diaPasado || quitada}" style="border:none; padding:0; margin:0;"
+                                      th:with="cAjuste=${ajuste.get(tipo + '-' + p.idPunto)},
+                                               cBase=${base.get(tipo + '-' + p.idPunto)},
+                                               cVer=${cAjuste != null ? cAjuste : cBase},
+                                               soloBase=${cAjuste == null and cBase != null and cBase.horaInicio != null}"
+                                      th:attr="data-base-inicio=${cBase != null and cBase.horaInicio != null}
+                                                                 ? ${#temporals.format(cBase.horaInicio, 'HH:mm')} : '',
+                                               data-base-fin=${cBase != null and cBase.horaFin != null}
+                                                              ? ${#temporals.format(cBase.horaFin, 'HH:mm')} : '',
+                                               data-base-cajero=${cBase != null and cBase.cajero != null}
+                                                                 ? ${cBase.cajero.idUsuario} : '',
+                                               data-solo-base=${soloBase} ? '1' : '0'">
                                 <div class="d-flex align-items-center gap-1 mb-1">
                                     <i class="fa-solid fa-user" style="color:#8a97a3; font-size:0.75rem; width:14px;"></i>
                                     <select name="idCajero" class="form-select form-select-sm" style="font-size:0.74rem;"
+                                            th:style="${soloBase} ? 'font-size:0.74rem; color:#8a97a3; font-style:italic;' : 'font-size:0.74rem;'"
                                             th:title="'Asigna un empleado para ' + ${p.nombre} + ' en el ' + ${#strings.toLowerCase(tipo)}">
                                         <option value="">— Asignar personal —</option>
                                         <option th:each="c : ${cajeros}" th:value="${c.idUsuario}"
-                                                th:selected="${celda != null && celda.cajero != null && celda.cajero.idUsuario == c.idUsuario}"
+                                                th:selected="${cVer != null && cVer.cajero != null && cVer.cajero.idUsuario == c.idUsuario}"
                                                 th:text="${c.nombreCompleto}">Carlos Mamani</option>
                                     </select>
                                 </div>
@@ -251,11 +279,13 @@
                                     <i class="fa-regular fa-clock" style="color:#8a97a3; font-size:0.75rem; width:14px;"></i>
 
                                     <input type="time" name="horaInicio" class="form-control form-control-sm auto-guardar"
-                                           style="font-size:0.74rem;" th:value="${celda != null} ? ${celda.horaInicio} : null"
+                                           th:style="${soloBase} ? 'font-size:0.74rem; color:#8a97a3; font-style:italic;' : 'font-size:0.74rem;'"
+                                           th:value="${cVer != null} ? ${cVer.horaInicio} : null"
                                            title="Hora en que empieza a atender (se guarda sola al elegirla)">
                                     <span style="font-size:0.7rem; color:#8a97a3;">a</span>
                                     <input type="time" name="horaFin" class="form-control form-control-sm auto-guardar"
-                                           style="font-size:0.74rem;" th:value="${celda != null} ? ${celda.horaFin} : null"
+                                           th:style="${soloBase} ? 'font-size:0.74rem; color:#8a97a3; font-style:italic;' : 'font-size:0.74rem;'"
+                                           th:value="${cVer != null} ? ${cVer.horaFin} : null"
                                            title="Hora en que deja de atender (se guarda sola al elegirla)">
                                 </div>
                                 <label class="d-block mb-1" style="cursor:pointer; font-size:0.66rem; color:#5d6d7b;">
@@ -270,7 +300,8 @@
 
                                     <button type="submit" class="btn btn-outline-danger btn-sm" style="font-size:0.7rem;"
                                             onclick="this.form.horaInicio.value=''; this.form.horaFin.value='';"
-                                            th:if="${celda != null && !quitada}" title="Borrar la programación de esta casilla">
+                                            th:if="${cAjuste != null && !quitada}"
+                                            title="Quitar el cambio de este día y volver al horario base">
                                         <i class="fa-solid fa-trash"></i>
                                     </button>
                                 </div>
@@ -319,8 +350,10 @@
 <script>
 
     function diaActual() {
-        const campo = document.querySelector('input[name="diaSemana"]');
-        return campo ? campo.value : '0';
+        const campo = document.querySelector('input[name="fecha"]');
+        if (campo && campo.value) return campo.value;
+        const respaldo = document.querySelector('input[name="diaSemana"]');
+        return respaldo ? respaldo.value : '0';
     }
 
     function claveAbiertas() {
@@ -386,7 +419,10 @@
         const nombre = combo.value;
         if (!nombre) return;
         const tarjeta = document.querySelector('.tarjeta-celda[data-turno="' + turno + '"][data-nombre="' + nombre + '"]');
-        if (tarjeta) tarjeta.classList.remove('d-none');
+        if (tarjeta) {
+            tarjeta.classList.remove('d-none');
+            heredarDelTurno(tarjeta);
+        }
         recordarEntrada(turno, nombre);
         combo.querySelector('option[value="' + nombre + '"]').remove();
         combo.value = '';
@@ -395,19 +431,72 @@
         }
     }
 
-    function heredarPlantilla() {
-        document.querySelectorAll('.tarjeta-celda[data-prog="0"]').forEach(t => {
-            const plantilla = document.getElementById('formTurno-' + t.dataset.turno);
-            if (!plantilla) return;
-            const pIni = plantilla.querySelector('input[name="horaInicio"]');
-            const pFin = plantilla.querySelector('input[name="horaFin"]');
-            const ini = t.querySelector('input[name="horaInicio"]');
-            const fin = t.querySelector('input[name="horaFin"]');
+    function heredarDelTurno(tarjeta) {
+        const grupo = tarjeta.querySelector('fieldset');
+        if (!grupo) return;
+        const ini = grupo.querySelector('input[name="horaInicio"]');
+        const fin = grupo.querySelector('input[name="horaFin"]');
+        if (!ini || !fin || ini.value || fin.value) return;
 
-            if (ini && !ini.value && pIni) { ini.value = pIni.value; ini.defaultValue = pIni.value; }
-            if (fin && !fin.value && pFin) { fin.value = pFin.value; fin.defaultValue = pFin.value; }
-        });
+        const delTurno = document.getElementById('formTurno-' + tarjeta.dataset.turno);
+        if (!delTurno) return;
+        const pIni = delTurno.querySelector('input[name="horaInicio"]');
+        const pFin = delTurno.querySelector('input[name="horaFin"]');
+        if (!pIni || !pIni.value || !pFin || !pFin.value) return;
+
+        ini.value = pIni.value;
+        fin.value = pFin.value;
+        grupo.dataset.sugerido = '1';
+
+        const etiqueta = tarjeta.querySelector('.estado-celda');
+        if (etiqueta) {
+            etiqueta.classList.remove('bg-ausente');
+            etiqueta.classList.add('bg-pendiente');
+            etiqueta.innerHTML = '<i class="fa-solid fa-clone"></i> Sin guardar · heredado de la plantilla';
+            etiqueta.title = 'Estas horas vienen del Horario del turno de arriba. '
+                + 'No están guardadas todavía: pulsa Guardar para que valgan este día.';
+        }
     }
+
+    function traerSugerido(grupo) {
+        if (!grupo || grupo.dataset.sugerido === '1') return;
+        const ini = grupo.querySelector('input[name="horaInicio"]');
+        const fin = grupo.querySelector('input[name="horaFin"]');
+        const caj = grupo.querySelector('select[name="idCajero"]');
+        const tarjeta = grupo.closest('.tarjeta-celda');
+        const delTurno = tarjeta ? document.getElementById('formTurno-' + tarjeta.dataset.turno) : null;
+
+        const sugIni = grupo.dataset.baseInicio
+            || (delTurno ? delTurno.querySelector('input[name="horaInicio"]').value : '');
+        const sugFin = grupo.dataset.baseFin
+            || (delTurno ? delTurno.querySelector('input[name="horaFin"]').value : '');
+
+        if (ini && !ini.value && sugIni) ini.value = sugIni;
+        if (fin && !fin.value && sugFin) fin.value = sugFin;
+        if (caj && !caj.value && grupo.dataset.baseCajero) caj.value = grupo.dataset.baseCajero;
+        grupo.dataset.sugerido = '1';
+    }
+
+    document.addEventListener('change', function (e) {
+        const campo = e.target;
+        if (!campo.matches) return;
+        if (!campo.matches('input[name="horaInicio"], input[name="horaFin"], select[name="idCajero"]')) return;
+        traerSugerido(campo.closest('fieldset'));
+    }, true);
+
+    document.addEventListener('submit', function (e) {
+        const f = e.target;
+        if (!f || !f.action || f.action.indexOf('/programar/celda') < 0) return;
+        const ini = f.querySelector('input[name="horaInicio"]');
+        const fin = f.querySelector('input[name="horaFin"]');
+        if (!ini || !fin) return;
+        if ((ini.value && !fin.value) || (!ini.value && fin.value)) {
+            e.preventDefault();
+            e.stopPropagation();
+            avisoSistema('Falta una de las dos horas. Pon la de inicio y la de fin, '
+                + 'o deja las dos vacías para quitar el cambio de este día.', 'Horario incompleto');
+        }
+    }, true);
 
     document.addEventListener('submit', function (e) {
         const f = e.target;
@@ -426,9 +515,8 @@
     }, true);
 
     iniciarZonas();
-    heredarPlantilla();
 
-    window.alRefrescar = function () { iniciarZonas(); heredarPlantilla(); };
+    window.alRefrescar = function () { iniciarZonas(); };
 </script>
 
 </body>

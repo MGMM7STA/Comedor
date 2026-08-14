@@ -76,6 +76,13 @@ public class TurnoService {
         this.agendaService = agendaService;
     }
 
+    public String turnoQueLeTocaA(com.upeu.comedorupeu.models.PuntoAtencion punto) {
+        if (punto == null) return null;
+        String elegido = selloEsDeOtroDia(punto.getUltimaAccionManual()) ? null : punto.getTurnoManual();
+        if (elegido != null && !elegido.isBlank()) return elegido;
+        return turnoDeLaAgendaDe(punto);
+    }
+
     private String turnoDeLaAgendaDe(com.upeu.comedorupeu.models.PuntoAtencion punto) {
         java.time.LocalTime ahora = java.time.LocalTime.now();
         for (var celda : agendaService.listaDe(LocalDate.now(), punto.getIdPunto())) {
@@ -146,6 +153,32 @@ public class TurnoService {
             if (!t.getTipo().equals(tipo)) continue;
             if ("ACTIVO".equals(t.getEstado())) return false;
             t.setEstado("ACTIVO");
+            turnoRepo.save(t);
+            return true;
+        }
+        return false;
+    }
+
+    @Transactional
+    public boolean activarPorPuntoAbierto(String tipo) {
+        for (Turno t : turnosDeHoy()) {
+            if (!t.getTipo().equals(tipo)) continue;
+            if ("ACTIVO".equals(t.getEstado())) return false;
+            t.setEstado("ACTIVO");
+            t.setUltimaAccionManual(null);
+            turnoRepo.save(t);
+            return true;
+        }
+        return false;
+    }
+
+    @Transactional
+    public boolean cerrarPorRelevo(String tipo) {
+        for (Turno t : turnosDeHoy()) {
+            if (!t.getTipo().equals(tipo)) continue;
+            if (!"ACTIVO".equals(t.getEstado())) return false;
+            t.setEstado("CERRADO");
+            t.setUltimaAccionManual(null);
             turnoRepo.save(t);
             return true;
         }

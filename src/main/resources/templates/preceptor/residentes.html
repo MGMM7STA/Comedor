@@ -326,6 +326,56 @@
 
     let dietaMinimo = '';
 
+    const dietas = /*[[${dietas}]]*/ [];
+
+    function textoSeguro(t) {
+        return String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function pintarDietasDe(idResidente) {
+        const caja = document.getElementById('dietasActuales');
+        const suyas = dietas.filter(d => d.residente === idResidente);
+        if (suyas.length === 0) {
+            caja.innerHTML = '<div style="font-size:0.74rem; color:#8a97a3;">'
+                + 'Este residente no tiene ninguna dieta registrada.</div>';
+            return;
+        }
+        let html = '<div class="lbl">Dietas ya registradas</div>';
+        suyas.forEach(d => {
+            const comidas = d.comidas.length;
+            html += '<div class="p-2 rounded mb-1" style="border:1px solid #e3e9ee; background:'
+                + (d.terminada ? '#f7f9fb' : '#eafaf1') + ';">'
+                + '<div style="font-size:0.76rem; font-weight:700;">'
+                + d.desde + ' al ' + d.hasta
+                + ' <span style="font-weight:400; color:#8a97a3;">· ' + comidas + ' comida(s)'
+                + (d.terminada ? ' · ya terminó' : '') + '</span></div>';
+            if (d.indicacion) {
+                html += '<div style="font-size:0.72rem; color:#5d6d7b;">' + textoSeguro(d.indicacion) + '</div>';
+            }
+            if (d.evidencia) {
+                html += '<a href="' + d.evidencia + '" target="_blank" '
+                    + 'style="font-size:0.7rem;">Ver la foto de la indicación médica</a><br>';
+            }
+            if (!d.terminada) {
+                html += '<button type="button" class="btn btn-success btn-sm mt-1 me-1" style="font-size:0.68rem;" '
+                    + 'onclick="editarDieta(' + d.id + ')" '
+                    + 'title="Corregir esta dieta sin borrarla">Editar</button>';
+            }
+            html += '<button type="button" class="btn btn-danger btn-sm mt-1" style="font-size:0.68rem;" '
+                + 'onclick="borrarDieta(' + d.id + ')" '
+                + 'title="Eliminar esta dieta por completo">Eliminar</button>'
+                + '</div>';
+        });
+        caja.innerHTML = html;
+    }
+
+    function borrarDieta(idDieta) {
+        const f = document.getElementById('formBorrarDieta');
+        f.action = '/preceptor/raciones-especiales/' + idDieta + '/eliminar';
+        f.requestSubmit();
+    }
+
     function abrirDieta(id, nombre, ingreso) {
         const modal = document.getElementById('modalDieta');
         const form = document.getElementById('formDieta');
@@ -344,6 +394,7 @@
         desde.value = dietaMinimo;
         document.getElementById('dietaModoRango').checked = true;
         dietaCambiarModo();
+        pintarDietasDe(id);
 
         modal.style.display = 'flex';
         modal.onclick = (e) => { if (e.target === modal) cerrarDieta(); };
@@ -385,9 +436,56 @@
         if (!hasta.value || hasta.value <= desde.value) hasta.value = minimo;
     }
 
+    function editarDieta(idDieta) {
+        const d = dietas.find(x => x.id === idDieta);
+        if (!d) return;
+
+        document.getElementById('dietaIdEditar').value = d.id;
+        document.getElementById('dietaAvisoEdicion').style.display = '';
+        document.getElementById('dietaAvisoIngreso').style.display = 'none';
+        document.getElementById('dietasActuales').style.display = 'none';
+
+        const campoDesde = document.getElementById('dietaDesde');
+        campoDesde.min = d.desde < dietaMinimo ? d.desde : dietaMinimo;
+        if (d.desde === d.hasta) document.getElementById('dietaModoDia').checked = true;
+        else document.getElementById('dietaModoRango').checked = true;
+        dietaCambiarModo();
+        campoDesde.value = d.desde;
+        document.getElementById('dietaHasta').value = d.hasta;
+        document.querySelector('#formDieta input[name=indicacion]').value = d.indicacion || '';
+
+        const letras = { 'DESAYUNO': 'D', 'ALMUERZO': 'A', 'CENA': 'C' };
+        document.querySelectorAll('#formDieta input[type=checkbox]').forEach(c => c.checked = false);
+        d.comidas.forEach(t => {
+            const [fecha, comida] = t.split('|');
+            const pref = (fecha === d.desde) ? 'p' : ((fecha === d.hasta) ? 'u' : null);
+            if (!pref) return;
+            const c = document.querySelector('#formDieta input[name="' + pref + letras[comida] + '"]');
+            if (c) c.checked = true;
+        });
+
+        const form = document.getElementById('formDieta');
+        form.dataset.titulo = 'Actualizar esta dieta';
+        form.dataset.confirmar = 'Estás a punto de actualizar los datos de esta dieta. '
+            + 'No se creará una nueva: se reemplazan las fechas y las comidas. '
+            + 'Lo que ya se sirvió se conserva. ¿Seguro?';
+        form.dataset.boton = 'Sí, actualizar';
+        document.getElementById('dietaBotonGuardar').innerHTML =
+            '<i class="fa-solid fa-check me-1"></i>Guardar los cambios';
+    }
+
     function cerrarDieta() {
         document.getElementById('modalDieta').style.display = 'none';
         document.getElementById('formDieta').reset();
+        document.getElementById('dietaIdEditar').value = '';
+        document.getElementById('dietaAvisoEdicion').style.display = 'none';
+        document.getElementById('dietasActuales').style.display = '';
+        const form = document.getElementById('formDieta');
+        form.dataset.titulo = '';
+        form.dataset.confirmar = '';
+        form.dataset.boton = '';
+        document.getElementById('dietaBotonGuardar').innerHTML =
+            '<i class="fa-solid fa-check me-1"></i>Asignar dieta';
     }
 
     document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarDieta(); });
@@ -404,9 +502,27 @@
             El cajero verá el aviso al buscarlo.
         </div>
 
+        <div id="dietasActuales" class="mb-3"></div>
+
+        <form th:action="@{/preceptor/raciones-especiales/0/eliminar}" method="post" id="formBorrarDieta"
+              style="display:none;"
+              data-titulo="Eliminar esta dieta"
+              data-confirmar="La dieta se borrará por completo y el cajero dejará de ver el aviso. No se puede deshacer."
+              data-boton="Sí, eliminar">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        </form>
+
         <form id="formDieta" method="post" enctype="multipart/form-data" action="#">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" id="dietaHoy" th:value="${hoy}">
+            <input type="hidden" name="idEditar" id="dietaIdEditar" value="">
+
+            <div id="dietaAvisoEdicion" class="p-2 rounded mb-2" style="display:none;
+                 background:#fef9e7; border:1px solid #f7dc6f; font-size:0.76rem; color:#9a7d0a;">
+                <i class="fa-solid fa-pen me-1"></i>
+                Estás <strong>corrigiendo</strong> esta dieta: al guardar se reemplazan sus datos,
+                no se crea otra. Las comidas cuyo turno ya pasó se conservan tal cual.
+            </div>
 
             <div class="lbl">Duración de la dieta</div>
             <div class="d-flex gap-2 mb-2">
@@ -468,7 +584,7 @@
 
             <div class="modal-botones">
                 <button type="button" class="btn btn-light border btn-sm-flat" onclick="cerrarDieta()">Cancelar</button>
-                <button type="submit" class="btn btn-navy btn-sm-flat">
+                <button type="submit" class="btn btn-navy btn-sm-flat" id="dietaBotonGuardar">
                     <i class="fa-solid fa-check me-1"></i>Asignar dieta
                 </button>
             </div>

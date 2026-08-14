@@ -47,6 +47,13 @@ public class ValidacionService {
         this.vigenciaService = vigenciaService;
     }
 
+    private ReglasComidaService reglasComidaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setReglasComidaService(ReglasComidaService reglasComidaService) {
+        this.reglasComidaService = reglasComidaService;
+    }
+
     private com.upeu.comedorupeu.repository.AusenciaDetalleRepository ausenciaDetalleRepo;
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -196,9 +203,7 @@ public class ValidacionService {
     private void cargarConsumoDia(ValidacionResultado res, Residente residente) {
         LocalDate hoy = LocalDate.now();
         for (String tipo : TurnoService.TIPOS) {
-            boolean consumio = turnoRepo.findByFechaAndTipo(hoy, tipo)
-                    .map(t -> !marcacionRepo.consumosVigentes(residente.getIdResidente(), t.getIdTurno()).isEmpty())
-                    .orElse(false);
+            boolean consumio = reglasComidaService.yaIngreso(residente, hoy, tipo);
 
             String estado;
             String fuera = (vigenciaService == null) ? null

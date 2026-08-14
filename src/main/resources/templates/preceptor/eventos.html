@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/base :: head('Preceptor: Eventos Especiales')}"></head>
+<head th:replace="~{fragments/base :: head('Preceptor: Raciones para llevar')}"></head>
 <body>
 
 <div th:replace="~{fragments/base :: sidebar('eventos')}"></div>
 
 <div id="main">
     <div class="page-header">
-        <span>Preceptor — Eventos Especiales</span>
+        <span>Preceptor — Raciones para llevar</span>
     </div>
 
     <div class="contenido">
@@ -16,10 +16,10 @@
         <div class="card-panel mb-3" th:if="${!#lists.isEmpty(eventosAprobados)}">
             <div class="mb-2">
                 <h6 class="fw-bold mb-0" style="color:#2c3e50;">
-                    <i class="fa-solid fa-clipboard-check me-1" style="color:#27ae60;"></i>Eventos aprobados — Pase de Lista
+                    <i class="fa-solid fa-clipboard-check me-1" style="color:#27ae60;"></i>Listas aprobadas — Pase de Lista
                 </h6>
                 <div style="font-size:0.74rem; color:#8a97a3;">
-                    Pulsa "Pasar lista" en el evento y marca quién recibió su ración.
+                    Pulsa "Pasar lista" en la entrega y marca quién recibió su ración.
                 </div>
             </div>
             <div class="row g-2">
@@ -52,25 +52,25 @@
             </div>
         </div>
 
-        <form th:action="@{/preceptor/eventos/enviar}" method="post" id="formEvento"
-              data-titulo="¿Enviar el evento al administrador?"
-              data-confirmar="El evento se enviará para su aprobación con los residentes incluidos que dejaste en la lista. Podrás eliminarlo mientras siga pendiente."
-              data-boton="Sí, enviar"
-              data-estilo="exito">
-            <div class="row g-3">
+        <div class="row g-3">
 
                 <div class="col-md-5">
+                    <form th:action="@{/preceptor/eventos/enviar}" method="post" id="formEvento"
+                          data-titulo="¿Enviar la entrega al administrador?"
+                          data-confirmar="La entrega se enviará para su aprobación con los residentes incluidos que dejaste en la lista. Podrás eliminarlo mientras siga pendiente."
+                          data-boton="Sí, enviar"
+                          data-estilo="exito">
                     <div class="card-panel">
-                        <span class="titulo-seccion">Crear Evento</span>
+                        <span class="titulo-seccion">Crear lista</span>
 
-                        <div class="lbl">Nombre del evento</div>
+                        <div class="lbl">Nombre de la entrega</div>
                         <input type="text" name="nombre" class="form-control mb-3" placeholder="Ej. Excursión Lago Titicaca" required maxlength="300">
 
-                        <div class="lbl">Fecha del evento</div>
+                        <div class="lbl">Fecha de la entrega</div>
                         <input type="date" name="fechaEvento" class="form-control mb-3" th:value="${hoy}" th:min="${hoy}" required
-                               title="Los eventos se programan de hoy en adelante">
+                               title="Las entregas se programan de hoy en adelante">
 
-                        <div class="lbl" title="Marca las comidas del comedor que este evento reemplaza">
+                        <div class="lbl" title="Marca las comidas del comedor que esta entrega reemplaza">
                             ¿A qué comidas corresponde? <span style="color:#c0392b;">*</span>
                         </div>
                         <div class="p-2 rounded mb-1" style="background:#fdf6ec; border:1px solid #f5cba7;">
@@ -87,7 +87,7 @@
                         <div style="font-size:0.7rem; color:#8a97a3;" class="mb-3">
                             Marca <strong>al menos una</strong>. Quien participe no figurará como ausente en las
                             comidas marcadas, y cada comida tendrá <strong>su propio pase de lista</strong>
-                            ("<span id="ejemploNombre">Nombre del evento</span> (Almuerzo)").
+                            ("<span id="ejemploNombre">Nombre de la entrega</span> (Almuerzo)").
                         </div>
 
                         <div class="lbl">Excluir residentes (opc.)</div>
@@ -100,7 +100,7 @@
 
                         <div class="p-2 rounded mb-3" style="background:#fef9e7; border:1px solid #f7dc6f; font-size:0.76rem; color:#9a7d0a;">
                             <i class="fa-solid fa-circle-info me-1"></i>
-                            El evento <strong>sustituye</strong> la comida del comedor en los turnos que marques:
+                            La entrega <strong>sustituye</strong> la comida del comedor en los turnos que marques:
                             quien participe no figura como ausente en ellos. La entrega se controla con el
                             <strong>pase de lista</strong> de cada comida.
                         </div>
@@ -115,9 +115,10 @@
                         </div>
 
                     </div>
+                    </form>
 
                     <div class="card-panel mt-3">
-                        <span class="titulo-seccion">Eventos Enviados</span>
+                        <span class="titulo-seccion">Listas enviadas</span>
                         <div th:each="e : ${misEventos}" class="d-flex justify-content-between align-items-center border-bottom py-2" style="font-size:0.8rem;">
                             <div>
                                 <strong th:text="${e.nombreConComida}">Excursión (Almuerzo)</strong>
@@ -129,7 +130,7 @@
                             <div class="d-flex align-items-center gap-1">
 
                                 <span class="badge-estado" th:if="${e.fechaEvento != null && e.fechaEvento.isBefore(hoy) && e.estado != 'RECHAZADO'}"
-                                      style="background:#d6dbdf; color:#5d6d7b;" title="La fecha del evento ya pasó">REALIZADO</span>
+                                      style="background:#d6dbdf; color:#5d6d7b;" title="La fecha de la entrega ya pasó">REALIZADO</span>
                                 <span class="badge-estado"
                                       th:classappend="${e.estado == 'PENDIENTE'} ? 'bg-pendiente' : (${e.estado == 'APROBADO'} ? 'bg-permitido' : 'bg-denegado')"
                                       th:text="${e.estado}"
@@ -138,24 +139,24 @@
                                                   + (${e.motivoCancelacion != null} ? ' — ' + ${e.motivoCancelacion} : '')
                                                 : ''">PENDIENTE</span>
                                 <a th:href="@{/preceptor/eventos(detalle=${e.idEvento})}" class="btn btn-primary btn-sm"
-                                   style="font-size:0.66rem; padding:2px 8px;" title="Ver detalles del evento">
+                                   style="font-size:0.66rem; padding:2px 8px;" title="Ver detalles de la entrega">
                                     <i class="fa-solid fa-eye"></i> Ver
                                 </a>
-                                <form th:if="${e.estado != 'CANCELADO'}" th:action="@{'/preceptor/eventos/' + ${e.idEvento} + '/eliminar'}"
+                                <form th:if="${e.estado == 'PENDIENTE'}" th:action="@{'/preceptor/eventos/' + ${e.idEvento} + '/eliminar'}"
                                       method="post" style="margin:0;"
-                                      th:attr="data-titulo='Cancelar evento: ' + ${e.nombreConComida},
-                                               data-confirmar='El evento quedará CANCELADO: se borra su pase de lista, deja de contar como sustituto de esa comida y el administrador lo verá como cancelado. Si el evento tiene varias comidas, se cancelan todas.',
+                                      th:attr="data-titulo='Cancelar entrega: ' + ${e.nombreConComida},
+                                               data-confirmar='La entrega quedará cancelada y el administrador ya no la verá para aprobar. Si la entrega tiene varias comidas, se cancelan todas.',
                                                data-motivo='Motivo de la cancelación (opcional)',
-                                               data-boton='Sí, cancelar evento'">
+                                               data-boton='Sí, cancelar entrega'">
                                     <button class="btn btn-outline-danger btn-sm" style="font-size:0.66rem; padding:2px 6px;"
-                                            title="Cancelar evento">
+                                            title="Cancelar entrega">
                                         <i class="fa-solid fa-ban"></i>
                                     </button>
                                 </form>
                             </div>
                         </div>
                         <div th:if="${#lists.isEmpty(misEventos)}" class="text-muted text-center py-2" style="font-size:0.78rem;">
-                            Aún no has enviado eventos.
+                            Aún no has enviado ninguna lista.
                         </div>
                     </div>
                 </div>
@@ -193,8 +194,7 @@
                         </table>
                     </div>
                 </div>
-            </div>
-        </form>
+        </div>
 
     </div>
 </div>
@@ -218,7 +218,7 @@
                   th:text="${eventoDetalle.estado}">APROBADO</span>
 
             <span class="badge-estado" th:if="${esPasado && eventoDetalle.estado != 'RECHAZADO'}" style="background:#d6dbdf; color:#5d6d7b;"
-                  title="La fecha del evento ya pasó">REALIZADO</span>
+                  title="La fecha de la entrega ya pasó">REALIZADO</span>
         </div>
 
         <div style="font-size:0.84rem; color:#5d6d7b;" class="mb-2">
@@ -238,7 +238,7 @@
         <div th:if="${eventoDetalle.estado == 'CANCELADO'}" class="p-2 rounded mb-2"
              style="background:#fdedec; border:1px solid #f5b7b1; font-size:0.78rem; color:#943126;">
             <i class="fa-solid fa-ban me-1"></i>
-            Evento <strong>cancelado</strong> por <span th:text="${eventoDetalle.canceladoPor}">Preceptor Varones</span>
+            Entrega <strong>cancelado</strong> por <span th:text="${eventoDetalle.canceladoPor}">Preceptor Varones</span>
             <span th:if="${eventoDetalle.fechaCancelacion != null}"
                   th:text="'el ' + ${#temporals.format(eventoDetalle.fechaCancelacion, 'dd/MM/yyyy HH:mm')}">el 05/08</span>.
             <div class="mt-1">Motivo:
@@ -249,21 +249,40 @@
         <div th:if="${eventoDetalle.estado == 'RECHAZADO'}" class="p-2 rounded mb-2"
              style="background:#fdedec; border:1px solid #f5b7b1; font-size:0.78rem; color:#943126;">
             <i class="fa-solid fa-ban me-1"></i>
-            Este evento fue <strong>rechazado</strong> por el administrador: no se prepararon raciones
+            Esta entrega fue <strong>rechazado</strong> por el administrador: no se prepararon raciones
             ni hubo pase de lista. Abajo puedes ver quiénes estaban incluidos.
         </div>
 
         <div th:if="${!#lists.isEmpty(excluidosInfo)}" class="p-2 rounded mb-2" style="background:#fdedec; border:1px solid #f5b7b1;">
-            <div class="lbl mb-1">Excluidos (no reciben ración)</div>
-            <span th:each="ex : ${excluidosInfo}" class="badge-estado bg-denegado me-1"
-                  th:text="${ex['nombre']} + ' (' + ${ex['codigo']} + ')'">Juan (U-...)</span>
+            <div class="lbl mb-1"
+                 th:text="${eventoDetalle.estado == 'PENDIENTE'}
+                          ? 'Excluidos (no reciben ración) — clic en ✕ para volver a incluirlo'
+                          : 'Excluidos (no reciben ración)'">Excluidos</div>
+            <th:block th:if="${eventoDetalle.estado == 'PENDIENTE'}">
+                <form th:each="ex : ${excluidosInfo}"
+                      th:action="@{'/preceptor/eventos/' + ${eventoDetalle.idEvento} + '/incluir'}"
+                      method="post" style="display:inline-block; margin:2px;">
+                    <input type="hidden" name="codigo" th:value="${ex['codigo']}">
+                    <button class="badge-estado bg-denegado border-0" style="cursor:pointer;"
+                            th:title="'Volver a incluir a ' + ${ex['nombre']}">
+                        <span th:text="${ex['nombre']} + ' (' + ${ex['codigo']} + ')'">Juan (U-...)</span> ✕
+                    </button>
+                </form>
+            </th:block>
+            <th:block th:if="${eventoDetalle.estado != 'PENDIENTE'}">
+                <span th:each="ex : ${excluidosInfo}" class="badge-estado bg-denegado me-1"
+                      th:text="${ex['nombre']} + ' (' + ${ex['codigo']} + ')'">Juan (U-...)</span>
+            </th:block>
         </div>
 
         <div style="max-height:260px; overflow-y:auto;" class="mb-2"
-             th:with="conRacion=${eventoDetalle.estado != 'RECHAZADO'}">
+             th:with="conRacion=${eventoDetalle.estado != 'RECHAZADO'},
+                      sePuedeEditar=${eventoDetalle.estado == 'PENDIENTE'}">
             <table class="tabla-dark">
                 <thead>
-                <tr><th>Código</th><th>Nombre</th><th class="text-center" th:if="${conRacion}">¿Recibió su ración?</th></tr>
+                <tr><th>Código</th><th>Nombre</th>
+                    <th class="text-center" th:if="${conRacion}">¿Recibió su ración?</th>
+                    <th th:if="${sePuedeEditar}">Acción</th></tr>
                 </thead>
                 <tbody>
                 <tr th:each="r : ${participantesLista}">
@@ -274,21 +293,40 @@
                         <span th:if="${entregas.get(r.idResidente) != null && entregas.get(r.idResidente)}" class="badge-estado bg-permitido"><i class="fa-solid fa-check"></i> Sí</span>
                         <span th:if="${entregas.get(r.idResidente) != null && !entregas.get(r.idResidente)}" class="badge-estado bg-denegado"><i class="fa-solid fa-xmark"></i> No</span>
                     </td>
+                    <td th:if="${sePuedeEditar}">
+                        <form th:action="@{'/preceptor/eventos/' + ${eventoDetalle.idEvento} + '/excluir'}"
+                              method="post" style="margin:0;">
+                            <input type="hidden" name="codigo" th:value="${r.codigoAcceso}">
+                            <button class="btn btn-danger btn-sm" style="font-size:0.68rem;"
+                                    title="Este residente no irá a recoger su ración">Excluir</button>
+                        </form>
+                    </td>
                 </tr>
                 </tbody>
             </table>
         </div>
+        <div th:if="${eventoDetalle.estado == 'APROBADO'}" class="p-2 rounded mb-2"
+             style="background:#fef9e7; border:1px solid #f7dc6f; font-size:0.76rem; color:#9a7d0a;">
+            <i class="fa-solid fa-circle-info me-1"></i>
+            La lista quedó cerrada cuando el administrador la aprobó. Si alguien ya no va a recoger su ración,
+            no lo marques en el pase de lista.
+        </div>
 
         <div class="modal-botones">
-            <form th:if="${eventoDetalle.estado != 'CANCELADO'}"
+            <form th:if="${eventoDetalle.estado == 'PENDIENTE'}"
                   th:action="@{'/preceptor/eventos/' + ${eventoDetalle.idEvento} + '/eliminar'}" method="post"
                   style="margin:0; margin-right:auto;"
-                  th:attr="data-titulo='Cancelar evento: ' + ${eventoDetalle.nombreConComida},
-                           data-confirmar='El evento quedará CANCELADO: se borra su pase de lista, deja de contar como sustituto de esa comida y el administrador lo verá como cancelado. Si el evento tiene varias comidas, se cancelan todas.',
+                  th:attr="data-titulo='Cancelar entrega: ' + ${eventoDetalle.nombreConComida},
+                           data-confirmar='La entrega quedará cancelada y el administrador ya no la verá para aprobar. Si la entrega tiene varias comidas, se cancelan todas.',
                            data-motivo='Motivo de la cancelación (opcional)',
-                           data-boton='Sí, cancelar evento'">
-                <button class="btn btn-outline-danger btn-sm-flat"><i class="fa-solid fa-ban me-1"></i>Cancelar evento</button>
+                           data-boton='Sí, cancelar entrega'">
+                <button class="btn btn-outline-danger btn-sm-flat"><i class="fa-solid fa-ban me-1"></i>Cancelar entrega</button>
             </form>
+            <span th:if="${eventoDetalle.estado == 'APROBADO'}" class="text-muted"
+                  style="font-size:0.72rem; margin-right:auto; max-width:340px;">
+                Ya está aprobada, así que no se puede cancelar. Si al final no se va a entregar,
+                pídele al administrador que la rechace.
+            </span>
             <a th:if="${eventoDetalle.estado == 'APROBADO'}" th:href="@{/preceptor/pase-lista(evento=${eventoDetalle.idEvento})}"
                class="btn btn-success btn-sm-flat"><i class="fa-solid fa-clipboard-check me-1"></i>Pasar lista</a>
             <a href="/preceptor/eventos" class="btn btn-light border btn-sm-flat">Cerrar</a>
@@ -300,7 +338,7 @@
     <div class="modal-caja">
         <div class="modal-titulo">
             <i class="fa-solid fa-eye" style="color:#2980b9;"></i>
-            Vista previa del evento
+            Vista previa de la entrega
         </div>
         <div class="p-3 rounded" style="background:#eaf3fb; border:1px solid #aed6f1; font-size:0.84rem; color:#21618c;">
             <div class="mb-1"><i class="fa-solid fa-medal me-2" style="color:#e67e22;"></i><strong id="vpNombre">—</strong></div>
@@ -352,7 +390,7 @@
         btn.className = estaExcluido ? 'btn btn-success btn-sm' : 'btn btn-danger btn-sm';
         btn.style.cssText = 'font-size:0.7rem; min-width:64px;';
         btn.textContent = estaExcluido ? 'Incluir' : 'Excluir';
-        btn.title = estaExcluido ? 'Volver a incluir en el evento' : 'Este residente no recibirá ración';
+        btn.title = estaExcluido ? 'Volver a incluir en la entrega' : 'Este residente no recibirá ración';
     }
 
     function alternarExclusion(codigo) {
@@ -394,7 +432,7 @@
         if (comidasElegidas().length === 0) {
             e.preventDefault();
             e.stopImmediatePropagation();
-            window.avisoSistema('Marca al menos una comida (Desayuno, Almuerzo o Cena): el evento tiene que decir '
+            window.avisoSistema('Marca al menos una comida (Desayuno, Almuerzo o Cena): la entrega tiene que decir '
                 + 'a qué comida corresponde la ración, porque cada una lleva su propio pase de lista.',
                 'Falta elegir la comida');
             document.querySelector('.chk-comida').focus();
@@ -402,7 +440,7 @@
     }, true);
 
     document.querySelector('#formEvento [name="nombre"]').addEventListener('input', function () {
-        document.getElementById('ejemploNombre').textContent = this.value.trim() || 'Nombre del evento';
+        document.getElementById('ejemploNombre').textContent = this.value.trim() || 'Nombre de la entrega';
     });
 
     function vistaPrevia() {

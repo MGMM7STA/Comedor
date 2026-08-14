@@ -35,9 +35,9 @@
                 <i class="fa-solid fa-calendar-check"></i>Justificaciones
             </a>
             <a class="tab-seccion tab-grande" th:classappend="${seccion == 'EVENTOS'} ? 'activa'"
-               title="Pase de lista de los eventos aprobados"
+               title="Pase de lista de las entregas aprobadas"
                th:href="@{/reportes(seccion='EVENTOS', fecha=${fecha}, fechaHasta=${fechaHasta}, limite=${limite}, turno=${turno}, punto=${punto}, pabellon=${pabellon}, codigo=${codigo})}">
-                <i class="fa-solid fa-medal"></i>Eventos
+                <i class="fa-solid fa-medal"></i>Raciones para llevar
             </a>
 
             <div class="ms-auto d-flex gap-2 align-items-center">
@@ -333,7 +333,7 @@
 
         <div class="card-panel mb-3" th:if="${verEventos}" style="border-left:5px solid #e67e22;">
             <h6 class="fw-bold mb-2" style="color:#b9770e;">
-                <i class="fa-solid fa-medal me-1"></i>Eventos · Entrega de Raciones
+                <i class="fa-solid fa-medal me-1"></i>Raciones para llevar · Entrega de Raciones
             </h6>
             <div th:each="ev : ${eventosDia}" class="mb-3">
                 <div style="font-size:0.85rem;" class="mb-1">
@@ -364,7 +364,7 @@
                 </div>
             </div>
             <div th:if="${#lists.isEmpty(eventosDia)}" class="text-center text-muted py-3" style="font-size:0.8rem;">
-                Sin eventos aprobados en este rango.
+                Sin entregas aprobadas en este rango.
             </div>
         </div>
 

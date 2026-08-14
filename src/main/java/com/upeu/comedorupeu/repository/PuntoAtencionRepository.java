@@ -10,7 +10,6 @@ public interface PuntoAtencionRepository extends JpaRepository<PuntoAtencion, Lo
 
     List<PuntoAtencion> findAllByOrderByNombreAsc();
 
-    List<PuntoAtencion> findByActivoTrue();
 
     Optional<PuntoAtencion> findFirstByCajeroIdUsuario(Long idUsuario);
 

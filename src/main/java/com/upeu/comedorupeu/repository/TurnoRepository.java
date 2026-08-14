@@ -13,5 +13,4 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
 
     List<Turno> findByFecha(LocalDate fecha);
 
-    Optional<Turno> findFirstByFechaAndEstado(LocalDate fecha, String estado);
 }

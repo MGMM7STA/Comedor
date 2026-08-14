@@ -83,8 +83,17 @@ public class CajeroController {
         return asignado != null && !asignado.isOperativo();
     }
 
+    private com.upeu.comedorupeu.config.ProgramacionScheduler programacionScheduler;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setProgramacionScheduler(com.upeu.comedorupeu.config.ProgramacionScheduler programacionScheduler) {
+        this.programacionScheduler = programacionScheduler;
+    }
+
     @GetMapping("/validar")
     public String validar(@RequestParam(required = false) String codigo, Model model, Authentication auth) {
+        if (programacionScheduler != null) programacionScheduler.ponerAlDia();
+
         Usuario cajero = usuarioActual(auth);
         PuntoAtencion punto = puntoDelCajero(cajero);
         var turnoActivo = turnoService.turnoActivoDe(punto).orElse(null);
@@ -123,16 +132,6 @@ public class CajeroController {
             model.addAttribute("resultado", resultado);
 
             model.addAttribute("soloConsulta", bloqueado);
-
-            var solGrupo = resultado.getReservaExtra() != null
-                    ? resultado.getReservaExtra() : resultado.getSolicitud();
-            if (solGrupo != null && solGrupo.getGrupoLote() != null
-                    && "PENDIENTE".equals(solGrupo.getEstado())) {
-                model.addAttribute("grupoEscaneado", solGrupo.getGrupoLote());
-                model.addAttribute("grupoCantidad", solicitudRepo
-                        .findByGrupoLoteAndFechaAndEstado(solGrupo.getGrupoLote(),
-                                java.time.LocalDate.now(), "PENDIENTE").size());
-            }
         }
         return "cajero/validar";
     }
@@ -198,41 +197,6 @@ public class CajeroController {
         flash.addFlashAttribute("ok", "Ración reservada de " + sol.getTipoComida().toLowerCase()
                 + " de " + residente.getNombreCompleto() + " entregada a " + receptorTexto + ".");
         flash.addFlashAttribute("deshacer", true);
-        return "redirect:/cajero/validar";
-    }
-
-    @PostMapping("/entregar-reserva-masiva")
-    public String entregarReservaMasiva(@RequestParam String grupo,
-                                        Authentication auth, RedirectAttributes flash) {
-        Usuario cajero = usuarioActual(auth);
-        var pendientes = solicitudRepo.findByGrupoLoteAndFechaAndEstado(
-                grupo, java.time.LocalDate.now(), "PENDIENTE");
-        if (pendientes.isEmpty()) {
-            flash.addFlashAttribute("error", "El grupo " + grupo + " ya no tiene reservas pendientes hoy.");
-            return "redirect:/cajero/validar";
-        }
-        turnoService.turnosDeHoy();
-        int entregadas = 0;
-        for (var sol : pendientes) {
-            var turnoReserva = turnoRepo.findByFechaAndTipo(sol.getFecha(), sol.getTipoComida()).orElse(null);
-            if (turnoReserva == null) continue;
-            Marcacion m = new Marcacion();
-            m.setResidente(sol.getResidente());
-            m.setTurno(turnoReserva);
-            m.setUsuario(cajero);
-            m.setPunto(puntoDelCajero(cajero));
-            m.setEstado("PERMITIDO");
-            m.setObservacion("Ración reservada (" + sol.getTipoComida() + ") del grupo " + grupo
-                    + " — entrega masiva: " + sol.getMotivo());
-            marcacionRepo.save(m);
-            sol.setEstado("ATENDIDA");
-            sol.setEntregadoA("RESIDENTE");
-            sol.setFechaHoraEntrega(java.time.LocalDateTime.now());
-            solicitudRepo.save(sol);
-            entregadas++;
-        }
-        flash.addFlashAttribute("ok", "Entrega masiva del grupo " + grupo + ": "
-                + entregadas + " ración(es) marcadas como entregadas.");
         return "redirect:/cajero/validar";
     }
 

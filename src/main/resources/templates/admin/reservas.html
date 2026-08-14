@@ -148,7 +148,7 @@
                         </button>
 
                         <a sec:authorize="hasRole('PRECEPTOR')"
-                           th:if="${s.estado == 'PENDIENTE' and !s.estaVencida()}"
+                           th:if="${puedeCancelar.get(s.idSolicitud)}"
                            th:href="@{'/preceptor/reservas?editar=' + ${s.idSolicitud}}"
                            class="btn btn-success btn-sm" style="font-size:0.7rem;"
                            title="Corregir esta reserva sin tener que cancelarla y volver a crearla">
@@ -156,7 +156,7 @@
                         </a>
 
                         <form sec:authorize="hasRole('PRECEPTOR')"
-                              th:if="${s.estado == 'PENDIENTE' and !s.estaVencida()}"
+                              th:if="${puedeCancelar.get(s.idSolicitud)}"
                               th:action="@{'/admin/reservas/' + ${s.idSolicitud} + '/cancelar'}" method="post"
                               class="d-inline"
                               data-titulo="Cancelar reserva"

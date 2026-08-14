@@ -7,7 +7,6 @@ import java.util.List;
 
 public interface ApunteRepository extends JpaRepository<Apunte, Long> {
 
-    List<Apunte> findTop10ByOrderByFechaHoraDesc();
 
     List<Apunte> findTop10ByTipoOrderByFechaHoraDesc(String tipo);
 }

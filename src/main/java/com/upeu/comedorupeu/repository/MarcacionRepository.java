@@ -10,7 +10,6 @@ import java.util.Optional;
 
 public interface MarcacionRepository extends JpaRepository<Marcacion, Long> {
 
-    boolean existsByResidenteIdResidenteAndTurnoIdTurnoAndEstado(Long idResidente, Long idTurno, String estado);
 
     @org.springframework.data.jpa.repository.Query("SELECT m FROM Marcacion m WHERE m.residente.idResidente = :idResidente " +
             "AND m.turno.idTurno = :idTurno AND m.estado IN ('PERMITIDO','JUSTIFICADO') " +
@@ -18,7 +17,6 @@ public interface MarcacionRepository extends JpaRepository<Marcacion, Long> {
     List<Marcacion> consumosVigentes(@org.springframework.data.repository.query.Param("idResidente") Long idResidente,
                                      @org.springframework.data.repository.query.Param("idTurno") Long idTurno);
 
-    List<Marcacion> findTop8ByOrderByFechaHoraDesc();
 
     List<Marcacion> findByTurnoOrderByFechaHoraAsc(Turno turno);
 
@@ -27,7 +25,8 @@ public interface MarcacionRepository extends JpaRepository<Marcacion, Long> {
 
     List<Marcacion> findByResidenteIdResidenteAndFechaHoraBetween(Long idResidente, LocalDateTime desde, LocalDateTime hasta);
 
-    List<Marcacion> findByFechaHoraBetweenOrderByFechaHoraAsc(LocalDateTime desde, LocalDateTime hasta);
+    List<Marcacion> findByResidenteIdResidenteAndTurnoIdTurno(Long idResidente, Long idTurno);
+
 
     Optional<Marcacion> findFirstByUsuarioIdUsuarioOrderByFechaHoraDesc(Long idUsuario);
 

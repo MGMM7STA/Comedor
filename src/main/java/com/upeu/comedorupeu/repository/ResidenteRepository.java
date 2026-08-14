@@ -16,7 +16,6 @@ public interface ResidenteRepository extends JpaRepository<Residente, Long> {
 
     boolean existsByCodigoAcceso(String codigoAcceso);
 
-    boolean existsByDni(String dni);
     Optional<Residente> findFirstByDni(String dni);
 
     long countByEstado(String estado);

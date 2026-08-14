@@ -268,9 +268,9 @@
         </a>
 
         <a href="/admin/eventos" class="sidebar-link" th:classappend="${active == 'eventos'} ? 'active'">
-            <i class="fa-solid fa-medal" style="color:#e67e22;"></i><span>Eventos</span>
+            <i class="fa-solid fa-medal" style="color:#e67e22;"></i><span>Raciones para llevar</span>
             <span th:if="${notifEventos != null && notifEventos > 0}" class="notif-burbuja"
-                  th:text="${notifEventos}" title="Eventos esperando tu aprobación">1</span>
+                  th:text="${notifEventos}" title="Raciones para llevar esperando tu aprobación">1</span>
         </a>
 
         <a href="/admin/peticiones" class="sidebar-link" th:classappend="${active == 'peticiones'} ? 'active'"
@@ -332,8 +332,8 @@
             <i class="fa-solid fa-utensils" style="color:#f0b27a;"></i><span>Reservas</span>
         </a>
         <a href="/preceptor/eventos" class="sidebar-link" th:classappend="${active == 'eventos'} ? 'active'"
-           title="Eventos especiales y pase de lista">
-            <i class="fa-solid fa-medal" style="color:#e67e22;"></i><span>Eventos</span>
+           title="Raciones para llevar especiales y pase de lista">
+            <i class="fa-solid fa-medal" style="color:#e67e22;"></i><span>Raciones para llevar</span>
         </a>
 
         <a href="/movimientos" class="sidebar-link" th:classappend="${active == 'movimientos'} ? 'active'"

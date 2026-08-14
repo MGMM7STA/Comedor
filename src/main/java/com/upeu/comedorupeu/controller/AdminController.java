@@ -90,6 +90,13 @@ public class AdminController {
         this.ausenciaDetalleRepo = repo;
     }
 
+    private com.upeu.comedorupeu.services.ReglasComidaService reglasComidaService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setReglasComidaService(com.upeu.comedorupeu.services.ReglasComidaService reglasComidaService) {
+        this.reglasComidaService = reglasComidaService;
+    }
+
     public AdminController(UsuarioRepository usuarioRepo, ResidenteRepository residenteRepo,
                            PuntoAtencionRepository puntoRepo, MarcacionRepository marcacionRepo,
                            EventoEspecialRepository eventoRepo, IncidenciaRepository incidenciaRepo,
@@ -168,6 +175,8 @@ public class AdminController {
                          @org.springframework.format.annotation.DateTimeFormat(
                                  iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate desde,
                          Model model) {
+        if (programacionScheduler != null) programacionScheduler.ponerAlDia();
+
         LocalDate diaCifras = (desde != null) ? desde : LocalDate.now();
         model.addAttribute("nav", com.upeu.comedorupeu.dto.SemanaNav.de(diaCifras));
         model.addAttribute("diaCifras", diaCifras);
@@ -224,15 +233,16 @@ public class AdminController {
             reprogPendiente.put(p.getIdPunto(), pendiente);
 
             if (!p.isOperativo()) continue;
-            if (celdaCubre != null) {
-                vistaTurnos.get(celdaCubre.getTipoTurno()).add(Map.of(
+            String elegido = turnoService.selloEsDeOtroDia(p.getUltimaAccionManual()) ? null : p.getTurnoManual();
+            String suyo = (elegido != null && !elegido.isBlank()) ? elegido
+                    : (celdaCubre != null ? celdaCubre.getTipoTurno() : null);
+
+            if (suyo != null && vistaTurnos.containsKey(suyo)) {
+                boolean porMano = suyo.equals(elegido);
+                vistaTurnos.get(suyo).add(Map.of(
                         "nombre", p.getNombre(),
-                        "horario", celdaCubre.getHoraInicio() + " a " + celdaCubre.getHoraFin(),
-                        "cajero", p.getCajero() != null ? p.getCajero().getNombreCompleto() : "Sin asignar"));
-            } else if (p.getTurnoManual() != null && vistaTurnos.containsKey(p.getTurnoManual())) {
-                vistaTurnos.get(p.getTurnoManual()).add(Map.of(
-                        "nombre", p.getNombre(),
-                        "horario", "activado manualmente",
+                        "horario", porMano ? "activado manualmente"
+                                : celdaCubre.getHoraInicio() + " a " + celdaCubre.getHoraFin(),
                         "cajero", p.getCajero() != null ? p.getCajero().getNombreCompleto() : "Sin asignar"));
             } else {
 
@@ -308,6 +318,13 @@ public class AdminController {
         model.addAttribute("eventosHoy", eventosHoy);
         model.addAttribute("eventoHoyRaciones", racionesEvento);
         return "admin/puntos";
+    }
+
+    private com.upeu.comedorupeu.config.ProgramacionScheduler programacionScheduler;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setProgramacionScheduler(com.upeu.comedorupeu.config.ProgramacionScheduler programacionScheduler) {
+        this.programacionScheduler = programacionScheduler;
     }
 
     @PostMapping("/puntos/{id}/toggle")
@@ -716,16 +733,34 @@ public class AdminController {
 
         EventoEspecial seleccionado = (id == null) ? null : eventoRepo.findById(id).orElse(null);
 
-        long totalActivos = residenteRepo.countByEstado("ACTIVO");
         Map<Long, Long> participantesPorEvento = new HashMap<>();
         Map<Long, Integer> excluidosPorEvento = new HashMap<>();
+        Map<Long, Integer> justificadosPorEvento = new HashMap<>();
         for (EventoEspecial e : eventos) {
-            int nExcluidos = e.getExcluidosLista().size();
+            String pabellon = (e.getUsuario() != null) ? e.getUsuario().getPabellon() : null;
+            var suyos = (pabellon == null)
+                    ? residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO")
+                    : residenteRepo.findByEstadoAndPabellonOrderByApellidoAsc("ACTIVO", pabellon);
+
+            int nExcluidos = 0, nJustificados = 0;
+            long cuentan = 0;
+            for (var r : suyos) {
+                if (r.estaBorrado()) continue;
+                if (e.getExcluidosLista().contains(r.getCodigoAcceso())) { nExcluidos++; continue; }
+                if (e.getComida() != null && e.getFechaEvento() != null
+                        && reglasComidaService.yaJustificado(r, e.getFechaEvento(), e.getComida())) {
+                    nJustificados++;
+                    continue;
+                }
+                cuentan++;
+            }
             excluidosPorEvento.put(e.getIdEvento(), nExcluidos);
-            participantesPorEvento.put(e.getIdEvento(), Math.max(0, totalActivos - nExcluidos));
+            justificadosPorEvento.put(e.getIdEvento(), nJustificados);
+            participantesPorEvento.put(e.getIdEvento(), cuentan);
         }
         model.addAttribute("participantesPorEvento", participantesPorEvento);
         model.addAttribute("excluidosPorEvento", excluidosPorEvento);
+        model.addAttribute("justificadosPorEvento", justificadosPorEvento);
         model.addAttribute("hoy", LocalDate.now());
 
         model.addAttribute("eventos", eventos);
@@ -736,10 +771,26 @@ public class AdminController {
         model.addAttribute("seleccionado", seleccionado);
         if (seleccionado != null) {
             var excluidos = seleccionado.getExcluidosLista();
-            var participantes = residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO").stream()
-                    .filter(r -> !excluidos.contains(r.getCodigoAcceso()))
-                    .toList();
+            String pabellon = (seleccionado.getUsuario() != null) ? seleccionado.getUsuario().getPabellon() : null;
+            var suyos = (pabellon == null)
+                    ? residenteRepo.findByEstadoOrderByApellidoAsc("ACTIVO")
+                    : residenteRepo.findByEstadoAndPabellonOrderByApellidoAsc("ACTIVO", pabellon);
+
+            List<com.upeu.comedorupeu.models.Residente> participantes = new ArrayList<>();
+            List<com.upeu.comedorupeu.models.Residente> justificadosLista = new ArrayList<>();
+            for (com.upeu.comedorupeu.models.Residente r : suyos) {
+                if (r.estaBorrado()) continue;
+                if (excluidos.contains(r.getCodigoAcceso())) continue;
+                if (seleccionado.getComida() != null && seleccionado.getFechaEvento() != null
+                        && reglasComidaService.yaJustificado(r, seleccionado.getFechaEvento(), seleccionado.getComida())) {
+                    justificadosLista.add(r);
+                    continue;
+                }
+                participantes.add(r);
+            }
             model.addAttribute("participantes", participantes);
+            model.addAttribute("justificadosLista", justificadosLista);
+            model.addAttribute("residenciaEntrega", pabellon);
 
             List<Map<String, String>> excluidosInfo = new ArrayList<>();
             for (String cod : excluidos) {
@@ -795,8 +846,8 @@ public class AdminController {
                             : ("APROBADO".equals(e.getEstado()) ? "Aprobado" : "Rechazado")
             });
         }
-        String filtros = (q == null || q.isBlank()) ? "Todos los eventos" : "Búsqueda: " + q;
-        byte[] xlsx = excelService.exportarTabla("COMEDOR UPEU — Eventos Especiales", filtros,
+        String filtros = (q == null || q.isBlank()) ? "Todos las entregas" : "Búsqueda: " + q;
+        byte[] xlsx = excelService.exportarTabla("COMEDOR UPEU — Raciones para llevar", filtros,
                 new String[]{"N°", "Fecha", "Evento", "Enviado por", "Participantes", "Excluidos", "Estado"},
                 datos);
         return org.springframework.http.ResponseEntity.ok()
@@ -828,7 +879,7 @@ public class AdminController {
                 comida.setRevisor(usuarioActual(auth));
                 eventoRepo.save(comida);
             }
-            flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" aprobado" + textoComidas(grupo)
+            flash.addFlashAttribute("ok", "Entrega \"" + e.getNombre() + "\" aprobado" + textoComidas(grupo)
                     + ": cada comida tiene su propio pase de lista para el preceptor.");
         });
         return "redirect:/admin/eventos/" + id;
@@ -843,43 +894,22 @@ public class AdminController {
                 comida.setRevisor(usuarioActual(auth));
                 eventoRepo.save(comida);
             }
-            flash.addFlashAttribute("ok", "Evento \"" + e.getNombre() + "\" rechazado" + textoComidas(grupo) + ".");
+            flash.addFlashAttribute("ok", "Entrega \"" + e.getNombre() + "\" rechazado" + textoComidas(grupo) + ".");
         });
         return "redirect:/admin/eventos/" + id;
     }
 
     @PostMapping("/eventos/{id}/eliminar")
     public String eliminarEvento(@PathVariable Long id, RedirectAttributes flash) {
-        flash.addFlashAttribute("error", "Los eventos solo los puede eliminar el preceptor que los envió. "
+        flash.addFlashAttribute("error", "Las entregas solo los puede eliminar el preceptor que los envió. "
                 + "El administrador puede aprobarlos o rechazarlos, no borrarlos.");
         return "redirect:/admin/eventos/" + id;
     }
 
-    @PostMapping("/eventos/{id}/excluir")
-    public String excluirDeEvento(@PathVariable Long id, @RequestParam String codigo, RedirectAttributes flash) {
-        eventoRepo.findById(id).ifPresent(e -> {
-            if (e.getFechaEvento() != null && e.getFechaEvento().isBefore(LocalDate.now())) {
-                flash.addFlashAttribute("error", "El evento \"" + e.getNombre() + "\" ya se realizó; ya no se puede excluir a nadie.");
-                return;
-            }
-            Set<String> ex = new LinkedHashSet<>(e.getExcluidosLista());
-            ex.add(codigo.trim());
-            e.setExcluidos(String.join(",", ex));
-            eventoRepo.save(e);
-            flash.addFlashAttribute("ok", "Residente " + codigo + " excluido del evento \"" + e.getNombre() + "\".");
-        });
-        return "redirect:/admin/eventos/" + id;
-    }
-
-    @PostMapping("/eventos/{id}/incluir")
-    public String incluirEnEvento(@PathVariable Long id, @RequestParam String codigo, RedirectAttributes flash) {
-        eventoRepo.findById(id).ifPresent(e -> {
-            List<String> ex = new ArrayList<>(e.getExcluidosLista());
-            ex.remove(codigo.trim());
-            e.setExcluidos(String.join(",", ex));
-            eventoRepo.save(e);
-            flash.addFlashAttribute("ok", "Residente " + codigo + " vuelve a participar en \"" + e.getNombre() + "\".");
-        });
+    @PostMapping({"/eventos/{id}/excluir", "/eventos/{id}/incluir"})
+    public String listaDeEventoNoSeToca(@PathVariable Long id, RedirectAttributes flash) {
+        flash.addFlashAttribute("error", "Quién participa lo decide el preceptor que envió la entrega, "
+                + "mientras siga pendiente. El administrador la aprueba o la rechaza tal como llegó.");
         return "redirect:/admin/eventos/" + id;
     }
 
@@ -994,7 +1024,7 @@ public class AdminController {
             });
             i.setAtendida(true);
             incidenciaRepo.save(i);
-            flash.addFlashAttribute("ok", "Solicitud atendida: " + i.getRefCodigo() + " excluido del evento.");
+            flash.addFlashAttribute("ok", "Solicitud atendida: " + i.getRefCodigo() + " excluido de la entrega.");
         });
 
         Long idEvento = incidenciaRepo.findById(id).map(Incidencia::getRefEvento).orElse(null);

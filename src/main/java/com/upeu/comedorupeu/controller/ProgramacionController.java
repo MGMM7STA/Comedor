@@ -47,6 +47,13 @@ public class ProgramacionController {
         return java.time.LocalDate.now().getDayOfWeek().getValue();
     }
 
+    private com.upeu.comedorupeu.config.ProgramacionScheduler programacionScheduler;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setProgramacionScheduler(com.upeu.comedorupeu.config.ProgramacionScheduler programacionScheduler) {
+        this.programacionScheduler = programacionScheduler;
+    }
+
     @GetMapping
     public String programar(@RequestParam(required = false) Integer dia,
                             @RequestParam(defaultValue = "0") int semana,
@@ -68,6 +75,7 @@ public class ProgramacionController {
         int diaSel = (dia == null || dia < 1 || dia > 7) ? diaDeHoy() : dia;
 
         model.addAttribute("diaCopiado", session.getAttribute("diaCopiado"));
+        model.addAttribute("fechaCopiada", session.getAttribute("fechaCopiada"));
 
         if (semana == 0 && diaSel < diaDeHoy()) diaSel = diaDeHoy();
 
@@ -84,9 +92,24 @@ public class ProgramacionController {
             if (p.getTipoTurno() != null) horariosTurno.put(p.getTipoTurno(), p);
         }
 
-        Map<String, Boolean> heredada = new HashMap<>();
-        celdas.forEach((k, c) -> heredada.put(k, agendaService.esHeredada(c)));
-        model.addAttribute("heredada", heredada);
+        Map<String, ProgramacionHorario> base = new HashMap<>();
+        for (ProgramacionHorario c : programacionRepo
+                .findByObjetivoAndDiaSemanaAndFechaIsNull(CELDA, diaSel)) {
+            if (c.getPunto() != null && c.getTipoTurno() != null) {
+                base.put(c.getTipoTurno() + "-" + c.getPunto().getIdPunto(), c);
+            }
+        }
+        Map<String, ProgramacionHorario> ajuste = new HashMap<>();
+        Map<String, Boolean> quitadaEseDia = new HashMap<>();
+        for (ProgramacionHorario c : programacionRepo.findByObjetivoAndFecha(CELDA, fechaSel)) {
+            if (c.getPunto() == null || c.getTipoTurno() == null) continue;
+            String k = c.getTipoTurno() + "-" + c.getPunto().getIdPunto();
+            if (Boolean.FALSE.equals(c.getActivo())) quitadaEseDia.put(k, true);
+            else ajuste.put(k, c);
+        }
+        model.addAttribute("base", base);
+        model.addAttribute("ajuste", ajuste);
+        model.addAttribute("quitadaEseDia", quitadaEseDia);
 
         Map<Long, String> turnoEnCurso = new HashMap<>();
         if (semana == 0 && diaSel == diaDeHoy()) {
@@ -140,6 +163,7 @@ public class ProgramacionController {
         model.addAttribute("puntos", puntos);
         model.addAttribute("tiposTurno", TurnoService.TIPOS);
         model.addAttribute("dias", DIAS);
+        model.addAttribute("diaPlural", enPlural(nombreDia(diaSel)));
         model.addAttribute("diaSel", diaSel);
         model.addAttribute("hoyDia", diaDeHoy());
         model.addAttribute("celdas", celdas);
@@ -445,7 +469,10 @@ public class ProgramacionController {
         celda.setActivo(true);
         programacionRepo.save(celda);
 
-        if (diaSemana == diaDeHoy()) aplicarAgendaDeHoy(punto);
+        if (diaSemana == diaDeHoy()) {
+            aplicarAgendaDeHoy(punto);
+            if (programacionScheduler != null) programacionScheduler.ponerAlDia();
+        }
 
         flash.addFlashAttribute("ok", punto.getNombre() + " · " + tipoTurno.toLowerCase()
                 + " de los " + nombreDia(diaSemana) + ": " + textoHora(horaInicio) + " a " + textoHora(horaFin)
@@ -466,8 +493,9 @@ public class ProgramacionController {
             return volverAlDia(diaSemana, fecha);
         }
         session.setAttribute("diaCopiado", diaSemana);
-        flash.addFlashAttribute("ok", "Programación de los " + nombreDia(diaSemana)
-                + " copiada. Navega al día donde quieras pegarla y pulsa \"Pegar Día\".");
+        session.setAttribute("fechaCopiada", diaOrigen);
+        flash.addFlashAttribute("ok", "Copiado el " + diaOrigen + " (" + nombreDia(diaSemana)
+                + "). Navega al día donde quieras pegarlo y pulsa \"Pegar Día\": ese día quedará igual a este.");
         return volverAlDia(diaSemana, fecha);
     }
 
@@ -482,30 +510,22 @@ public class ProgramacionController {
             return volverAlDia(diaSemana, fecha);
         }
         int origen = (Integer) copiado;
-        if (origen == diaSemana) {
+        Object fechaGuardada = session.getAttribute("fechaCopiada");
+        java.time.LocalDate fechaOrigen = (fechaGuardada instanceof java.time.LocalDate f)
+                ? f : proximaFechaDe(origen);
+        java.time.LocalDate fechaDestino = (fecha != null) ? fecha : proximaFechaDe(diaSemana);
+
+        if (fechaOrigen.equals(fechaDestino)) {
             flash.addFlashAttribute("error", "Estás en el mismo día que copiaste: navega a otro día para pegar.");
             return volverAlDia(diaSemana, fecha);
         }
-        int pegadas = 0;
 
-        for (ProgramacionHorario o : programacionRepo.findByObjetivoAndDiaSemana("TURNO", origen)) {
-            ProgramacionHorario c = programacionRepo
-                    .findFirstByObjetivoAndTipoTurnoAndDiaSemana("TURNO", o.getTipoTurno(), diaSemana)
-                    .orElseGet(ProgramacionHorario::new);
-            c.setObjetivo("TURNO");
-            c.setTipoTurno(o.getTipoTurno());
-            c.setDiaSemana(diaSemana);
-            c.setHoraInicio(o.getHoraInicio());
-            c.setHoraFin(o.getHoraFin());
-            c.setActivo(true);
-            programacionRepo.save(c);
-            pegadas++;
-        }
+        Map<String, ProgramacionHorario> loQueDebeQuedar = agendaService.celdasDe(fechaOrigen);
+        Map<String, ProgramacionHorario> loQueHayHoy = agendaService.celdasDe(fechaDestino);
 
-        java.time.LocalDate fechaOrigen = proximaFechaDe(origen);
-        java.time.LocalDate fechaDestino = (fecha != null) ? fecha : proximaFechaDe(diaSemana);
+        int pegadas = 0, retiradas = 0;
 
-        for (ProgramacionHorario o : agendaService.listaDe(fechaOrigen)) {
+        for (ProgramacionHorario o : loQueDebeQuedar.values()) {
             if (o.getPunto() == null) continue;
             ProgramacionHorario c = programacionRepo
                     .findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndFecha(
@@ -523,8 +543,35 @@ public class ProgramacionController {
             programacionRepo.save(c);
             pegadas++;
         }
-        flash.addFlashAttribute("ok", "Pegado: la programación de los " + nombreDia(origen)
-                + " ahora también aplica a los " + nombreDia(diaSemana) + " (" + pegadas + " casilla(s)).");
+
+        for (var sobrante : loQueHayHoy.entrySet()) {
+            if (loQueDebeQuedar.containsKey(sobrante.getKey())) continue;
+            ProgramacionHorario o = sobrante.getValue();
+            if (o.getPunto() == null) continue;
+            ProgramacionHorario c = programacionRepo
+                    .findFirstByObjetivoAndPuntoIdPuntoAndTipoTurnoAndFecha(
+                            CELDA, o.getPunto().getIdPunto(), o.getTipoTurno(), fechaDestino)
+                    .orElseGet(ProgramacionHorario::new);
+            c.setObjetivo(CELDA);
+            c.setPunto(o.getPunto());
+            c.setTipoTurno(o.getTipoTurno());
+            c.setDiaSemana(diaSemana);
+            c.setFecha(fechaDestino);
+            c.setHoraInicio(null);
+            c.setHoraFin(null);
+            c.setCajero(null);
+            c.setActivo(false);
+            programacionRepo.save(c);
+            retiradas++;
+        }
+
+        String msg = "Pegado: el " + fechaDestino + " quedó igual que el " + fechaOrigen
+                + " (" + pegadas + " entrada(s)).";
+        if (retiradas > 0) {
+            msg += " Se quitaron " + retiradas + " entrada(s) que el día de origen no tenía.";
+        }
+        msg += " El horario base de los " + nombreDia(diaSemana) + " no se tocó.";
+        flash.addFlashAttribute("ok", msg);
         return volverAlDia(diaSemana, fecha);
     }
 
@@ -561,5 +608,10 @@ public class ProgramacionController {
     private String nombreDia(Integer dia) {
         if (dia == null || dia < 1 || dia > 7) return "";
         return DIAS.get(dia - 1).toLowerCase();
+    }
+
+    private String enPlural(String dia) {
+        if (dia == null || dia.isBlank()) return "";
+        return dia.endsWith("o") ? dia + "s" : dia;
     }
 }

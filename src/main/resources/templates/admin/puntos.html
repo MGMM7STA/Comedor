@@ -278,14 +278,14 @@
                 </div>
                 <div class="col-md-3">
                     <div class="stat-box"
-                         th:title="${#lists.isEmpty(eventosHoy)} ? 'Hoy no hay ningún evento aprobado'
-                                 : 'Raciones adicionales por eventos aprobados de hoy'">
+                         th:title="${#lists.isEmpty(eventosHoy)} ? 'Hoy no hay ningún entrega aprobada'
+                                 : 'Raciones adicionales por entregas aprobadas de hoy'">
                         <div class="stat-num" style="color:#e67e22;"
                              th:text="${#lists.isEmpty(eventosHoy)} ? '—' : ${eventoHoyRaciones}">32</div>
                         <div class="stat-lbl">
-                            <span th:if="${#lists.isEmpty(eventosHoy)}">Sin eventos hoy</span>
+                            <span th:if="${#lists.isEmpty(eventosHoy)}">Sin entregas hoy</span>
                             <span th:unless="${#lists.isEmpty(eventosHoy)}"
-                                  th:text="'Evento: ' + ${eventosHoy[0].nombreConComida}">Evento: Excursión</span>
+                                  th:text="'Entrega: ' + ${eventosHoy[0].nombreConComida}">Entrega: Excursión</span>
                         </div>
                     </div>
                 </div>

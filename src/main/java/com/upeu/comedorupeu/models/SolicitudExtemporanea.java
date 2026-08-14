@@ -9,8 +9,7 @@ import java.time.LocalDateTime;
 @Entity
 
 @Table(name = "solicitud_extemporanea", indexes = {
-        @Index(name = "idx_solicitud_fecha_estado", columnList = "fecha, estado"),
-        @Index(name = "idx_solicitud_grupo", columnList = "grupoLote")
+        @Index(name = "idx_solicitud_fecha_estado", columnList = "fecha, estado")
 })
 @Data
 public class SolicitudExtemporanea {
@@ -40,8 +39,6 @@ public class SolicitudExtemporanea {
     private String entregadoA;
 
     private LocalDateTime fechaHoraEntrega;
-
-    private String grupoLote;
 
     private Boolean traeTaper = false;
 

@@ -6,7 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface IncidenciaRepository extends JpaRepository<Incidencia, Long> {
-    List<Incidencia> findTop10ByOrderByFechaHoraDesc();
     List<Incidencia> findTop30ByOrderByFechaHoraDesc();
     List<Incidencia> findTop30ByTipoOrderByFechaHoraDesc(String tipo);
 

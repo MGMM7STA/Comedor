@@ -58,7 +58,4 @@ public class AgendaService {
         return propias;
     }
 
-    public boolean esHeredada(ProgramacionHorario celda) {
-        return celda != null && celda.getFecha() == null;
-    }
 }
