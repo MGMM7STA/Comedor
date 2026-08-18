@@ -17,6 +17,14 @@ public class ManejadorErrores {
         return "redirect:" + volverA(peticion);
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public String archivoDemasiadoGrande(HttpServletRequest peticion, RedirectAttributes flash) {
+        flash.addFlashAttribute("error",
+                "Esa imagen pesa demasiado (el límite es 30 MB). Vuelve a tomarla con menos "
+                        + "calidad o elige otra: el sistema ya la comprime solo, no hace falta que sea HD.");
+        return "redirect:" + volverA(peticion);
+    }
+
     private String volverA(HttpServletRequest peticion) {
         String anterior = peticion.getHeader("Referer");
         if (anterior != null) {

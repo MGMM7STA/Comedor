@@ -46,11 +46,17 @@ public class ReparadorDatos implements CommandLineRunner {
     public void run(String... args) {
         revisarCajerosDelHorario();
 
+        int evidencias = imagenService.encogerEvidencias();
+        if (evidencias > 0) {
+            System.out.println(">> " + evidencias + " evidencia(s) de ausencia o dieta se comprimieron.");
+        }
+
         List<Residente> todos = residenteRepo.findAll();
         if (todos.isEmpty()) return;
 
         sellarFechasDeRegistro(todos);
         renombrarFotos(todos);
+        encogerFotosPesadas(todos);
         normalizarCarreras(todos);
     }
 
@@ -167,6 +173,50 @@ public class ReparadorDatos implements CommandLineRunner {
                     + "así que no hay ningún dato para deducir cuándo se registraron. Se dejaron intactos.");
         }
     }
+
+    private void encogerFotosPesadas(List<Residente> todos) {
+        int encogidas = 0;
+        long antes = 0, despues = 0;
+
+        for (Residente r : todos) {
+            if (r.getFotoUrl() == null || r.getFotoUrl().isBlank()) continue;
+            try {
+                long pesaba = pesoDe(r.getFotoUrl());
+                String nueva = imagenService.encoger(r);
+                if (nueva == null) continue;
+
+                r.setFotoUrl(nueva);
+                residenteRepo.save(r);
+                encogidas++;
+                antes += pesaba;
+                despues += pesoDe(nueva);
+            } catch (Exception e) {
+                System.out.println(">> No se pudo comprimir la foto de " + r.getNombreCompleto()
+                        + " (" + e.getMessage() + ")");
+            }
+        }
+
+        if (encogidas > 0) {
+            System.out.println(">> " + encogidas + " foto(s) de residente se ajustaron: "
+                    + com.upeu.comedorupeu.services.ImagenService.enKb(antes) + " -> "
+                    + com.upeu.comedorupeu.services.ImagenService.enKb(despues) + ".");
+        }
+
+    }
+
+    private long pesoDe(String url) {
+        if (url == null || url.isBlank()) return 0;
+        try {
+            java.nio.file.Path archivo = java.nio.file.Paths.get(carpetaFotos).toAbsolutePath()
+                    .resolve(url.substring(url.lastIndexOf('/') + 1));
+            return java.nio.file.Files.exists(archivo) ? java.nio.file.Files.size(archivo) : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    @org.springframework.beans.factory.annotation.Value("${app.upload.dir}")
+    private String carpetaFotos;
 
     private void renombrarFotos(List<Residente> todos) {
         int renombradas = 0;

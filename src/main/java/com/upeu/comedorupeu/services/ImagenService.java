@@ -5,6 +5,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,6 +26,11 @@ public class ImagenService {
 
     @Value("${app.upload.dir}")
     private String uploadDir;
+
+    private static final int LADO_FOTO = 800;
+    private static final int LADO_EVIDENCIA = 1600;
+    private static final long PESO_ACEPTABLE = 200L * 1024L;
+    private static final float CALIDAD = 0.82f;
 
     public String guardar(MultipartFile file, Residente residente) throws IOException {
         if (file == null || file.isEmpty()) return null;
@@ -35,8 +50,11 @@ public class ImagenService {
 
         borrarAnterior(dir, residente);
 
-        String nombre = nombreLibre(dir, residente, ext, null);
-        Files.write(dir.resolve(nombre), datos);
+        byte[] listos = comprimir(datos, ext, LADO_FOTO);
+        String extFinal = (listos == datos && !yaEsJpeg(listos)) ? ext : "jpg";
+
+        String nombre = nombreLibre(dir, residente, extFinal, null);
+        Files.write(dir.resolve(nombre), listos);
         return "/uploads/" + nombre;
     }
 
@@ -56,9 +74,122 @@ public class ImagenService {
         Path dir = Paths.get(uploadDir).toAbsolutePath();
         Files.createDirectories(dir);
 
-        String nombre = prefijo + "_" + System.currentTimeMillis() + "." + ext;
-        Files.write(dir.resolve(nombre), datos);
+        byte[] listos = comprimir(datos, ext, LADO_EVIDENCIA);
+        String extFinal = (listos == datos) ? ext : "jpg";
+
+        String nombre = prefijo + "_" + System.currentTimeMillis() + "." + extFinal;
+        Files.write(dir.resolve(nombre), listos);
         return "/uploads/" + nombre;
+    }
+
+    public byte[] comprimir(byte[] datos, String ext, int ladoMaximo) {
+        if (datos == null || datos.length == 0) return datos;
+        if ("webp".equals(ext)) return datos;
+
+        try {
+            BufferedImage original = ImageIO.read(new ByteArrayInputStream(datos));
+            if (original == null) return datos;
+
+            int ancho = original.getWidth();
+            int alto = original.getHeight();
+            int lado = Math.max(ancho, alto);
+
+            boolean cabeDeLado = lado <= ladoMaximo;
+            if (cabeDeLado && yaEsJpeg(datos)) return datos;
+            if (cabeDeLado && datos.length <= PESO_ACEPTABLE) return datos;
+
+            double escala = (lado > ladoMaximo) ? (double) ladoMaximo / lado : 1.0;
+            int nuevoAncho = Math.max(1, (int) Math.round(ancho * escala));
+            int nuevoAlto = Math.max(1, (int) Math.round(alto * escala));
+
+            BufferedImage destino = new BufferedImage(nuevoAncho, nuevoAlto, BufferedImage.TYPE_INT_RGB);
+            Graphics2D lienzo = destino.createGraphics();
+            lienzo.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            lienzo.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            lienzo.setColor(Color.WHITE);
+            lienzo.fillRect(0, 0, nuevoAncho, nuevoAlto);
+            lienzo.drawImage(original, 0, 0, nuevoAncho, nuevoAlto, null);
+            lienzo.dispose();
+
+            byte[] salida = aJpeg(destino);
+            return (salida != null && salida.length > 0 && salida.length < datos.length) ? salida : datos;
+        } catch (Exception e) {
+            return datos;
+        }
+    }
+
+    private boolean yaEsJpeg(byte[] datos) {
+        return datos != null && datos.length > 3
+                && (datos[0] & 0xFF) == 0xFF && (datos[1] & 0xFF) == 0xD8 && (datos[2] & 0xFF) == 0xFF;
+    }
+
+    private byte[] aJpeg(BufferedImage imagen) throws IOException {
+        var escritores = ImageIO.getImageWritersByFormatName("jpg");
+        if (!escritores.hasNext()) return null;
+
+        ImageWriter escritor = escritores.next();
+        ByteArrayOutputStream salida = new ByteArrayOutputStream();
+        try (var destino = ImageIO.createImageOutputStream(salida)) {
+            escritor.setOutput(destino);
+            ImageWriteParam parametros = escritor.getDefaultWriteParam();
+            if (parametros.canWriteCompressed()) {
+                parametros.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                parametros.setCompressionQuality(CALIDAD);
+            }
+            escritor.write(null, new IIOImage(imagen, null, null), parametros);
+        } finally {
+            escritor.dispose();
+        }
+        return salida.toByteArray();
+    }
+
+    public String encoger(Residente residente) throws IOException {
+        String url = residente.getFotoUrl();
+        if (url == null || url.isBlank()) return null;
+
+        Path dir = Paths.get(uploadDir).toAbsolutePath();
+        String actual = url.substring(url.lastIndexOf('/') + 1);
+        Path archivo = dir.resolve(actual);
+        if (!Files.exists(archivo)) return null;
+
+        byte[] datos = Files.readAllBytes(archivo);
+        byte[] listos = comprimir(datos, obtenerExtension(actual), LADO_FOTO);
+
+        String sinExtension = actual.contains(".") ? actual.substring(0, actual.lastIndexOf('.')) : actual;
+        String nombre = sinExtension + ".jpg";
+        boolean cambiaNombre = yaEsJpeg(listos) && !nombre.equals(actual);
+        if (listos == datos && !cambiaNombre) return null;
+
+        Files.write(dir.resolve(nombre), listos);
+        if (!nombre.equals(actual)) Files.deleteIfExists(archivo);
+        return "/uploads/" + nombre;
+    }
+
+    public static String enKb(long bytes) {
+        return Math.max(1L, Math.round(bytes / 1024.0)) + " KB";
+    }
+
+    public int encogerEvidencias() {
+        Path dir = Paths.get(uploadDir).toAbsolutePath();
+        if (!Files.isDirectory(dir)) return 0;
+
+        int tocadas = 0;
+        try (var archivos = Files.list(dir)) {
+            for (Path archivo : archivos.toList()) {
+                String nombre = archivo.getFileName().toString();
+                if (!nombre.startsWith("ausencia_") && !nombre.startsWith("dieta_")) continue;
+
+                byte[] datos = Files.readAllBytes(archivo);
+                byte[] listos = comprimir(datos, obtenerExtension(nombre), LADO_EVIDENCIA);
+                if (listos == datos) continue;
+
+                Files.write(archivo, listos);
+                tocadas++;
+            }
+        } catch (IOException e) {
+            System.out.println(">> No se pudieron revisar las evidencias: " + e.getMessage());
+        }
+        return tocadas;
     }
 
     public String corregirNombre(Residente residente) throws IOException {

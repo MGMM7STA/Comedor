@@ -280,7 +280,7 @@
                                 <i class="fa-solid fa-user-tie me-1"></i>Entregar al preceptor/monitor
                             </label>
                         </div>
-                        <button class="btnPrincipal btn btn-lg fw-bold" style="background:#2980b9; color:#fff;"
+                        <button class="btnPrincipal btnReservaOtroTurno btn btn-lg fw-bold" style="background:#2980b9; color:#fff;"
                                 title="Registrar la entrega de esta ración reservada">
                             <i class="fa-solid fa-check me-2"></i>Entregar reserva
                         </button>
@@ -542,7 +542,8 @@
 
     function iniciarCajero() {
 
-        const btn = document.querySelector('.btnPrincipal');
+        const btn = document.querySelector('.btnPrincipal:not(.btnReservaOtroTurno)')
+                 || document.querySelector('.btnPrincipal');
         const buscador = document.getElementById('buscadorCodigo');
         const justif = document.getElementById('justificacionDoble');
 
